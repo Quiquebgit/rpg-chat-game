@@ -1,14 +1,65 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { characters } from '../data/characters'
+import { supabase } from '../lib/supabase'
 import CharacterCard from '../components/CharacterCard'
 
-// Pantalla de selección de personaje
-function CharacterSelect({ onConfirm }) {
+function CharacterSelect({ session, playerId, onConfirm }) {
   const [selected, setSelected] = useState(null)
+  // Mapa de characterId → { claimedBy, isActive } — fuente de verdad: BD vía Realtime
+  const [claimedBy, setClaimedBy] = useState({})
+
+  // Cargar y suscribirse a cambios en session_character_state
+  useEffect(() => {
+    if (!session) return
+
+    loadClaimedCharacters()
+
+    const sub = supabase
+      .channel(`claimed:${session.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'session_character_state', filter: `session_id=eq.${session.id}` },
+        (payload) => {
+          setClaimedBy(prev => ({
+            ...prev,
+            [payload.new.character_id]: { claimedBy: payload.new.claimed_by, isActive: payload.new.is_active },
+          }))
+        }
+      )
+      .subscribe()
+
+    return () => sub.unsubscribe()
+  }, [session?.id])
+
+  async function loadClaimedCharacters() {
+    const { data, error } = await supabase
+      .from('session_character_state')
+      .select('character_id, claimed_by, is_active')
+      .eq('session_id', session.id)
+
+    if (error) console.error('Error cargando personajes reclamados:', error)
+    else {
+      const map = {}
+      data.forEach(row => { map[row.character_id] = { claimedBy: row.claimed_by, isActive: row.is_active } })
+      setClaimedBy(map)
+    }
+  }
+
+  function handleSelect(character) {
+    const state = claimedBy[character.id]
+    const takenByOther = state?.isActive && state?.claimedBy !== playerId
+    if (!takenByOther) setSelected(character)
+  }
+
+  function getCardStatus(character) {
+    const state = claimedBy[character.id]
+    if (!state?.isActive) return 'free'
+    if (state.claimedBy === playerId) return 'mine'
+    return 'taken'
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 text-white px-6 py-10">
-      {/* Cabecera */}
       <div className="text-center mb-10">
         <h1 className="text-4xl font-bold text-amber-300 tracking-wide">⚓ Elige tu personaje</h1>
         <p className="text-gray-500 mt-2 text-sm">
@@ -16,19 +67,28 @@ function CharacterSelect({ onConfirm }) {
         </p>
       </div>
 
-      {/* Grid de cartas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">
-        {characters.map((character) => (
-          <CharacterCard
-            key={character.id}
-            character={character}
-            selected={selected?.id === character.id}
-            onSelect={setSelected}
-          />
-        ))}
+        {characters.map((character) => {
+          const status = getCardStatus(character)
+          return (
+            <div key={character.id} className="relative">
+              {/* Overlay para personajes ocupados por otro jugador */}
+              {status === 'taken' && (
+                <div className="absolute inset-0 z-10 rounded-xl bg-gray-950/70 flex items-center justify-center">
+                  <p className="text-xs font-bold uppercase tracking-widest text-gray-500">En juego</p>
+                </div>
+              )}
+              <CharacterCard
+                character={character}
+                selected={selected?.id === character.id}
+                onSelect={status !== 'taken' ? handleSelect : () => {}}
+                disabled={status === 'taken'}
+              />
+            </div>
+          )
+        })}
       </div>
 
-      {/* Botón de confirmar */}
       <div className="text-center mt-10">
         <button
           onClick={() => selected && onConfirm(selected)}

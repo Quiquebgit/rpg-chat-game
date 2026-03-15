@@ -2,15 +2,43 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { characters } from '../data/characters'
 
-// Gestiona el ciclo de vida de la sesión: detectar activa, crear nueva, abandonar
+// Genera un id único por pestaña, persistido en sessionStorage
+// sessionStorage se mantiene al refrescar pero no se comparte entre pestañas
+function getPlayerId() {
+  let id = sessionStorage.getItem('rpg_player_id')
+  if (!id) {
+    id = crypto.randomUUID()
+    sessionStorage.setItem('rpg_player_id', id)
+  }
+  return id
+}
+
 export function useSession() {
   const [session, setSession] = useState(null)
-  const [activeSession, setActiveSession] = useState(null) // sesión activa encontrada al entrar
+  const [activeSession, setActiveSession] = useState(null)
   const [loading, setLoading] = useState(true)
+  const playerId = getPlayerId()
 
+  // Comprobar sesión activa al montar
   useEffect(() => {
     checkForActiveSession()
   }, [])
+
+  // Suscribirse a cambios en la sesión (turno, estado) cuando tengamos session.id
+  useEffect(() => {
+    if (!session?.id) return
+
+    const sub = supabase
+      .channel(`session-updates:${session.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${session.id}` },
+        (payload) => setSession(prev => ({ ...prev, ...payload.new }))
+      )
+      .subscribe()
+
+    return () => sub.unsubscribe()
+  }, [session?.id])
 
   async function checkForActiveSession() {
     const { data, error } = await supabase
@@ -24,20 +52,18 @@ export function useSession() {
     if (error) console.error('Error comprobando sesión activa:', error)
 
     if (data) {
-      setActiveSession(data) // hay sesión activa → mostrar modal
+      setActiveSession(data)
     } else {
-      await createNewSession() // sin sesión activa → crear directamente
+      await createNewSession()
     }
     setLoading(false)
   }
 
-  // Continuar con la sesión activa existente
   async function continueSession() {
     setSession(activeSession)
     setActiveSession(null)
   }
 
-  // Abandonar la sesión activa y crear una nueva
   async function abandonAndCreate() {
     await supabase
       .from('sessions')
@@ -48,7 +74,6 @@ export function useSession() {
     await createNewSession()
   }
 
-  // Crear sesión nueva con todos los personajes inicializados
   async function createNewSession() {
     const turnOrder = characters.map(c => c.id)
 
@@ -67,7 +92,6 @@ export function useSession() {
       return
     }
 
-    // Inicializar el estado de cada personaje en la sesión
     const characterStates = characters.map(c => ({
       session_id: newSession.id,
       character_id: c.id,
@@ -75,14 +99,30 @@ export function useSession() {
       inventory: [],
     }))
 
-    const { error: stateError } = await supabase
-      .from('session_character_state')
-      .insert(characterStates)
-
-    if (stateError) console.error('Error inicializando personajes:', stateError)
-
+    await supabase.from('session_character_state').insert(characterStates)
     setSession(newSession)
   }
 
-  return { session, activeSession, loading, continueSession, abandonAndCreate }
+  // Reclamar un personaje — la guard de ocupación la hace CharacterSelect vía Presence
+  async function claimCharacter(sessionId, characterId) {
+    const { error } = await supabase
+      .from('session_character_state')
+      .update({ claimed_by: playerId, is_active: true })
+      .eq('session_id', sessionId)
+      .eq('character_id', characterId)
+
+    if (error) console.error('Error reclamando personaje:', error)
+    return !error
+  }
+
+  // Marcar el personaje de este jugador como inactivo (al salir)
+  async function releaseCharacter(sessionId) {
+    await supabase
+      .from('session_character_state')
+      .update({ is_active: false })
+      .eq('session_id', sessionId)
+      .eq('claimed_by', playerId)
+  }
+
+  return { session, activeSession, loading, playerId, continueSession, abandonAndCreate, claimCharacter, releaseCharacter }
 }
