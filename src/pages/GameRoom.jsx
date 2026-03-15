@@ -1,52 +1,27 @@
-import { useState } from 'react'
-
-// Mensajes de ejemplo para visualizar el diseño
-const MOCK_MESSAGES = [
-  {
-    id: 1,
-    type: 'narrator',
-    character_id: 'narrator',
-    content: 'El viento azota las velas del Marea Roja mientras os aproximáis a la isla de Kael. Desde la cofa, Lissa divisa una columna de humo negro en el puerto. Algo no va bien. ¿Qué hacéis, Darro?'
-  },
-  {
-    id: 2,
-    type: 'player',
-    character_id: 'darro',
-    characterName: 'Darro',
-    content: 'Ordeno bajar las velas a media asta y acercarnos con cautela. Le digo a Crann que se suba a la cofa con la ballesta lista.'
-  },
-  {
-    id: 3,
-    type: 'narrator',
-    character_id: 'narrator',
-    content: 'Crann asiente y trepa ágilmente. Desde arriba, describe tres barcos hundidos y siluetas moviéndose entre los restos. Parecen soldados marinos. El puerto está tomado.'
-  },
-  {
-    id: 4,
-    type: 'player',
-    character_id: 'shin',
-    characterName: 'Shin',
-    content: 'Me apoyo en la borda y desenvuelvo la espada. Si son marinos, ya saben que estamos aquí.'
-  },
-]
+import { useState, useEffect, useRef } from 'react'
+import { useSession } from '../hooks/useSession'
+import { useMessages } from '../hooks/useMessages'
+import { characters as allCharacters } from '../data/characters'
+import SessionModal from '../components/SessionModal'
 
 function GameRoom({ character }) {
-  const [messages, setMessages] = useState(MOCK_MESSAGES)
   const [input, setInput] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const messagesEndRef = useRef(null)
 
-  function handleSend() {
+  const { session, activeSession, loading, continueSession, abandonAndCreate } = useSession()
+  const { messages, sending, sendMessage } = useMessages(session, character)
+
+  // Scroll automático al último mensaje
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  async function handleSend() {
     const text = input.trim()
-    if (!text) return
-
-    setMessages(prev => [...prev, {
-      id: prev.length + 1,
-      type: 'player',
-      character_id: character.id,
-      characterName: character.name,
-      content: text,
-    }])
+    if (!text || sending) return
     setInput('')
+    await sendMessage(text)
   }
 
   function handleKeyDown(e) {
@@ -56,10 +31,24 @@ function GameRoom({ character }) {
     }
   }
 
+  // Pantalla de carga mientras se comprueba/crea la sesión
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-gray-950 text-white items-center justify-center">
+        <p className="text-amber-400 animate-pulse">Preparando la aventura…</p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
 
-      {/* Overlay móvil al abrir el panel */}
+      {/* Modal de sesión activa */}
+      {activeSession && (
+        <SessionModal onContinue={continueSession} onAbandon={abandonAndCreate} />
+      )}
+
+      {/* Overlay móvil */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-10 md:hidden"
@@ -145,22 +134,34 @@ function GameRoom({ character }) {
 
       </aside>
 
-      {/* Área principal de chat — margen izquierdo en móvil para la lengüeta */}
+      {/* Área principal de chat */}
       <main className="flex flex-col flex-1 min-w-0 md:ml-0 ml-7">
 
         {/* Cabecera */}
         <header className="border-b border-gray-800 px-6 py-4 shrink-0">
           <h1 className="text-lg font-bold text-amber-300">⚓ La aventura comienza</h1>
-          <p className="text-xs text-gray-500">Sesión activa</p>
+          <p className="text-xs text-gray-500">
+            {session ? `Sesión activa` : 'Cargando…'}
+          </p>
         </header>
 
         {/* Lista de mensajes */}
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
+          {messages.length === 0 && !sending && (
+            <p className="text-center text-gray-700 text-sm italic mt-8">El narrador está preparando la escena…</p>
+          )}
           {messages.map(msg => (
             msg.type === 'narrator'
               ? <NarratorMessage key={msg.id} content={msg.content} />
-              : <PlayerMessage key={msg.id} name={msg.characterName} content={msg.content} isOwn={msg.character_id === character.id} />
+              : <PlayerMessage
+                  key={msg.id}
+                  name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
+                  content={msg.content}
+                  isOwn={msg.character_id === character.id}
+                />
           ))}
+          {sending && <NarratorTyping />}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Input */}
@@ -173,11 +174,12 @@ function GameRoom({ character }) {
               onKeyDown={handleKeyDown}
               placeholder="¿Qué hace tu personaje?"
               rows={2}
-              className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-amber-500"
+              disabled={sending || !session}
+              className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-amber-500 disabled:opacity-40"
             />
             <button
               onClick={handleSend}
-              disabled={!input.trim()}
+              disabled={!input.trim() || sending || !session}
               className="px-4 rounded-lg font-bold text-sm bg-amber-400 text-gray-900 hover:bg-amber-300 disabled:bg-gray-800 disabled:text-gray-600 transition-colors shrink-0"
             >
               Enviar
@@ -191,7 +193,7 @@ function GameRoom({ character }) {
   )
 }
 
-// Mensaje del narrador — destacado, centrado, distinto
+// Mensaje del narrador
 function NarratorMessage({ content }) {
   return (
     <div className="flex flex-col items-center gap-1 px-4">
@@ -203,7 +205,19 @@ function NarratorMessage({ content }) {
   )
 }
 
-// Mensaje de jugador — alineado según si es propio o de otro
+// Indicador de que el narrador está escribiendo
+function NarratorTyping() {
+  return (
+    <div className="flex flex-col items-center gap-1 px-4">
+      <span className="text-xs uppercase tracking-widest text-amber-500/60">Narrador</span>
+      <div className="bg-gray-900 border border-amber-400/20 rounded-xl px-5 py-3">
+        <span className="text-amber-400/60 animate-pulse text-sm italic">Narrando…</span>
+      </div>
+    </div>
+  )
+}
+
+// Mensaje de jugador
 function PlayerMessage({ name, content, isOwn }) {
   return (
     <div className={`flex flex-col gap-1 max-w-xl ${isOwn ? 'self-end items-end' : 'self-start items-start'}`}>
@@ -215,7 +229,7 @@ function PlayerMessage({ name, content, isOwn }) {
   )
 }
 
-// Stat en el panel lateral con puntos de color
+// Stat en el panel lateral
 function StatRow({ icon, label, value, color }) {
   return (
     <div>
