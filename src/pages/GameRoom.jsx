@@ -33,6 +33,7 @@ const MOCK_MESSAGES = [
 function GameRoom({ character }) {
   const [messages, setMessages] = useState(MOCK_MESSAGES)
   const [input, setInput] = useState('')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   function handleSend() {
     const text = input.trim()
@@ -58,8 +59,41 @@ function GameRoom({ character }) {
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
 
+      {/* Overlay móvil al abrir el panel */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-10 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Lengüeta lateral — solo visible en móvil cuando el panel está cerrado */}
+      {!sidebarOpen && (
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="md:hidden fixed left-0 top-0 h-full z-30 w-7 bg-gray-900/80 backdrop-blur border-r border-amber-400/20 flex items-center justify-center"
+          aria-label="Abrir panel de personaje"
+        >
+          <span className="text-amber-400 text-2xl font-light leading-none">›</span>
+        </button>
+      )}
+
       {/* Panel lateral — personaje activo */}
-      <aside className="w-72 shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col p-5 gap-6">
+      <aside className={`
+        fixed md:relative z-20 h-full
+        w-72 shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col pr-7 pl-5 py-6 gap-6
+        transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
+
+        {/* Botón cerrar — solo en móvil */}
+        <button
+          onClick={() => setSidebarOpen(false)}
+          className="md:hidden absolute right-0 top-0 h-full w-7 bg-gray-900/80 backdrop-blur flex items-center justify-center"
+          aria-label="Cerrar panel"
+        >
+          <span className="text-amber-400 text-2xl font-light leading-none">‹</span>
+        </button>
 
         {/* Identidad */}
         <div>
@@ -111,8 +145,8 @@ function GameRoom({ character }) {
 
       </aside>
 
-      {/* Área principal de chat */}
-      <main className="flex flex-col flex-1 min-w-0">
+      {/* Área principal de chat — margen izquierdo en móvil para la lengüeta */}
+      <main className="flex flex-col flex-1 min-w-0 md:ml-0 ml-7">
 
         {/* Cabecera */}
         <header className="border-b border-gray-800 px-6 py-4 shrink-0">
