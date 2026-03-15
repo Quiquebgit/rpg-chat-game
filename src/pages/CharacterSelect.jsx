@@ -3,7 +3,7 @@ import { characters } from '../data/characters'
 import { supabase } from '../lib/supabase'
 import CharacterCard from '../components/CharacterCard'
 
-function CharacterSelect({ session, playerId, onConfirm }) {
+function CharacterSelect({ session, playerId, onConfirm, onBack }) {
   const [selected, setSelected] = useState(null)
   // Mapa de characterId → { claimedBy, isActive } — fuente de verdad: BD vía Realtime
   const [claimedBy, setClaimedBy] = useState({})
@@ -89,7 +89,13 @@ function CharacterSelect({ session, playerId, onConfirm }) {
         })}
       </div>
 
-      <div className="text-center mt-10">
+      <div className="flex items-center justify-center gap-6 mt-10">
+        <button
+          onClick={onBack}
+          className="text-sm text-gray-600 hover:text-gray-400 transition-colors"
+        >
+          ← Volver
+        </button>
         <button
           onClick={() => selected && onConfirm(selected)}
           disabled={!selected}

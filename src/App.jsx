@@ -1,43 +1,89 @@
-import { useState } from 'react'
-import { useSession } from './hooks/useSession'
+import { useState, useEffect } from 'react'
+import { supabase } from './lib/supabase'
+import Lobby from './pages/Lobby'
 import CharacterSelect from './pages/CharacterSelect'
 import GameRoom from './pages/GameRoom'
-import SessionModal from './components/SessionModal'
+
+// Id único por pestaña — persiste al refrescar, no se comparte entre pestañas
+function getPlayerId() {
+  let id = sessionStorage.getItem('rpg_player_id')
+  if (!id) {
+    id = crypto.randomUUID()
+    sessionStorage.setItem('rpg_player_id', id)
+  }
+  return id
+}
+
+const playerId = getPlayerId()
 
 function App() {
+  const [page, setPage] = useState('lobby')
+  const [session, setSession] = useState(null)
   const [character, setCharacter] = useState(null)
-  const { session, activeSession, loading, playerId, continueSession, abandonAndCreate, claimCharacter } = useSession()
+
+  // Suscribirse a cambios de sesión (turno, estado) para mantener GameRoom actualizado
+  useEffect(() => {
+    if (!session?.id) return
+
+    const sub = supabase
+      .channel(`session-updates:${session.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${session.id}` },
+        (payload) => setSession(prev => ({ ...prev, ...payload.new }))
+      )
+      .subscribe()
+
+    return () => sub.unsubscribe()
+  }, [session?.id])
+
+  function handleSessionSelect(selectedSession) {
+    setSession(selectedSession)
+    setPage('select')
+  }
 
   async function handleCharacterConfirm(selectedCharacter) {
-    if (!session) return
-    const ok = await claimCharacter(session.id, selectedCharacter.id)
-    if (ok) setCharacter(selectedCharacter)
+    const { error } = await supabase
+      .from('session_character_state')
+      .update({ claimed_by: playerId, is_active: true })
+      .eq('session_id', session.id)
+      .eq('character_id', selectedCharacter.id)
+
+    if (!error) {
+      setCharacter(selectedCharacter)
+      setPage('game')
+    }
   }
 
-  if (loading) {
+  async function handleLeaveGame() {
+    if (session && character) {
+      await supabase
+        .from('session_character_state')
+        .update({ is_active: false })
+        .eq('session_id', session.id)
+        .eq('character_id', character.id)
+    }
+    setCharacter(null)
+    setSession(null)
+    setPage('lobby')
+  }
+
+  if (page === 'lobby') {
+    return <Lobby onSessionSelect={handleSessionSelect} />
+  }
+
+  if (page === 'select') {
     return (
-      <div className="flex h-screen bg-gray-950 text-white items-center justify-center">
-        <p className="text-amber-400 animate-pulse">Preparando la aventura…</p>
-      </div>
+      <CharacterSelect
+        session={session}
+        playerId={playerId}
+        onConfirm={handleCharacterConfirm}
+        onBack={() => setPage('lobby')}
+      />
     )
   }
 
-  if (!character) {
-    return (
-      <>
-        {activeSession && (
-          <SessionModal onContinue={continueSession} onAbandon={abandonAndCreate} />
-        )}
-        <CharacterSelect
-          session={session}
-          playerId={playerId}
-          onConfirm={handleCharacterConfirm}
-        />
-      </>
-    )
-  }
-
-  return <GameRoom character={character} session={session} />
+  return <GameRoom character={character} session={session} onLeave={handleLeaveGame} />
 }
 
 export default App

@@ -3,7 +3,7 @@ import { useMessages } from '../hooks/useMessages'
 import { usePresence } from '../hooks/usePresence'
 import { characters as allCharacters } from '../data/characters'
 
-function GameRoom({ character, session }) {
+function GameRoom({ character, session, onLeave }) {
   const [input, setInput] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const messagesEndRef = useRef(null)
@@ -124,6 +124,13 @@ function GameRoom({ character, session }) {
           <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">Inventario</p>
           <p className="text-xs text-gray-600 italic">Sin objetos</p>
         </div>
+
+        <button
+          onClick={onLeave}
+          className="mt-auto text-xs text-gray-600 hover:text-gray-400 transition-colors text-left"
+        >
+          ← Volver al lobby
+        </button>
 
       </aside>
 
