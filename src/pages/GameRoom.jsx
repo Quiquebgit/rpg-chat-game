@@ -140,57 +140,67 @@ function GameRoom({ character, session }) {
             <p className="text-center text-gray-700 text-sm italic mt-8">El narrador está preparando la escena…</p>
           )}
           {messages.map((msg, index) => {
-            if (msg.type === 'narrator') {
-              // Mostrar el indicador de turno solo después del último mensaje del narrador
-              const isLast = index === messages.length - 1
+              if (msg.type === 'narrator') {
+                return (
+                  <div key={msg.id} className="flex flex-col items-center gap-2">
+                    <NarratorMessage content={msg.content} />
+                  </div>
+                )
+              }
+              if (msg.type === 'dice') {
+                return (
+                  <DiceMessage
+                    key={msg.id}
+                    name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
+                    content={msg.content}
+                  />
+                )
+              }
+              if (msg.type === 'action') {
+                return (
+                  <ActionMessage
+                    key={msg.id}
+                    name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
+                    content={msg.content}
+                  />
+                )
+              }
+              if (msg.type === 'gm') {
+                return (
+                  <GmMessage
+                    key={msg.id}
+                    name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
+                    content={msg.content}
+                  />
+                )
+              }
               return (
-                <div key={msg.id} className="flex flex-col items-center gap-2">
-                  <NarratorMessage content={msg.content} />
-                  {isLast && !sending && !diceRequest.required && (
-                    <TurnIndicator name={currentTurnName} isMe={isMyTurn} />
-                  )}
-                </div>
-              )
-            }
-            if (msg.type === 'dice') {
-              return (
-                <DiceMessage
+                <PlayerMessage
                   key={msg.id}
                   name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
                   content={msg.content}
+                  isOwn={msg.character_id === character.id}
                 />
               )
-            }
-            if (msg.type === 'action') {
-              return (
-                <ActionMessage
-                  key={msg.id}
-                  name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
-                  content={msg.content}
-                />
-              )
-            }
-            if (msg.type === 'gm') {
-              return (
-                <GmMessage
-                  key={msg.id}
-                  name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
-                  content={msg.content}
-                />
-              )
-            }
-            return (
-              <PlayerMessage
-                key={msg.id}
-                name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
-                content={msg.content}
-                isOwn={msg.character_id === character.id}
-              />
-            )
           })}
           {sending && <NarratorTyping />}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Indicador de turno — siempre visible encima del input */}
+        {!sending && currentTurnName && (
+          <div className={`px-6 py-2 shrink-0 flex items-center justify-center gap-2 border-t ${
+            isMyTurn
+              ? 'border-amber-400/30 bg-amber-400/10'
+              : 'border-gray-800 bg-transparent'
+          }`}>
+            {isMyTurn ? (
+              <p className="text-sm font-bold text-amber-300 tracking-wide">⚔️ Es tu turno, {character.name}</p>
+            ) : (
+              <p className="text-xs text-gray-500">Turno de <span className="text-gray-300 font-semibold">{currentTurnName}</span></p>
+            )}
+          </div>
+        )}
 
         {/* Input / Botón de dados */}
         <div className="border-t border-gray-800 px-6 py-4 shrink-0">
@@ -237,22 +247,6 @@ function GameRoom({ character, session }) {
   )
 }
 
-// Indicador de turno — aparece bajo el último mensaje del narrador
-function TurnIndicator({ name, isMe }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-px flex-1 bg-gray-800" />
-      <p className="text-xs text-gray-500 shrink-0">
-        Turno de{' '}
-        <span className={`font-bold ${isMe ? 'text-amber-400' : 'text-gray-300'}`}>
-          {name}
-        </span>
-        {isMe && <span className="text-amber-400"> — es tu momento</span>}
-      </p>
-      <div className="h-px flex-1 bg-gray-800" />
-    </div>
-  )
-}
 
 function NarratorMessage({ content }) {
   return (
