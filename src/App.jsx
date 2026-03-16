@@ -50,6 +50,11 @@ function App() {
       .eq('character_id', selectedCharacter.id)
 
     if (!error) {
+      // Reactivar la sesión si estaba archivada
+      if (session.status !== 'active') {
+        await supabase.from('sessions').update({ status: 'active' }).eq('id', session.id)
+        setSession(prev => ({ ...prev, status: 'active' }))
+      }
       setCharacter(selectedCharacter)
       setPage('game')
     }
