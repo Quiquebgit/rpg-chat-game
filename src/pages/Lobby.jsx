@@ -73,14 +73,14 @@ function Lobby({ onSessionSelect }) {
     const { data, error } = await supabase
       .from('sessions')
       .select('*')
-      .order('created_at', { ascending: false })
 
     if (error) console.error('Error cargando sesiones:', error)
     else {
-      // Activas primero, luego archivadas; dentro de cada grupo, más recientes arriba
+      // Ordenar por última actividad desc, luego por fecha de inicio desc
       const sorted = (data || []).sort((a, b) => {
-        if (a.status === b.status) return 0
-        return a.status === 'active' ? -1 : 1
+        const byActivity = new Date(b.updated_at) - new Date(a.updated_at)
+        if (byActivity !== 0) return byActivity
+        return new Date(b.created_at) - new Date(a.created_at)
       })
       setSessions(sorted)
     }
