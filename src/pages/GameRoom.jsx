@@ -268,7 +268,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                 className="flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-lg bg-amber-400 text-gray-900 hover:bg-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <span className="text-2xl">🎲</span>
-                Tirar {diceRequest.count}d6
+                {diceRequest.count === 2 ? 'Tirar los dados' : 'Tirar el dado'}
               </button>
             </div>
           ) : (
