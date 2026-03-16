@@ -58,6 +58,14 @@ function CharacterSelect({ session, playerId, onConfirm, onBack }) {
     return 'taken'
   }
 
+  async function forceRelease(characterId) {
+    await supabase
+      .from('session_character_state')
+      .update({ is_active: false, claimed_by: null })
+      .eq('session_id', session.id)
+      .eq('character_id', characterId)
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 text-white px-6 py-10">
       <div className="text-center mb-10">
@@ -74,8 +82,14 @@ function CharacterSelect({ session, playerId, onConfirm, onBack }) {
             <div key={character.id} className="relative">
               {/* Overlay para personajes ocupados por otro jugador */}
               {status === 'taken' && (
-                <div className="absolute inset-0 z-10 rounded-xl bg-gray-950/70 flex items-center justify-center">
+                <div className="absolute inset-0 z-10 rounded-xl bg-gray-950/70 flex flex-col items-center justify-center gap-2">
                   <p className="text-xs font-bold uppercase tracking-widest text-gray-500">En juego</p>
+                  <button
+                    onClick={() => forceRelease(character.id)}
+                    className="text-xs text-red-800 hover:text-red-500 underline underline-offset-2 transition-colors"
+                  >
+                    Liberar
+                  </button>
                 </div>
               )}
               <CharacterCard

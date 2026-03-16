@@ -3,9 +3,10 @@ import { useMessages } from '../hooks/useMessages'
 import { usePresence } from '../hooks/usePresence'
 import { characters as allCharacters } from '../data/characters'
 
-function GameRoom({ character, session, onLeave }) {
+function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const [input, setInput] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const messagesEndRef = useRef(null)
 
   const { presentIds } = usePresence(session, character)
@@ -47,13 +48,54 @@ function GameRoom({ character, session, onLeave }) {
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
 
-      {/* Overlay móvil */}
+      {/* Overlay sidebar izquierda */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-10 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
+
+      {/* Overlay menú derecho */}
+      {menuOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-20"
+          onClick={() => setMenuOpen(false)}
+        />
+      )}
+
+      {/* Panel menú derecho deslizante */}
+      <nav className={`
+        fixed right-0 top-0 z-30 h-full
+        w-64 bg-gray-900 border-l border-gray-800 flex flex-col py-6 gap-2
+        transition-transform duration-300 ease-in-out
+        ${menuOpen ? 'translate-x-0' : 'translate-x-full'}
+      `}>
+        <div className="flex items-center justify-between px-5 mb-4">
+          <span className="text-xs uppercase tracking-widest text-gray-500">Menú</span>
+          <button
+            onClick={() => setMenuOpen(false)}
+            className="p-1 rounded text-gray-500 hover:text-gray-300 transition-colors"
+            aria-label="Cerrar menú"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <button
+          onClick={() => { setMenuOpen(false); onLeave() }}
+          className="w-full text-left px-5 py-3 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
+        >
+          Pantalla de inicio
+        </button>
+        <button
+          onClick={() => { setMenuOpen(false); onSelectCharacter() }}
+          className="w-full text-left px-5 py-3 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
+        >
+          Selección de personaje
+        </button>
+      </nav>
 
       {/* Lengüeta lateral */}
       {!sidebarOpen && (
@@ -125,21 +167,27 @@ function GameRoom({ character, session, onLeave }) {
           <p className="text-xs text-gray-600 italic">Sin objetos</p>
         </div>
 
-        <button
-          onClick={onLeave}
-          className="mt-auto text-xs text-gray-600 hover:text-gray-400 transition-colors text-left"
-        >
-          ← Volver al lobby
-        </button>
-
       </aside>
 
       {/* Área principal de chat */}
       <main className="flex flex-col flex-1 min-w-0 md:ml-0 ml-7">
 
-        <header className="border-b border-gray-800 px-6 py-4 shrink-0">
-          <h1 className="text-lg font-bold text-amber-300">⚓ La aventura comienza</h1>
-          <p className="text-xs text-gray-600 mt-0.5">Sesión activa</p>
+        <header className="border-b border-gray-800 px-6 py-4 shrink-0 flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-bold text-amber-300">⚓ La aventura comienza</h1>
+            <p className="text-xs text-gray-600 mt-0.5">Sesión activa</p>
+          </div>
+
+          {/* Botón hamburguesa */}
+          <button
+            onClick={() => setMenuOpen(v => !v)}
+            className="p-2 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+            aria-label="Menú"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+          </button>
         </header>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
@@ -244,7 +292,6 @@ function GameRoom({ character, session, onLeave }) {
                   Enviar
                 </button>
               </div>
-              <p className="text-xs text-gray-700 mt-2">Enter para enviar · Shift+Enter para nueva línea</p>
             </>
           )}
         </div>

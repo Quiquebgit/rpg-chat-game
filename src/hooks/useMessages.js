@@ -285,8 +285,10 @@ Narra la respuesta y decide a quién le toca actuar a continuación. Recuerda: r
       let statUpdates = []
 
       try {
-        const cleaned = raw.replace(/^```json\n?/i, '').replace(/```$/, '').trim()
-        const parsed = JSON.parse(cleaned)
+        // Extraer el objeto JSON aunque el modelo añada texto antes/después o code fences
+        const match = raw.match(/\{[\s\S]*\}/)
+        if (!match) throw new Error('No JSON found')
+        const parsed = JSON.parse(match[0])
         isAction = forceAction || parsed.is_action !== false
         narrative = parsed.narrative || raw
         nextCharacterId = parsed.next_character_id || null

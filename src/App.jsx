@@ -55,7 +55,7 @@ function App() {
     }
   }
 
-  async function handleLeaveGame() {
+  async function releaseCharacter() {
     if (session && character) {
       await supabase
         .from('session_character_state')
@@ -64,8 +64,17 @@ function App() {
         .eq('character_id', character.id)
     }
     setCharacter(null)
+  }
+
+  async function handleLeaveGame() {
+    await releaseCharacter()
     setSession(null)
     setPage('lobby')
+  }
+
+  async function handleSelectCharacter() {
+    await releaseCharacter()
+    setPage('select')
   }
 
   if (page === 'lobby') {
@@ -83,7 +92,7 @@ function App() {
     )
   }
 
-  return <GameRoom character={character} session={session} onLeave={handleLeaveGame} />
+  return <GameRoom character={character} session={session} onLeave={handleLeaveGame} onSelectCharacter={handleSelectCharacter} />
 }
 
 export default App
