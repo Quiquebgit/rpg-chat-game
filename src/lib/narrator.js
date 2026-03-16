@@ -45,6 +45,7 @@ Reglas para "is_action":
 - false si el jugador está preguntando, dudando, conversando entre jugadores, pidiendo aclaraciones o simplemente comentando algo sin ejecutar una acción.
 - Cuando is_action es false: "narrative" puede estar vacío y "next_character_id" puede ser null. No narres nada, el turno no avanza.
 - Cuando is_action es true: "narrative" contiene la narración completa y "next_character_id" es el id del siguiente personaje al que interpelarás.
+- **EXCEPCIÓN IMPORTANTE:** Cuando el mensaje contiene "[Instrucción del maestro de juego: ...]", SIEMPRE debes responder con is_action: true, ejecutar la instrucción de inmediato y narrar las consecuencias. Nunca ignores ni pospongas una instrucción del maestro de juego.
 
 Reglas para "dice_required" y "dice_count":
 - Pon dice_required: true cuando el resultado de la acción dependa del azar (combate incierto, maniobra arriesgada, tirada de navegación, etc.).

@@ -4,7 +4,7 @@ import { groq } from '../lib/groq'
 import { NARRATOR_SYSTEM_PROMPT } from '../lib/narrator'
 import { characters as allCharacters } from '../data/characters'
 
-const NARRATOR_CONTEXT_MESSAGES = 20
+const NARRATOR_CONTEXT_MESSAGES = 25
 
 export function useMessages(session, activeCharacter, presentIds = []) {
   const [messages, setMessages] = useState([])
@@ -265,7 +265,7 @@ Narra la respuesta y decide a quién le toca actuar a continuación. Recuerda: r
   async function callGroq(userPrompt, { forceAction = false } = {}) {
     try {
       const completion = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
+        model: 'llama-3.1-8b-instant',
         messages: [
           { role: 'system', content: NARRATOR_SYSTEM_PROMPT },
           { role: 'user', content: userPrompt },
@@ -316,8 +316,9 @@ Narra la respuesta y decide a quién le toca actuar a continuación. Recuerda: r
         setDiceRequest({ required: true, count: diceCount })
       }
 
-      // No cambiar el turno si hay dados pendientes — el turno se actualiza tras la tirada
-      if (!diceRequired && nextCharacterId && allCharacters.some(c => c.id === nextCharacterId)) {
+      // Actualizar el turno siempre que haya next_character_id — si hay dados pendientes,
+      // el turno apunta a quien debe tirar; tras la tirada el narrador lo actualizará de nuevo
+      if (nextCharacterId && allCharacters.some(c => c.id === nextCharacterId)) {
         await supabase
           .from('sessions')
           .update({ current_turn_character_id: nextCharacterId })
