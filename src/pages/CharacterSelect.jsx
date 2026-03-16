@@ -67,7 +67,7 @@ function CharacterSelect({ session, playerId, onConfirm, onBack }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white px-6 py-10">
+    <div className="min-h-screen bg-gray-950 text-white px-6 pt-10 pb-28">
       <div className="text-center mb-10">
         <h1 className="text-4xl font-bold text-amber-300 tracking-wide">⚓ Elige tu personaje</h1>
         <p className="text-gray-500 mt-2 text-sm">
@@ -103,7 +103,8 @@ function CharacterSelect({ session, playerId, onConfirm, onBack }) {
         })}
       </div>
 
-      <div className="flex items-center justify-center gap-6 mt-10">
+      {/* Barra de acción fija en la parte inferior */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gray-950/90 backdrop-blur border-t border-gray-800 px-6 py-4 flex items-center justify-center gap-6">
         <button
           onClick={onBack}
           className="text-sm text-gray-600 hover:text-gray-400 transition-colors"
