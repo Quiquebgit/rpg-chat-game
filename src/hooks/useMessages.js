@@ -272,6 +272,7 @@ Narra la respuesta y decide a quién le toca actuar a continuación. Recuerda: r
         ],
         max_tokens: 600,
         temperature: 0.85,
+        response_format: { type: 'json_object' },
       })
 
       const raw = completion.choices[0]?.message?.content?.trim()
@@ -285,21 +286,35 @@ Narra la respuesta y decide a quién le toca actuar a continuación. Recuerda: r
       let statUpdates = []
 
       try {
-        // Extraer el objeto JSON aunque el modelo añada texto antes/después o code fences
         const match = raw.match(/\{[\s\S]*\}/)
         if (!match) throw new Error('No JSON found')
-        const parsed = JSON.parse(match[0])
+
+        // Intentar parsear; si falla, limpiar comas finales y reintentar
+        let parsed
+        try {
+          parsed = JSON.parse(match[0])
+        } catch {
+          const cleaned = match[0].replace(/,(\s*[}\]])/g, '$1')
+          parsed = JSON.parse(cleaned)
+        }
+
         isAction = forceAction || parsed.is_action !== false
-        narrative = parsed.narrative || raw
+        narrative = parsed.narrative || null
         nextCharacterId = parsed.next_character_id || null
         diceRequired = parsed.dice_required === true
         diceCount = parsed.dice_count === 2 ? 2 : 1
         statUpdates = Array.isArray(parsed.stat_updates) ? parsed.stat_updates : []
       } catch {
-        console.warn('El narrador no devolvió JSON válido, usando respuesta en bruto')
+        // Último recurso: extraer narrative con regex para nunca mostrar JSON en bruto
+        const nm = raw.match(/"narrative"\s*:\s*"((?:[^"\\]|\\.)*)"/)
+        narrative = nm ? nm[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : null
+        if (!narrative) {
+          console.warn('El narrador no devolvió JSON parseable, descartando respuesta')
+          return
+        }
       }
 
-      if (!isAction) return
+      if (!isAction || !narrative) return
 
       await supabase.from('messages').insert({
         session_id: session.id,
