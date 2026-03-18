@@ -8,7 +8,7 @@ App web de rol multijugador cooperativo con chat en tiempo real, ambientada en u
 - **Estilos:** Tailwind CSS v4 (via PostCSS)
 - **Chat en tiempo real:** Supabase Realtime
 - **Base de datos:** Supabase (PostgreSQL)
-- **IA Narrador:** Groq API (`llama-3.3-70b-versatile`)
+- **IA Narrador:** Groq API (`llama-3.1-8b-instant`)
 - **Deploy:** Vercel
 
 ## Variables de entorno
@@ -37,10 +37,16 @@ Sin login. Personajes predefinidos. Foco en que la dinámica funcione.
 - [x] Identificación de jugadores por `playerId` en localStorage
 - [x] Diseño responsive — panel colapsable en móvil
 
+### Implementado (cont.)
+- [x] Tirada de dados — botón visual con emojis de dado, resultado visible para todos
+- [x] Actualización de vida automática con `stat_updates` en el JSON del narrador
+- [x] Lobby con lista de sesiones, gestión (archivar, restaurar, borrar) y orden por actividad
+- [x] Navegación por páginas: lobby → selección de personaje → sala de juego
+- [x] Menú hamburguesa deslizante en GameRoom (pantalla de inicio / selección de personaje)
+- [x] Comandos `/gm` y `/acción` disponibles para todos los jugadores
+- [x] Liberar personajes bloqueados desde la pantalla de selección
+
 ### Pendiente
-- [ ] Tirada de dados — botón en el chat, resultado visible para todos; el narrador lo solicita con `dice_required: true` y `dice_count`
-- [ ] Actualización de vida automática cuando el narrador incluye `stat_updates` en su JSON
-- [ ] Mostrar vida actualizada en el panel lateral de GameRoom en tiempo real
 
 ### Fuera del MVP
 - Login y autenticación, avatares, personajes personalizados
@@ -54,6 +60,8 @@ Sin login. Personajes predefinidos. Foco en que la dinámica funcione.
 
 ## Skills disponibles
 
+Los skills están en `.agents/skills/` (estándar multi-agente) con symlinks en `.claude/skills/`.
+
 ### De referencia — leer antes de tocar esas áreas
 | Skill | Cuándo usarla |
 |---|---|
@@ -65,6 +73,7 @@ Sin login. Personajes predefinidos. Foco en que la dinámica funcione.
 ### De acción — invocar para realizar tareas
 | Skill | Cuándo usarla |
 |---|---|
+| `/frontend-design` | Para mejorar el diseño visual de componentes o páginas |
 | `/simplify` | Después de añadir código nuevo — revisa calidad y eficiencia |
 | `/commit` | Para generar un commit con mensaje bien formateado |
 
