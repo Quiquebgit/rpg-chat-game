@@ -1,32 +1,41 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 // Gestiona Supabase Presence para detectar quién está conectado en tiempo real.
+// Además de la presencia, rastrea quién es participante activo (vs espectador).
 // Si se pasa character, registra presencia activa.
 // Si no, solo observa (útil en CharacterSelect).
 export function usePresence(session, character = null) {
   const [presentIds, setPresentIds] = useState([])
+  const [participantIds, setParticipantIds] = useState([])
+  const [isParticipant, setIsParticipant] = useState(false)
+  const channelRef = useRef(null)
+  // Ref para recordar el estado de participante a través de reconexiones de red
+  const isParticipantRef = useRef(false)
 
   useEffect(() => {
     if (!session?.id) return
 
-    // La clave de presencia es el character_id para identificar quién ocupa cada personaje
     const channelConfig = character?.id
       ? { config: { presence: { key: character.id } } }
       : {}
 
     const channel = supabase.channel(`presence:${session.id}`, channelConfig)
+    channelRef.current = channel
+
+    function syncState() {
+      const state = channel.presenceState()
+      const ids = Object.keys(state)
+      setPresentIds(ids)
+      const pIds = ids.filter(id => state[id]?.some(p => p.isParticipant))
+      setParticipantIds(pIds)
+    }
 
     channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState()
-        setPresentIds(Object.keys(state))
-      })
-      .on('presence', { event: 'join' }, ({ key }) => {
-        setPresentIds(prev => [...new Set([...prev, key])])
-      })
+      .on('presence', { event: 'sync' }, syncState)
+      .on('presence', { event: 'join' }, syncState)
       .on('presence', { event: 'leave' }, async ({ key }) => {
-        setPresentIds(prev => prev.filter(id => id !== key))
+        syncState()
         // Cualquier cliente que detecte la desconexión actualiza is_active en la BD
         await supabase
           .from('session_character_state')
@@ -34,15 +43,43 @@ export function usePresence(session, character = null) {
           .eq('session_id', session.id)
           .eq('character_id', key)
       })
+      // Broadcast que emite el cliente que inicia la partida para marcar a todos los presentes
+      .on('broadcast', { event: 'GAME_STARTED' }, ({ payload }) => {
+        if (character?.id && payload.participantIds?.includes(character.id)) {
+          setIsParticipant(true)
+          channel.track({ character_id: character.id, isParticipant: true })
+        }
+      })
 
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED' && character?.id) {
-        await channel.track({ character_id: character.id })
+        // Al reconectar, restaurar el estado de participante previo (si existía)
+        await channel.track({ character_id: character.id, isParticipant: isParticipantRef.current })
       }
     })
 
-    return () => channel.unsubscribe()
+    return () => {
+      channel.unsubscribe()
+      channelRef.current = null
+    }
   }, [session?.id, character?.id])
 
-  return { presentIds }
+  // Emite un broadcast para que todos los presentes se marquen como participantes
+  function broadcastGameStart(ids) {
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'GAME_STARTED',
+      payload: { participantIds: ids },
+    })
+  }
+
+  // Marca al personaje actual como participante y actualiza su presencia
+  function markAsParticipant() {
+    if (!character?.id || !channelRef.current) return
+    isParticipantRef.current = true
+    setIsParticipant(true)
+    channelRef.current.track({ character_id: character.id, isParticipant: true })
+  }
+
+  return { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant }
 }

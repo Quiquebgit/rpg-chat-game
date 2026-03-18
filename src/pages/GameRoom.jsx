@@ -7,10 +7,28 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const [input, setInput] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [playersOpen, setPlayersOpen] = useState(false)
+  const [actionMode, setActionMode] = useState(true)
   const messagesEndRef = useRef(null)
 
-  const { presentIds } = usePresence(session, character)
-  const { messages, sending, sendMessage, sendAction, sendGmMessage, diceRequest, rollDice, characterStates } = useMessages(session, character, presentIds)
+  const { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant } = usePresence(session, character)
+  const { messages, sending, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, characterStates, startGame, announceEntry } = useMessages(session, character, presentIds)
+
+  const hasStarted = messages.length > 0
+  const isSpectator = hasStarted && !isParticipant
+  const presentedCharacters = allCharacters.filter(c => presentIds.includes(c.id))
+
+  async function handleStartGame() {
+    // Marcar al iniciador y notificar al resto de presentes como participantes
+    markAsParticipant()
+    broadcastGameStart(presentIds)
+    await startGame()
+  }
+
+  async function handleAnnounceEntry() {
+    await announceEntry()
+    markAsParticipant()
+  }
 
   // Estado actual del personaje propio (vida en tiempo real)
   const activeCharacterState = characterStates.find(s => s.character_id === character.id)
@@ -33,6 +51,8 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
       await sendGmMessage(text.slice(4).trim())
     } else if (text.startsWith('/')) {
       await sendAction(text.slice(1).trim())
+    } else if (isMyTurn && !actionMode) {
+      await sendChat(text)
     } else {
       await sendMessage(text)
     }
@@ -61,6 +81,14 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
         <div
           className="fixed inset-0 bg-black/50 z-20"
           onClick={() => setMenuOpen(false)}
+        />
+      )}
+
+      {/* Overlay panel jugadores */}
+      {playersOpen && (
+        <div
+          className="fixed inset-0 z-30"
+          onClick={() => setPlayersOpen(false)}
         />
       )}
 
@@ -178,21 +206,70 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             <p className="text-xs text-gray-600 mt-0.5">Sesión activa</p>
           </div>
 
-          {/* Botón hamburguesa */}
-          <button
-            onClick={() => setMenuOpen(v => !v)}
-            className="p-2 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
-            aria-label="Menú"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Botón jugadores conectados */}
+            <div className="relative">
+              <button
+                onClick={() => setPlayersOpen(v => !v)}
+                className="relative p-2 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+                aria-label="Jugadores en sala"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                </svg>
+                {presentedCharacters.length > 0 && (
+                  <span className="absolute -top-1 -right-1 text-xs bg-amber-400 text-gray-900 rounded-full w-4 h-4 flex items-center justify-center font-black leading-none">
+                    {presentedCharacters.length}
+                  </span>
+                )}
+              </button>
+              {playersOpen && (
+                <div className="absolute right-0 top-full mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-xl z-40 overflow-hidden">
+                  <div className="px-4 py-2 border-b border-gray-800">
+                    <p className="text-xs uppercase tracking-widest text-gray-600">En la sala</p>
+                  </div>
+                  {presentedCharacters.length === 0 ? (
+                    <p className="px-4 py-3 text-xs text-gray-600 italic">Nadie conectado</p>
+                  ) : (
+                    presentedCharacters.map(c => {
+                      const isP = participantIds.includes(c.id)
+                      return (
+                        <div key={c.id} className="px-4 py-2.5 flex items-center gap-2">
+                          <span className={`text-xs ${isP ? 'text-green-400' : 'text-gray-600'}`}>
+                            {isP ? '●' : '👁'}
+                          </span>
+                          <div>
+                            <p className={`text-sm font-medium ${isP ? 'text-gray-200' : 'text-gray-500'}`}>{c.name}</p>
+                            <p className="text-xs text-gray-600">{isP ? c.role : 'espectador'}</p>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Botón hamburguesa */}
+            <button
+              onClick={() => setMenuOpen(v => !v)}
+              className="p-2 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+              aria-label="Menú"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              </svg>
+            </button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
-          {messages.length === 0 && !sending && (
-            <p className="text-center text-gray-700 text-sm italic mt-8">El narrador está preparando la escena…</p>
+          {!hasStarted && !sending && (
+            <PreGameScreen
+              presentedCharacters={presentedCharacters}
+              onStart={handleStartGame}
+              sending={sending}
+            />
           )}
           {messages.map((msg, index) => {
               if (msg.type === 'narrator') {
@@ -229,6 +306,15 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                   />
                 )
               }
+              if (msg.type === 'ooc') {
+                return (
+                  <OocMessage
+                    key={msg.id}
+                    name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
+                    content={msg.content}
+                  />
+                )
+              }
               return (
                 <PlayerMessage
                   key={msg.id}
@@ -242,8 +328,8 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Indicador de turno — siempre visible encima del input */}
-        {!sending && currentTurnName && (
+        {/* Indicador de turno — solo para participantes */}
+        {!sending && !isSpectator && currentTurnName && (
           <div className={`px-6 py-2 shrink-0 flex items-center justify-center gap-2 border-t ${
             isMyTurn
               ? 'border-amber-400/30 bg-amber-400/10'
@@ -257,9 +343,21 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
           </div>
         )}
 
-        {/* Input / Botón de dados */}
+        {/* Input / Botón de dados / Espectador */}
         <div className="border-t border-gray-800 px-6 py-4 shrink-0">
-          {diceRequest.required && isMyTurn ? (
+          {isSpectator ? (
+            <div className="flex flex-col items-center gap-3">
+              <p className="text-xs text-gray-600 uppercase tracking-widest">Estás viendo la partida como espectador</p>
+              <button
+                onClick={handleAnnounceEntry}
+                disabled={sending}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm bg-gray-800 border border-amber-400/30 text-amber-300 hover:bg-gray-700 hover:border-amber-400/60 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                <span>🚪</span>
+                Unirme a la aventura
+              </button>
+            </div>
+          ) : diceRequest.required && isMyTurn ? (
             <div className="flex flex-col items-center gap-2">
               <p className="text-xs text-amber-400/70 uppercase tracking-widest">El narrador pide una tirada</p>
               <button
@@ -273,25 +371,40 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             </div>
           ) : (
             <>
-              <div className="flex gap-3">
-                <span className="text-amber-400 font-bold text-sm self-center shrink-0">{character.name}:</span>
-                <textarea
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="¿Qué hace tu personaje?"
-                  rows={2}
-                  disabled={sending}
-                  className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-amber-500 disabled:opacity-40 disabled:cursor-not-allowed"
-                />
+            {isMyTurn && (
+              <div className="flex justify-center mb-2">
                 <button
-                  onClick={handleSend}
-                  disabled={!input.trim() || sending}
-                  className="px-4 rounded-lg font-bold text-sm bg-amber-400 text-gray-900 hover:bg-amber-300 disabled:bg-gray-800 disabled:text-gray-600 transition-colors shrink-0"
+                  onClick={() => setActionMode(v => !v)}
+                  className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
+                    actionMode
+                      ? 'bg-amber-400/15 border-amber-400/40 text-amber-300'
+                      : 'bg-gray-800 border-gray-700 text-gray-500'
+                  }`}
                 >
-                  Enviar
+                  <span>{actionMode ? '⚔️' : '💬'}</span>
+                  {actionMode ? 'Acción — el narrador responderá' : 'Conversación — sin narrador'}
                 </button>
               </div>
+            )}
+            <div className="flex gap-3">
+              <span className="text-amber-400 font-bold text-sm self-center shrink-0">{character.name}:</span>
+              <textarea
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={isMyTurn && actionMode ? '¿Qué hace tu personaje?' : '¿Qué dice tu personaje?'}
+                rows={2}
+                disabled={sending}
+                className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-amber-500 disabled:opacity-40 disabled:cursor-not-allowed"
+              />
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || sending}
+                className="px-4 rounded-lg font-bold text-sm bg-amber-400 text-gray-900 hover:bg-amber-300 disabled:bg-gray-800 disabled:text-gray-600 transition-colors shrink-0"
+              >
+                Enviar
+              </button>
+            </div>
             </>
           )}
         </div>
@@ -333,6 +446,18 @@ function ActionMessage({ name, content }) {
         <span className="text-gray-400 not-italic font-medium">{name}</span>
         {' '}{content}{' '}
         <span className="text-gray-700">✦</span>
+      </p>
+    </div>
+  )
+}
+
+// Mensaje fuera de personaje — //mensaje
+function OocMessage({ name, content }) {
+  return (
+    <div className="flex justify-center px-4">
+      <p className="text-xs text-gray-600 italic text-center">
+        <span className="text-gray-700 not-italic font-medium">{name}</span>
+        {' (OOC): '}{content}
       </p>
     </div>
   )
@@ -394,6 +519,42 @@ function PlayerMessage({ name, content, isOwn }) {
       <div className={`rounded-xl px-4 py-2 text-sm leading-relaxed ${isOwn ? 'bg-amber-400/10 border border-amber-400/30 text-amber-100' : 'bg-gray-800 border border-gray-700 text-gray-300'}`}>
         {content}
       </div>
+    </div>
+  )
+}
+
+function PreGameScreen({ presentedCharacters, onStart, sending }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-8 px-6 py-12">
+      <div className="flex flex-col items-center gap-2 text-center">
+        <p className="text-xs uppercase tracking-widest text-amber-500/60">La tripulación se reúne</p>
+        <h2 className="text-2xl font-bold text-amber-300">La aventura os espera</h2>
+        <p className="text-sm text-gray-500 mt-1">Nadie ha zarpado todavía. ¿Listos para partir?</p>
+      </div>
+
+      {presentedCharacters.length > 0 && (
+        <div className="flex flex-col gap-2 w-full max-w-xs">
+          <p className="text-xs uppercase tracking-widest text-gray-600 text-center mb-1">En la sala</p>
+          {presentedCharacters.map(c => (
+            <div key={c.id} className="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-lg px-4 py-2.5">
+              <span className="text-green-400 text-xs">●</span>
+              <div>
+                <p className="text-sm font-semibold text-gray-200">{c.name}</p>
+                <p className="text-xs text-gray-600">{c.role}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        onClick={onStart}
+        disabled={sending || presentedCharacters.length === 0}
+        className="flex items-center gap-3 px-8 py-4 rounded-2xl font-black text-xl bg-amber-400 text-gray-900 hover:bg-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 shadow-lg shadow-amber-400/20"
+      >
+        <span className="text-3xl">⚓</span>
+        ¡Zarpar!
+      </button>
     </div>
   )
 }

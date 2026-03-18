@@ -4,24 +4,31 @@ import { groq } from '../lib/groq'
 import { NARRATOR_SYSTEM_PROMPT } from '../lib/narrator'
 import { characters as allCharacters } from '../data/characters'
 
-const NARRATOR_CONTEXT_MESSAGES = 25
+const NARRATOR_CONTEXT_MESSAGES = 10
+// Actualizar el resumen cada N mensajes de jugador
+const SUMMARY_EVERY_N_MESSAGES = 10
 
 export function useMessages(session, activeCharacter, presentIds = []) {
   const [messages, setMessages] = useState([])
   const [characterStates, setCharacterStates] = useState([])
   const [sending, setSending] = useState(false)
   const [diceRequest, setDiceRequest] = useState({ required: false, count: 1 })
+  const [narrativeSummary, setNarrativeSummary] = useState(session?.narrative_summary || '')
   const subscriptionRef = useRef(null)
   const characterStatesSubRef = useRef(null)
   const messagesRef = useRef([])
   const characterStatesRef = useRef([])
   const presentIdsRef = useRef(presentIds)
-  // Evitar que varios clientes lancen la introducción a la vez
+  const narrativeSummaryRef = useRef(session?.narrative_summary || '')
   const openingRequestedRef = useRef(false)
 
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
+
+  useEffect(() => {
+    narrativeSummaryRef.current = narrativeSummary
+  }, [narrativeSummary])
 
   useEffect(() => {
     characterStatesRef.current = characterStates
@@ -46,23 +53,19 @@ export function useMessages(session, activeCharacter, presentIds = []) {
   }, [session?.id])
 
   async function loadMessages() {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('session_id', session.id)
-      .order('created_at', { ascending: true })
+    const [{ data: msgs, error }, { data: sessionData }] = await Promise.all([
+      supabase.from('messages').select('*').eq('session_id', session.id).order('created_at', { ascending: true }),
+      supabase.from('sessions').select('narrative_summary').eq('id', session.id).single(),
+    ])
 
     if (error) {
       console.error('Error cargando mensajes:', error)
       return
     }
 
-    setMessages(data || [])
-
-    // Si la sesión es nueva (sin mensajes), pedir la introducción al narrador
-    if (data?.length === 0 && !openingRequestedRef.current) {
-      openingRequestedRef.current = true
-      await requestOpeningNarration()
+    setMessages(msgs || [])
+    if (sessionData?.narrative_summary) {
+      setNarrativeSummary(sessionData.narrative_summary)
     }
   }
 
@@ -108,24 +111,40 @@ export function useMessages(session, activeCharacter, presentIds = []) {
       .subscribe()
   }
 
-  // Narración de apertura automática en sesiones nuevas
-  async function requestOpeningNarration() {
+  // Iniciar la partida manualmente — con check de race condition para evitar doble apertura
+  async function startGame() {
+    if (sending) return
+    const { data: existing } = await supabase
+      .from('messages').select('id').eq('session_id', session.id).limit(1)
+    if (existing?.length > 0) return
+
     setSending(true)
     const characterContext = buildCharacterContext()
-    const firstCharacter = allCharacters.find(c => c.id === session.current_turn_character_id)
     const activeIds = presentIdsRef.current
+    const firstCharacter = allCharacters.find(c => c.id === activeIds[0])
 
-    const openingPrompt = `## Personajes activos en esta sesión
+    const openingPrompt = `## Personajes
 ${characterContext}
 
-## Inicio de aventura
-La partida acaba de comenzar. Presenta la escena inicial de forma evocadora: dónde están, qué ven, qué se siente en el ambiente. Luego dirige la palabra al primer jugador en turno: ${firstCharacter?.name} (${firstCharacter?.role}).
-
-Los únicos ids válidos para next_character_id son: ${activeIds.join(', ')}
-
-Recuerda: responde ÚNICAMENTE con el objeto JSON indicado, con is_action: true.`
+## Inicio
+Partida nueva. Presenta la escena inicial de forma evocadora e interpela al primer jugador: ${firstCharacter?.name} (${firstCharacter?.role}).
+next_character_id válidos: ${activeIds.join(', ')}`
 
     await callGroq(openingPrompt, { forceAction: true })
+    setSending(false)
+  }
+
+  // Anunciar la entrada de un personaje que llega a la sesión en curso
+  // No llama al narrador para no interrumpir la historia en curso
+  async function announceEntry() {
+    if (sending) return
+    setSending(true)
+    await supabase.from('messages').insert({
+      session_id: session.id,
+      character_id: activeCharacter.id,
+      content: `${activeCharacter.name} entra en la sala.`,
+      type: 'action',
+    })
     setSending(false)
   }
 
@@ -219,6 +238,19 @@ Recuerda: responde ÚNICAMENTE con el objeto JSON indicado, con is_action: true.
     setSending(false)
   }
 
+  // Mensaje de conversación: visible para todos, no activa al narrador
+  async function sendChat(content) {
+    if (!content.trim() || sending) return
+    setSending(true)
+    await supabase.from('messages').insert({
+      session_id: session.id,
+      character_id: activeCharacter.id,
+      content: content.trim(),
+      type: 'player',
+    })
+    setSending(false)
+  }
+
   // Instrucción al narrador (/gm): siempre activa al narrador, independientemente del turno
   async function sendGmMessage(instruction) {
     if (!instruction.trim() || sending) return
@@ -235,37 +267,92 @@ Recuerda: responde ÚNICAMENTE con el objeto JSON indicado, con is_action: true.
     setSending(false)
   }
 
+  // Actualiza el resumen de forma incremental: resumen anterior + últimos N mensajes
+  // Coste constante independientemente de la duración de la sesión
+  async function updateNarrativeSummary() {
+    const recentForSummary = messagesRef.current.slice(-SUMMARY_EVERY_N_MESSAGES).map(m => {
+      if (m.character_id === 'narrator') return `N: ${m.content.slice(0, 150)}`
+      const name = allCharacters.find(c => c.id === m.character_id)?.name || m.character_id
+      return `${name}: ${m.content}`
+    }).join('\n')
+
+    const currentSummary = narrativeSummaryRef.current
+    const userContent = currentSummary
+      ? `Resumen actual:\n${currentSummary}\n\nNuevos eventos:\n${recentForSummary}\n\nActualiza el resumen incorporando los nuevos eventos. Máximo 120 palabras.`
+      : `Resume estos eventos de rol en máximo 120 palabras:\n\n${recentForSummary}`
+
+    try {
+      const completion = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: 'Eres un asistente que mantiene el registro de una sesión de rol. Anota hechos concretos: logros, descubrimientos, combates, decisiones clave, objetos obtenidos. Máximo 120 palabras. Solo el resumen, sin introducción.',
+          },
+          { role: 'user', content: userContent },
+        ],
+        max_tokens: 200,
+        temperature: 0.3,
+      })
+
+      const summary = completion.choices[0]?.message?.content?.trim()
+      if (!summary) return
+
+      setNarrativeSummary(summary)
+      await supabase
+        .from('sessions')
+        .update({ narrative_summary: summary })
+        .eq('id', session.id)
+    } catch (err) {
+      console.error('Error actualizando resumen narrativo:', err)
+    }
+  }
+
   async function callNarrator(lastPlayerMessage) {
     const recentMessages = messagesRef.current.slice(-NARRATOR_CONTEXT_MESSAGES)
     const chatHistory = recentMessages.map(m => {
-      const name = m.character_id === 'narrator'
-        ? 'Narrador'
-        : allCharacters.find(c => c.id === m.character_id)?.name || m.character_id
+      if (m.character_id === 'narrator') {
+        // Truncar narraciones largas — el narrador solo necesita el hilo, no el texto completo
+        const text = m.content.length > 200 ? m.content.slice(0, 200) + '…' : m.content
+        return `N: ${text}`
+      }
+      const name = allCharacters.find(c => c.id === m.character_id)?.name || m.character_id
       return `${name}: ${m.content}`
     }).join('\n')
 
     const activeIds = presentIdsRef.current
 
+    // Calcular quién ha intervenido menos para sugerir turno equitativo al narrador
+    const actionCounts = Object.fromEntries(activeIds.map(id => [id, 0]))
+    for (const m of recentMessages) {
+      if (m.character_id in actionCounts) actionCounts[m.character_id]++
+    }
+    const leastActive = [...activeIds].sort((a, b) => actionCounts[a] - actionCounts[b])[0]
+
+    const summary = narrativeSummaryRef.current
     const userPrompt = `## Personajes activos en esta sesión
 ${buildCharacterContext()}
-
+${summary ? `\n## Resumen de la sesión\n${summary}\n` : ''}
 ## Historial reciente
 ${chatHistory}
 ${activeCharacter.name}: ${lastPlayerMessage}
 
-Los únicos ids válidos para next_character_id son: ${activeIds.join(', ')}
-Si solo hay un jugador activo, next_character_id debe ser siempre ese mismo.
+next_character_id válidos: ${activeIds.join(', ')} — preferencia para ${leastActive} (menos activo).`
 
-Narra la respuesta y decide a quién le toca actuar a continuación. Recuerda: responde ÚNICAMENTE con el objeto JSON indicado.`
+    await callGroq(userPrompt, { avoidAsNext: activeCharacter.id, fallbackNext: leastActive, activeIds })
 
-    await callGroq(userPrompt)
+    // Actualizar resumen cada N mensajes de jugador (solo el cliente activo lo dispara)
+    const playerMessages = messagesRef.current.filter(m => m.type === 'player' || m.type === 'action')
+    if (playerMessages.length > 0 && playerMessages.length % SUMMARY_EVERY_N_MESSAGES === 0) {
+      updateNarrativeSummary()
+    }
   }
 
   // Llamada a Groq y gestión de la respuesta
-  async function callGroq(userPrompt, { forceAction = false } = {}) {
+  async function callGroq(userPrompt, { forceAction = false, avoidAsNext = null, fallbackNext = null, activeIds: ids = null } = {}) {
     try {
       const completion = await groq.chat.completions.create({
-        model: 'llama-3.1-8b-instant',
+        model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: NARRATOR_SYSTEM_PROMPT },
           { role: 'user', content: userPrompt },
@@ -333,7 +420,18 @@ Narra la respuesta y decide a quién le toca actuar a continuación. Recuerda: r
 
       // Actualizar el turno siempre que haya next_character_id — si hay dados pendientes,
       // el turno apunta a quien debe tirar; tras la tirada el narrador lo actualizará de nuevo
-      if (nextCharacterId && allCharacters.some(c => c.id === nextCharacterId)) {
+      // Si hay dados pendientes, el turno siempre queda con quien debe tirar (el personaje activo)
+      if (diceRequired) {
+        nextCharacterId = activeCharacter.id
+      } else {
+        // Si el narrador asigna el turno al mismo personaje que acaba de actuar y hay otros presentes, rotar
+        const currentIds = ids || presentIdsRef.current
+        if (avoidAsNext && nextCharacterId === avoidAsNext && currentIds.length > 1 && fallbackNext) {
+          nextCharacterId = fallbackNext
+        }
+      }
+
+      if (nextCharacterId && presentIdsRef.current.includes(nextCharacterId)) {
         await supabase
           .from('sessions')
           .update({ current_turn_character_id: nextCharacterId })
@@ -357,9 +455,9 @@ Narra la respuesta y decide a quién le toca actuar a continuación. Recuerda: r
         const inventory = state?.inventory?.length
           ? state.inventory.map(i => i.name).join(', ')
           : 'sin objetos'
-        return `- ${c.name} (${c.role}): Vida ${hp}/${c.hp} | Ataque ${c.attack} | Defensa ${c.defense} | Navegación ${c.navigation} | Habilidad: ${c.ability.name} | Inventario: ${inventory}`
+        return `- ${c.name}(${c.role}) HP${hp}/${c.hp} ATK${c.attack} DEF${c.defense} NAV${c.navigation} [${c.ability.name}] ${inventory}`
       }).join('\n')
   }
 
-  return { messages, sending, sendMessage, sendAction, sendGmMessage, diceRequest, rollDice, characterStates }
+  return { messages, sending, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, characterStates, startGame, announceEntry }
 }
