@@ -129,7 +129,13 @@ export function useMessages(session, activeCharacter, presentIds = []) {
   function buildGameModeContext() {
     const s = sessionRef.current
     if (!s?.game_mode || s.game_mode === 'normal') return ''
-    return `## Modo de juego activo: ${s.game_mode}\n${s.game_mode_data ? JSON.stringify(s.game_mode_data) : ''}\n`
+    let ctx = `## Modo de juego activo: ${s.game_mode}\n${s.game_mode_data ? JSON.stringify(s.game_mode_data) : ''}\n`
+    // Listar IDs de enemigos explícitamente para evitar errores de referencia
+    if (s.game_mode === 'combat' && s.game_mode_data?.enemies?.length) {
+      const alive = s.game_mode_data.enemies.filter(e => !e.defeated)
+      ctx += `Enemigos vivos (usa estos ids exactos en enemy_updates): ${alive.map(e => `${e.id}(${e.name} HP:${e.hp})`).join(', ')}\n`
+    }
+    return ctx
   }
 
   // Prompt para el modelo mecánico: personajes + historial comprimido + acción
@@ -317,20 +323,31 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
   }
 
   // Aplica daño a enemigos en game_mode_data; si todos caen, vuelve a modo normal
+  // Lee directo de Supabase para evitar datos obsoletos en sessionRef
   async function applyEnemyUpdates(enemyUpdates) {
-    const s = sessionRef.current
-    if (!s?.game_mode_data?.enemies || !enemyUpdates?.length) return null
+    if (!enemyUpdates?.length) return null
 
-    const updatedEnemies = s.game_mode_data.enemies.map(enemy => {
+    // Leer el game_mode_data más reciente de Supabase
+    const { data: fresh } = await supabase
+      .from('sessions').select('game_mode_data').eq('id', session.id).single()
+
+    const enemies = fresh?.game_mode_data?.enemies
+    console.log('[applyEnemyUpdates] enemigos en BD:', JSON.stringify(enemies))
+    console.log('[applyEnemyUpdates] updates recibidos:', JSON.stringify(enemyUpdates))
+
+    if (!enemies?.length) return null
+
+    const updatedEnemies = enemies.map(enemy => {
       const update = enemyUpdates.find(u => u.enemy_id === enemy.id)
       if (!update) return enemy
       const newHp = Math.max(0, enemy.hp + update.hp_delta)
+      console.log(`[applyEnemyUpdates] ${enemy.name} (${enemy.id}): ${enemy.hp} → ${newHp}`)
       return { ...enemy, hp: newHp, defeated: newHp <= 0 }
     })
 
     const allDefeated = updatedEnemies.every(e => e.defeated)
-    const newMode = allDefeated ? 'normal' : s.game_mode
-    const newData = allDefeated ? null : { ...s.game_mode_data, enemies: updatedEnemies }
+    const newMode = allDefeated ? 'normal' : 'combat'
+    const newData = allDefeated ? null : { ...fresh.game_mode_data, enemies: updatedEnemies }
 
     await supabase.from('sessions')
       .update({ game_mode: newMode, game_mode_data: newData })
