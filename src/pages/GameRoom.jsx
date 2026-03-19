@@ -25,12 +25,12 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const gameMode = session?.game_mode || 'normal'
   const gameModeData = session?.game_mode_data
 
-  // Tinte de fondo según modo
-  const MODE_BG = {
-    combat:      'bg-red-950/10',
-    navigation:  'bg-blue-950/8',
-    exploration: 'bg-green-950/8',
-    negotiation: 'bg-amber-950/8',
+  // Vignette desde los bordes según modo (box-shadow inset, sin cambiar el fondo)
+  const MODE_SHADOW = {
+    combat:      'inset 0 0 120px rgba(220, 38, 38, 0.28)',
+    navigation:  'inset 0 0 120px rgba(37, 99, 235, 0.22)',
+    exploration: 'inset 0 0 120px rgba(22, 163, 74, 0.22)',
+    negotiation: 'inset 0 0 120px rgba(217, 119, 6, 0.22)',
   }
 
   async function handleStartGame() {
@@ -104,7 +104,10 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   }
 
   return (
-    <div className={`flex h-screen bg-gray-950 text-white overflow-hidden transition-colors duration-700 ${MODE_BG[gameMode] || ''}`}>
+    <div
+      className="flex h-screen bg-gray-950 text-white overflow-hidden transition-shadow duration-700"
+      style={gameMode !== 'normal' ? { boxShadow: MODE_SHADOW[gameMode] } : undefined}
+    >
 
       {/* Overlay sidebar izquierda */}
       {sidebarOpen && (
@@ -571,11 +574,34 @@ function GmMessage({ name, content }) {
 const DICE_EMOJI = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅']
 
 function DiceMessage({ name, content }) {
-  // Parsear "🎲 3 + 5 = 8" o "🎲 4 = 4"
+  // Intentar parsear el formato estándar "🎲 3 + 5 = 8" o "🎲 4 = 4"
   const raw = content.replace('🎲 ', '')
-  const [diceStr, totalStr] = raw.split(' = ')
-  const dice = diceStr.split(' + ').map(Number)
-  const total = Number(totalStr)
+  const eqIdx = raw.lastIndexOf(' = ')
+  let dice = null
+  let total = null
+
+  if (eqIdx !== -1) {
+    const diceStr = raw.slice(0, eqIdx)
+    const parsedDice = diceStr.split(' + ').map(Number)
+    const parsedTotal = Number(raw.slice(eqIdx + 3))
+    if (!isNaN(parsedTotal) && parsedDice.every(d => !isNaN(d) && d > 0)) {
+      dice = parsedDice
+      total = parsedTotal
+    }
+  }
+
+  // Formato no estándar (iniciativa, etc.) — tarjeta simplificada
+  if (!dice) {
+    return (
+      <div className="flex flex-col items-center gap-2 w-full px-4">
+        <span className="text-xs uppercase tracking-widest text-amber-500/50">{name} · Tirada</span>
+        <div className="bg-gray-900 border border-amber-400/30 rounded-2xl px-8 py-4 flex items-center gap-3">
+          <span className="text-3xl">🎲</span>
+          <span className="text-lg font-bold text-amber-400">{raw}</span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col items-center gap-2 w-full px-4">
