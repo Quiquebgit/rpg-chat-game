@@ -315,7 +315,7 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
     setSending(false)
   }
 
-  // Instrucción al narrador (/gm): siempre activa, independientemente del turno
+  // Instrucción al narrador (/gm): va directo al narrador, sin pasar por el modelo mecánico
   async function sendGmMessage(instruction) {
     if (!instruction.trim() || sending) return
     setSending(true)
@@ -323,7 +323,29 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
       session_id: session.id, character_id: activeCharacter.id,
       content: instruction.trim(), type: 'gm',
     })
-    await processAction(`[Instrucción del maestro de juego: ${instruction.trim()}]`, { isGm: true })
+
+    setNarratorTyping(true)
+    try {
+      const summary = narrativeSummaryRef.current
+      const chatHistory = messagesRef.current.slice(-NARRATOR_CONTEXT_MESSAGES).map(m => {
+        if (m.character_id === 'narrator') return `N: ${m.content.slice(0, 200)}`
+        const name = allCharacters.find(c => c.id === m.character_id)?.name || m.character_id
+        return `${name}: ${m.content}`
+      }).join('\n')
+
+      const gmPrompt = `## Personajes en sesión\n${buildCharacterContext()}\n${summary ? `## Resumen\n${summary}\n` : ''}## Historial reciente\n${chatHistory}\n\n## INSTRUCCIÓN DE MAESTRO DE JUEGO (prioridad máxima):\n${instruction.trim()}\n\nSigue esta instrucción al pie de la letra. Adapta la narrativa y la situación según lo indicado. Termina interpelando al personaje cuyo turno sea más apropiado.`
+
+      const narrative = await callNarratorModel(NARRATOR_SYSTEM_PROMPT, gmPrompt)
+      if (narrative) {
+        await supabase.from('messages').insert({
+          session_id: session.id, character_id: 'narrator',
+          content: narrative, type: 'narrator',
+        })
+      }
+    } catch (err) {
+      console.error('Error en sendGmMessage:', err)
+    }
+    setNarratorTyping(false)
     setSending(false)
   }
 
