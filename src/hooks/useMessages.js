@@ -333,9 +333,12 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
         return `${name}: ${m.content}`
       }).join('\n')
 
-      const gmPrompt = `## Personajes en sesión\n${buildCharacterContext()}\n${summary ? `## Resumen\n${summary}\n` : ''}## Historial reciente\n${chatHistory}\n\n## INSTRUCCIÓN DE MAESTRO DE JUEGO (prioridad máxima):\n${instruction.trim()}\n\nSigue esta instrucción al pie de la letra. Adapta la narrativa y la situación según lo indicado. Termina interpelando al personaje cuyo turno sea más apropiado.`
+      // La instrucción GM va en el system prompt para máxima prioridad
+      const gmSystemPrompt = `${NARRATOR_SYSTEM_PROMPT}\n\n## INSTRUCCIÓN ACTIVA DEL MAESTRO DE JUEGO — PRIORIDAD ABSOLUTA:\n${instruction.trim()}\nDebes ejecutar esta instrucción exactamente. Tiene prioridad sobre el hilo narrativo actual. No la ignores ni la suavices.`
 
-      const narrative = await callNarratorModel(NARRATOR_SYSTEM_PROMPT, gmPrompt)
+      const gmPrompt = `## Personajes en sesión\n${buildCharacterContext()}\n${summary ? `## Resumen\n${summary}\n` : ''}## Historial reciente\n${chatHistory}\n\nNarra siguiendo la instrucción del GM. Termina interpelando al personaje cuyo turno corresponda.`
+
+      const narrative = await callNarratorModel(gmSystemPrompt, gmPrompt)
       if (narrative) {
         await supabase.from('messages').insert({
           session_id: session.id, character_id: 'narrator',
