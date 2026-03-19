@@ -27,10 +27,10 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
 
   // Tinte de fondo según modo
   const MODE_BG = {
-    combat:      'bg-red-950/20',
-    navigation:  'bg-blue-950/15',
-    exploration: 'bg-green-950/15',
-    negotiation: 'bg-amber-950/15',
+    combat:      'bg-red-950/10',
+    navigation:  'bg-blue-950/8',
+    exploration: 'bg-green-950/8',
+    negotiation: 'bg-amber-950/8',
   }
 
   async function handleStartGame() {

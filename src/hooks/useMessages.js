@@ -165,6 +165,12 @@ ${instruction}
 
 Analiza la instrucción y determina los efectos mecánicos:
 - Cuando la instrucción use "yo", "me", "mi" o "dame", el personaje referenciado es ${activeCharacter.id}
+- Si activa un modo de juego → game_mode y game_mode_data completos
+  · combat: game_mode_data.enemies OBLIGATORIO con al menos 1 enemigo {id, name, hp, hp_max, attack, defense, icon, initiative:0}
+  · navigation: game_mode_data con {danger_name, danger_threshold, progress:0}
+  · exploration: game_mode_data con {clues:[]}
+  · negotiation: game_mode_data con {npc_name, npc_attitude, conviction:0, conviction_max}
+- Si termina el modo activo → game_mode:"normal", game_mode_data:null
 - Si pide tirada de dados → dice_required:true
 - Si da o asigna un objeto a alguien → llama a getRandomItem(type, rarity) y pon el resultado en inventory_updates con action:"add"
 - Si quita un objeto → inventory_updates con action:"remove"
@@ -254,6 +260,7 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
         const match = raw.match(/\{[\s\S]*\}/)
         if (match) mechanics = { ...mechanics, ...JSON.parse(match[0]) }
       }
+      console.log('[processAction] mecánicas:', JSON.stringify(mechanics))
     } catch (err) {
       console.warn('Modelo mecánico falló, usando defaults:', err)
     }
@@ -338,25 +345,10 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
     const newData = mechanics.game_mode_data
     if (!newMode) return
 
-    // Iniciativa automática al entrar en combate: roll 1d6 + ataque para cada jugador presente
-    let finalData = newData
-    if (newMode === 'combat' && newData) {
-      const initiative = {}
-      for (const charId of presentIdsRef.current) {
-        const char = allCharacters.find(c => c.id === charId)
-        if (char) initiative[charId] = Math.ceil(Math.random() * 6) + char.attack
-      }
-      finalData = { ...newData, initiative }
-
-      // Orden de turno en combate: jugadores ordenados por iniciativa desc
-      const combatOrder = [...presentIdsRef.current].sort(
-        (a, b) => (initiative[b] || 0) - (initiative[a] || 0)
-      )
-      finalData.combat_turn_order = combatOrder
-    }
+    console.log('[applyGameMode] modo:', newMode, '| data:', JSON.stringify(newData))
 
     await supabase.from('sessions')
-      .update({ game_mode: newMode, game_mode_data: finalData })
+      .update({ game_mode: newMode, game_mode_data: newData })
       .eq('id', session.id)
   }
 
