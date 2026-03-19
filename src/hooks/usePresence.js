@@ -8,10 +8,12 @@ import { supabase } from '../lib/supabase'
 export function usePresence(session, character = null) {
   const [presentIds, setPresentIds] = useState([])
   const [participantIds, setParticipantIds] = useState([])
-  const [isParticipant, setIsParticipant] = useState(false)
   const channelRef = useRef(null)
-  // Ref para recordar el estado de participante a través de reconexiones de red
-  const isParticipantRef = useRef(false)
+
+  // Persistir estado de participante en sessionStorage para sobrevivir navegación entre páginas
+  const storageKey = session?.id && character?.id ? `participant_${session.id}_${character.id}` : null
+  const isParticipantRef = useRef(storageKey ? sessionStorage.getItem(storageKey) === 'true' : false)
+  const [isParticipant, setIsParticipant] = useState(isParticipantRef.current)
 
   useEffect(() => {
     if (!session?.id) return
@@ -46,7 +48,9 @@ export function usePresence(session, character = null) {
       // Broadcast que emite el cliente que inicia la partida para marcar a todos los presentes
       .on('broadcast', { event: 'GAME_STARTED' }, ({ payload }) => {
         if (character?.id && payload.participantIds?.includes(character.id)) {
+          isParticipantRef.current = true
           setIsParticipant(true)
+          if (storageKey) sessionStorage.setItem(storageKey, 'true')
           channel.track({ character_id: character.id, isParticipant: true })
         }
       })
@@ -55,6 +59,12 @@ export function usePresence(session, character = null) {
       if (status === 'SUBSCRIBED' && character?.id) {
         // Al reconectar, restaurar el estado de participante previo (si existía)
         await channel.track({ character_id: character.id, isParticipant: isParticipantRef.current })
+        // Marcar como activo en BD — puede haberse desactivado por desconexión temporal
+        await supabase
+          .from('session_character_state')
+          .update({ is_active: true })
+          .eq('session_id', session.id)
+          .eq('character_id', character.id)
       }
     })
 
@@ -78,6 +88,7 @@ export function usePresence(session, character = null) {
     if (!character?.id || !channelRef.current) return
     isParticipantRef.current = true
     setIsParticipant(true)
+    if (storageKey) sessionStorage.setItem(storageKey, 'true')
     channelRef.current.track({ character_id: character.id, isParticipant: true })
   }
 

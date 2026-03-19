@@ -10,6 +10,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const [playersOpen, setPlayersOpen] = useState(false)
   const [actionMode, setActionMode] = useState(true)
   const messagesEndRef = useRef(null)
+  const inputRef = useRef(null)
 
   const { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant } = usePresence(session, character)
   const { messages, sending, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, characterStates, startGame, announceEntry } = useMessages(session, character, presentIds)
@@ -42,10 +43,17 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  useEffect(() => {
+    if (!sending && !isSpectator) inputRef.current?.focus()
+  }, [sending])
+
   async function handleSend() {
     const text = input.trim()
     if (!text || sending) return
     setInput('')
+
+    // Si era espectador, promover a participante automáticamente al hablar
+    if (isSpectator) markAsParticipant()
 
     if (text.startsWith('/gm ')) {
       await sendGmMessage(text.slice(4).trim())
@@ -389,6 +397,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             <div className="flex gap-3">
               <span className="text-amber-400 font-bold text-sm self-center shrink-0">{character.name}:</span>
               <textarea
+                ref={inputRef}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}

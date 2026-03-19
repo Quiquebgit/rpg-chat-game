@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react'
 import { characters } from '../data/characters'
 import { supabase } from '../lib/supabase'
+import { usePresence } from '../hooks/usePresence'
 import CharacterCard from '../components/CharacterCard'
 
 function CharacterSelect({ session, playerId, onConfirm, onBack }) {
   const [selected, setSelected] = useState(null)
   // Mapa de characterId → { claimedBy, isActive } — fuente de verdad: BD vía Realtime
   const [claimedBy, setClaimedBy] = useState({})
+
+  // Presencia en tiempo real: personajes actualmente en la sala
+  const { presentIds } = usePresence(session)
 
   // Cargar y suscribirse a cambios en session_character_state
   useEffect(() => {
@@ -45,14 +49,21 @@ function CharacterSelect({ session, playerId, onConfirm, onBack }) {
     }
   }
 
-  function handleSelect(character) {
+  function isTakenByOther(character) {
     const state = claimedBy[character.id]
-    const takenByOther = state?.isActive && state?.claimedBy !== playerId
-    if (!takenByOther) setSelected(character)
+    // Bloqueado si está en sala ahora mismo (presencia) O marcado activo en BD por otro jugador
+    const inRoom = presentIds.includes(character.id)
+    const activeInDb = state?.isActive && state?.claimedBy !== playerId
+    return inRoom || activeInDb
+  }
+
+  function handleSelect(character) {
+    if (!isTakenByOther(character)) setSelected(character)
   }
 
   function getCardStatus(character) {
     const state = claimedBy[character.id]
+    if (presentIds.includes(character.id)) return state?.claimedBy === playerId ? 'mine' : 'taken'
     if (!state?.isActive) return 'free'
     if (state.claimedBy === playerId) return 'mine'
     return 'taken'
@@ -104,7 +115,7 @@ function CharacterSelect({ session, playerId, onConfirm, onBack }) {
       </div>
 
       {/* Barra de acción fija en la parte inferior */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gray-950/90 backdrop-blur border-t border-gray-800 px-6 py-4 flex items-center justify-center gap-6">
+      <div className="fixed bottom-0 left-0 right-0 z-20 bg-gray-950/90 backdrop-blur border-t border-gray-800 px-6 py-4 flex items-center justify-center gap-6">
         <button
           onClick={onBack}
           className="text-sm text-gray-600 hover:text-gray-400 transition-colors"
