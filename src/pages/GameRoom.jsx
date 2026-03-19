@@ -616,9 +616,10 @@ function InventoryPanel({ inventory }) {
               </div>
               <span className={`text-xs shrink-0 ${rarityClass}`}>{item.rarity || 'común'}</span>
             </div>
-            {isOpen && item.effect && (
+            {isOpen && (item.effect || item.description || item.special_ability) && (
               <p className="text-xs text-gray-400 mt-1.5 leading-relaxed border-t border-white/10 pt-1.5">
-                {item.effect}
+                {item.effect || item.description}
+                {item.special_ability && <span className="block mt-1 text-amber-400/70">✦ {item.special_ability}</span>}
               </p>
             )}
           </button>

@@ -149,10 +149,11 @@ ${compactHistory}
 
     return `## Personajes
 ${buildCharacterContext()}
-${summary ? `## Resumen\n${summary}\n` : ''}## Instrucción del Maestro de Juego:
+${summary ? `## Resumen\n${summary}\n` : ''}## Instrucción del Maestro de Juego (emitida por ${activeCharacter.name}, id: ${activeCharacter.id}):
 ${instruction}
 
 Analiza la instrucción y determina los efectos mecánicos:
+- Cuando la instrucción use "yo", "me", "mi" o "dame", el personaje referenciado es ${activeCharacter.id}
 - Si pide tirada de dados → dice_required:true
 - Si da o asigna un objeto a alguien → llama a getRandomItem(type, rarity) y pon el resultado en inventory_updates con action:"add"
 - Si quita un objeto → inventory_updates con action:"remove"
@@ -210,7 +211,7 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
       const current = characterStatesRef.current.find(s => s.character_id === character_id)
       if (!current) continue
       let newInventory = [...(current.inventory || [])]
-      if (action === 'add' && item) {
+      if (action === 'add' && item?.name) {
         newInventory = [...newInventory, item]
       } else if (action === 'remove') {
         const name = item_name || item?.name
@@ -257,8 +258,22 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
     }
 
     if (mechanics.dice_required) {
+      const diceCount = mechanics.dice_count || 1
+      if (isGm) {
+        // El GM no necesita pulsar botón — tira automáticamente
+        const rolls = Array.from({ length: diceCount }, () => Math.ceil(Math.random() * 6))
+        const total = rolls.reduce((a, b) => a + b, 0)
+        const diceContent = diceCount === 1 ? `🎲 ${rolls[0]} = ${total}` : `🎲 ${rolls.join(' + ')} = ${total}`
+        await supabase.from('messages').insert({
+          session_id: session.id, character_id: activeCharacter.id,
+          content: diceContent, type: 'dice',
+        })
+        await deliverNarrative(playerAction, mechanics, diceContent, { gmInstruction })
+        setNarratorTyping(false)
+        return
+      }
       pendingMechanicsRef.current = { mechanics, playerAction, gmInstruction }
-      setDiceRequest({ required: true, count: mechanics.dice_count || 1 })
+      setDiceRequest({ required: true, count: diceCount })
       setNarratorTyping(false)
       return
     }

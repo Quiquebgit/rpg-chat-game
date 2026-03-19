@@ -53,7 +53,7 @@ export async function callMechanicsModel(systemPrompt, userPrompt, { json = true
       toolResultMessages.push({
         role: 'tool',
         tool_call_id: toolCall.id,
-        content: JSON.stringify(result),
+        content: result ? JSON.stringify(result) : 'ERROR: No se encontró ningún item con esos filtros. Deja inventory_updates vacío.',
       })
     }
 
