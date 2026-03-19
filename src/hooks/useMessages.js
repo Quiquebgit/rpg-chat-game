@@ -209,7 +209,7 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
 
   // Paso 1: modelo mecánico determina qué pasa
   // Paso 2: modelo narrador cuenta cómo ocurre
-  async function processAction(playerAction, { isGm = false } = {}) {
+  async function processAction(playerAction, { isGm = false, gmInstruction = null } = {}) {
     setNarratorTyping(true)
     // Modelo mecánico
     let mechanics = getDefaultMechanics()
@@ -225,10 +225,8 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
 
     // Correcciones de turno en código (no depender solo del modelo)
     if (mechanics.dice_required) {
-      // Con dados pendientes, el turno queda con quien debe tirar
       mechanics.next_character_id = activeCharacter.id
     } else {
-      // Evitar que el mismo personaje repita turno si hay más presentes
       const activeIds = presentIdsRef.current
       if (mechanics.next_character_id === activeCharacter.id && activeIds.length > 1) {
         mechanics.next_character_id = getLeastActive()
@@ -236,20 +234,22 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
     }
 
     if (mechanics.dice_required) {
-      // Guardar contexto mecánico y esperar al jugador
-      pendingMechanicsRef.current = { mechanics, playerAction }
+      pendingMechanicsRef.current = { mechanics, playerAction, gmInstruction }
       setDiceRequest({ required: true, count: mechanics.dice_count || 1 })
       setNarratorTyping(false)
       return
     }
 
-    await deliverNarrative(playerAction, mechanics, null)
+    await deliverNarrative(playerAction, mechanics, null, { gmInstruction })
     setNarratorTyping(false)
   }
 
   // Llama al modelo narrador con todo el contexto y aplica los efectos
-  async function deliverNarrative(playerAction, mechanics, diceResult) {
-    const narrative = await callNarratorModel(NARRATOR_SYSTEM_PROMPT, buildNarratorPrompt(playerAction, mechanics, diceResult))
+  async function deliverNarrative(playerAction, mechanics, diceResult, { gmInstruction = null } = {}) {
+    const systemPrompt = gmInstruction
+      ? `${NARRATOR_SYSTEM_PROMPT}\n\n## INSTRUCCIÓN ACTIVA DEL GM — PRIORIDAD ABSOLUTA:\n${gmInstruction}\nEjecuta exactamente lo que pide. No la ignores ni la suavices.`
+      : NARRATOR_SYSTEM_PROMPT
+    const narrative = await callNarratorModel(systemPrompt, buildNarratorPrompt(playerAction, mechanics, diceResult))
     if (!narrative) return
 
     await supabase.from('messages').insert({
@@ -315,7 +315,8 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
     setSending(false)
   }
 
-  // Instrucción al narrador (/gm): va directo al narrador, sin pasar por el modelo mecánico
+  // Instrucción al narrador (/gm): pasa por el modelo mecánico (dados, items, etc.)
+  // pero la instrucción va en el system prompt del narrador para prioridad absoluta
   async function sendGmMessage(instruction) {
     if (!instruction.trim() || sending) return
     setSending(true)
@@ -323,32 +324,7 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
       session_id: session.id, character_id: activeCharacter.id,
       content: instruction.trim(), type: 'gm',
     })
-
-    setNarratorTyping(true)
-    try {
-      const summary = narrativeSummaryRef.current
-      const chatHistory = messagesRef.current.slice(-NARRATOR_CONTEXT_MESSAGES).map(m => {
-        if (m.character_id === 'narrator') return `N: ${m.content.slice(0, 200)}`
-        const name = allCharacters.find(c => c.id === m.character_id)?.name || m.character_id
-        return `${name}: ${m.content}`
-      }).join('\n')
-
-      // La instrucción GM va en el system prompt para máxima prioridad
-      const gmSystemPrompt = `${NARRATOR_SYSTEM_PROMPT}\n\n## INSTRUCCIÓN ACTIVA DEL MAESTRO DE JUEGO — PRIORIDAD ABSOLUTA:\n${instruction.trim()}\nDebes ejecutar esta instrucción exactamente. Tiene prioridad sobre el hilo narrativo actual. No la ignores ni la suavices.`
-
-      const gmPrompt = `## Personajes en sesión\n${buildCharacterContext()}\n${summary ? `## Resumen\n${summary}\n` : ''}## Historial reciente\n${chatHistory}\n\nNarra siguiendo la instrucción del GM. Termina interpelando al personaje cuyo turno corresponda.`
-
-      const narrative = await callNarratorModel(gmSystemPrompt, gmPrompt)
-      if (narrative) {
-        await supabase.from('messages').insert({
-          session_id: session.id, character_id: 'narrator',
-          content: narrative, type: 'narrator',
-        })
-      }
-    } catch (err) {
-      console.error('Error en sendGmMessage:', err)
-    }
-    setNarratorTyping(false)
+    await processAction(`[Instrucción del maestro de juego: ${instruction.trim()}]`, { isGm: true, gmInstruction: instruction.trim() })
     setSending(false)
   }
 
@@ -373,9 +349,10 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
 
     const mechanics = pending?.mechanics || getDefaultMechanics()
     const playerAction = pending?.playerAction || `[Tirada de dados: ${content}]`
+    const gmInstruction = pending?.gmInstruction || null
 
     setNarratorTyping(true)
-    await deliverNarrative(playerAction, mechanics, content)
+    await deliverNarrative(playerAction, mechanics, content, { gmInstruction })
     setNarratorTyping(false)
     setSending(false)
   }
