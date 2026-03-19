@@ -19,10 +19,10 @@ Fichero `.env` en la raíz. **Nunca subir al repositorio. Nunca mostrar su conte
 ## Estructura de carpetas
 ```
 src/
-├── components/     # CharacterCard, SessionModal
+├── components/     # CharacterCard, SessionModal, GameModePanel
 ├── pages/          # CharacterSelect, GameRoom
-├── hooks/          # useSession, useMessages
-├── lib/            # supabase.js, groq.js, narrator.js
+├── hooks/          # useSession, useMessages, usePresence
+├── lib/            # supabase.js, groq.js, narrator.js, items.js
 └── data/           # characters.js
 ```
 
@@ -46,6 +46,12 @@ Sin login. Personajes predefinidos. Foco en que la dinámica funcione.
 - [x] Menú hamburguesa deslizante en GameRoom (pantalla de inicio / selección de personaje)
 - [x] Comandos `/gm` y `/acción` disponibles para todos los jugadores
 - [x] Liberar personajes bloqueados desde la pantalla de selección
+- [x] Sistema de modos de juego: combat, navigation, exploration, negotiation
+  - `game_mode` + `game_mode_data` en `sessions`, sincronizados en tiempo real para todos
+  - `GameModePanel.jsx` muestra estado del modo activo (enemigos con HP, pistas, NPC...)
+  - Modo combat: iniciativa (1d6+atk), orden de turno en combate, HP de enemigos, auto-vuelta a normal
+  - Sistema de muerte: `is_dead` en `session_character_state`, personaje muerto solo puede chatear
+  - Tintes de fondo según modo (rojo/azul/verde/dorado)
 
 ### Pendiente
 
