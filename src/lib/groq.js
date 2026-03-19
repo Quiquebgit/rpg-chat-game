@@ -72,15 +72,32 @@ export async function callMechanicsModel(systemPrompt, userPrompt, { json = true
 }
 
 // Modelo narrador: texto dramático libre, sin JSON
+// Si el modelo versatile falla (rate limit, error 429...) hace fallback al instant
 export async function callNarratorModel(systemPrompt, userPrompt) {
-  const completion = await groqClient.chat.completions.create({
-    model: NARRATOR_MODEL,
+  const params = {
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
     max_tokens: 500,
     temperature: 0.85,
-  })
-  return completion.choices[0]?.message?.content?.trim() || null
+  }
+
+  try {
+    const completion = await groqClient.chat.completions.create({ ...params, model: NARRATOR_MODEL })
+    return completion.choices[0]?.message?.content?.trim() || null
+  } catch (err) {
+    const status = err?.status || err?.error?.status
+    if (status === 429 || status === 503 || status >= 500) {
+      console.warn(`Narrador (${NARRATOR_MODEL}) no disponible (${status}), usando fallback ${MECHANICS_MODEL}`)
+      try {
+        const fallback = await groqClient.chat.completions.create({ ...params, model: MECHANICS_MODEL })
+        return fallback.choices[0]?.message?.content?.trim() || null
+      } catch (fallbackErr) {
+        console.error('Fallback también falló:', fallbackErr)
+        return null
+      }
+    }
+    throw err
+  }
 }

@@ -27,7 +27,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
 
   // Vignette desde los bordes según modo (box-shadow inset, sin cambiar el fondo)
   const MODE_SHADOW = {
-    combat:      'inset 0 0 120px rgba(220, 38, 38, 0.28)',
+    combat:      'inset 0 0 150px rgba(220, 38, 38, 0.55)',
     navigation:  'inset 0 0 120px rgba(37, 99, 235, 0.22)',
     exploration: 'inset 0 0 120px rgba(22, 163, 74, 0.22)',
     negotiation: 'inset 0 0 120px rgba(217, 119, 6, 0.22)',
