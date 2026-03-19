@@ -13,7 +13,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const inputRef = useRef(null)
 
   const { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant } = usePresence(session, character)
-  const { messages, sending, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, characterStates, startGame, announceEntry } = useMessages(session, character, presentIds)
+  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, characterStates, startGame, announceEntry, debugAddItem } = useMessages(session, character, presentIds)
 
   const hasStarted = messages.length > 0
   const isSpectator = hasStarted && !isParticipant
@@ -31,9 +31,11 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
     markAsParticipant()
   }
 
-  // Estado actual del personaje propio (vida en tiempo real)
+  // Estado actual del personaje propio (vida e inventario en tiempo real)
   const activeCharacterState = characterStates.find(s => s.character_id === character.id)
   const hpCurrent = activeCharacterState?.hp_current ?? character.hp
+  const inventory = activeCharacterState?.inventory || []
+  const hasFruit = inventory.some(i => i.type === 'fruta')
 
   // ¿Es el turno de este jugador?
   const currentTurnName = allCharacters.find(c => c.id === session?.current_turn_character_id)?.name
@@ -162,7 +164,12 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
 
         <div>
           <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Jugando como</p>
-          <h2 className="text-2xl font-bold text-amber-300">{character.name}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-amber-300">{character.name}</h2>
+            {hasFruit && (
+              <span title="Portador de fruta del diablo" className="text-lg leading-none">🍎</span>
+            )}
+          </div>
           <p className="text-sm text-gray-400 uppercase tracking-widest">{character.role}</p>
           <p className="text-xs text-gray-600 italic mt-1">{character.combatStyle}</p>
         </div>
@@ -198,9 +205,14 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
           <p className="text-xs text-gray-400 leading-relaxed">{character.ability.description}</p>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 min-h-0 flex flex-col">
           <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">Inventario</p>
-          <p className="text-xs text-gray-600 italic">Sin objetos</p>
+          <div className="flex-1 overflow-y-auto">
+            <InventoryPanel inventory={inventory} />
+          </div>
+          {import.meta.env.DEV && (
+            <DebugInventoryButton onAdd={debugAddItem} />
+          )}
         </div>
 
       </aside>
@@ -332,7 +344,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                 />
               )
           })}
-          {sending && <NarratorTyping />}
+          {narratorTyping && <NarratorTyping />}
           <div ref={messagesEndRef} />
         </div>
 
@@ -565,6 +577,74 @@ function PreGameScreen({ presentedCharacters, onStart, sending }) {
         ¡Zarpar!
       </button>
     </div>
+  )
+}
+
+// --- Inventario ---
+
+const ITEM_TYPE_STYLES = {
+  fruta:      { bg: 'bg-purple-400/10', border: 'border-purple-400/30', text: 'text-purple-300', icon: '🍎' },
+  arma:       { bg: 'bg-red-400/10',    border: 'border-red-400/30',    text: 'text-red-300',    icon: '⚔️' },
+  equipo:     { bg: 'bg-blue-400/10',   border: 'border-blue-400/30',   text: 'text-blue-300',   icon: '🎒' },
+  consumible: { bg: 'bg-green-400/10',  border: 'border-green-400/30',  text: 'text-green-300',  icon: '🧪' },
+}
+const ITEM_RARITY_STYLES = {
+  único:  'text-amber-400',
+  raro:   'text-purple-400',
+  común:  'text-gray-600',
+}
+
+function InventoryPanel({ inventory }) {
+  const [expanded, setExpanded] = useState(null)
+  if (!inventory?.length) return <p className="text-xs text-gray-600 italic">Sin objetos</p>
+  return (
+    <div className="flex flex-col gap-1.5">
+      {inventory.map((item, i) => {
+        const style = ITEM_TYPE_STYLES[item.type] || { bg: 'bg-gray-800', border: 'border-gray-700', text: 'text-gray-400', icon: '📦' }
+        const rarityClass = ITEM_RARITY_STYLES[item.rarity] || 'text-gray-600'
+        const isOpen = expanded === i
+        return (
+          <button
+            key={i}
+            onClick={() => setExpanded(isOpen ? null : i)}
+            className={`w-full text-left rounded-lg border px-3 py-2 transition-all ${style.bg} ${style.border}`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-sm leading-none shrink-0">{style.icon}</span>
+                <span className={`text-xs font-semibold truncate ${style.text}`}>{item.name}</span>
+              </div>
+              <span className={`text-xs shrink-0 ${rarityClass}`}>{item.rarity || 'común'}</span>
+            </div>
+            {isOpen && item.effect && (
+              <p className="text-xs text-gray-400 mt-1.5 leading-relaxed border-t border-white/10 pt-1.5">
+                {item.effect}
+              </p>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// Botón de debug solo visible en desarrollo
+const DEBUG_ITEMS = [
+  { name: 'Gomu Gomu no Mi', type: 'fruta', rarity: 'único', effect: 'Cuerpo de goma — inmune a golpes y balas, puede estirarse' },
+  { name: 'Espada oxidada', type: 'arma', rarity: 'común', effect: '+1 ataque en combate cuerpo a cuerpo' },
+  { name: 'Mapa del Gran Line', type: 'equipo', rarity: 'raro', effect: '+1 navegación en aguas desconocidas' },
+  { name: 'Poción de vida', type: 'consumible', rarity: 'común', effect: 'Recupera 2 HP al usarla' },
+]
+let debugCursor = 0
+
+function DebugInventoryButton({ onAdd }) {
+  return (
+    <button
+      onClick={() => { onAdd(DEBUG_ITEMS[debugCursor % DEBUG_ITEMS.length]); debugCursor++ }}
+      className="mt-2 w-full text-xs text-gray-600 border border-dashed border-gray-800 rounded-lg py-1.5 hover:text-gray-400 hover:border-gray-700 transition-colors"
+    >
+      + debug: añadir item
+    </button>
   )
 }
 
