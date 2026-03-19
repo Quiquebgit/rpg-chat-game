@@ -87,6 +87,7 @@ export function useMessages(session, activeCharacter, presentIds = []) {
 
   // --- Helpers ---
 
+  // Contexto completo para el narrador (con inventario y habilidad)
   function buildCharacterContext() {
     const activeIds = presentIdsRef.current
     const activeStates = characterStatesRef.current.filter(s => activeIds.includes(s.character_id))
@@ -100,6 +101,18 @@ export function useMessages(session, activeCharacter, presentIds = []) {
           : 'sin objetos'
         return `- ${c.name}(${c.role}) HP${hp}/${c.hp} ATK${c.attack} DEF${c.defense} NAV${c.navigation} [${c.ability.name}] ${inventory}`
       }).join('\n')
+  }
+
+  // Contexto mínimo para el modelo mecánico (solo stats, sin inventario ni historial)
+  function buildMinimalCharContext() {
+    return allCharacters
+      .filter(c => presentIdsRef.current.includes(c.id))
+      .map(c => {
+        const state = characterStatesRef.current.find(s => s.character_id === c.id)
+        const hp = state?.hp_current ?? c.hp
+        const dead = state?.is_dead ? '☠' : ''
+        return `${c.id}:HP${hp}/${c.hp} ATK${c.attack} DEF${c.defense} NAV${c.navigation}${dead}`
+      }).join(' | ')
   }
 
   // Devuelve el personaje presente con menos intervenciones recientes
@@ -138,51 +151,22 @@ export function useMessages(session, activeCharacter, presentIds = []) {
     return ctx
   }
 
-  // Prompt para el modelo mecánico: personajes + historial comprimido + acción
+  // Prompt mínimo para el modelo mecánico (sin historial ni resumen de sesión)
   function buildMechanicsPrompt(playerAction) {
-    const activeIds = presentIdsRef.current
     const leastActive = getLeastActive()
-    const summary = narrativeSummaryRef.current
-    const compactHistory = messagesRef.current.slice(-NARRATOR_CONTEXT_MESSAGES).map(m => {
-      if (m.character_id === 'narrator') return `N: ${m.content.slice(0, 100)}`
-      const name = allCharacters.find(c => c.id === m.character_id)?.name || m.character_id
-      return `${name}: ${m.content}`
-    }).join('\n')
-
-    return `## Personajes
-${buildCharacterContext()}
-${summary ? `## Resumen\n${summary}\n` : ''}${buildGameModeContext()}## Historial reciente
-${compactHistory}
-
-## Acción: ${activeCharacter.name} → ${playerAction}
-## Presentes: ${activeIds.join(', ')} | next preferido: ${leastActive} | no repetir: ${activeCharacter.id} salvo si es el único`
+    return `Activo:${activeCharacter.id}(ATK${activeCharacter.attack} DEF${activeCharacter.defense} NAV${activeCharacter.navigation})
+Acción: ${playerAction}
+Personajes: ${buildMinimalCharContext()}
+${buildGameModeContext()}next:${leastActive} no_rep:${activeCharacter.id}`
   }
 
-  // Prompt específico para instrucciones GM — sin restricciones de turno
+  // Prompt mínimo para instrucciones GM
   function buildGmMechanicsPrompt(instruction) {
-    const activeIds = presentIdsRef.current
     const leastActive = getLeastActive()
-    const summary = narrativeSummaryRef.current
-
-    return `## Personajes
-${buildCharacterContext()}
-${summary ? `## Resumen\n${summary}\n` : ''}${buildGameModeContext()}## Instrucción del Maestro de Juego (emitida por ${activeCharacter.name}, id: ${activeCharacter.id}):
-${instruction}
-
-Analiza la instrucción y determina los efectos mecánicos:
-- Cuando la instrucción use "yo", "me", "mi" o "dame", el personaje referenciado es ${activeCharacter.id}
-- Si activa un modo de juego → game_mode y game_mode_data completos
-  · combat: game_mode_data.enemies OBLIGATORIO con al menos 1 enemigo {id, name, hp, hp_max, attack, defense, icon, initiative:0}
-  · navigation: game_mode_data con {danger_name, danger_threshold, progress:0}
-  · exploration: game_mode_data con {clues:[]}
-  · negotiation: game_mode_data con {npc_name, npc_attitude, conviction:0, conviction_max}
-- Si termina el modo activo → game_mode:"normal", game_mode_data:null
-- Si pide tirada de dados → dice_required:true
-- Si da o asigna un objeto a alguien → llama a getRandomItem(type, rarity) y pon el resultado en inventory_updates con action:"add"
-- Si quita un objeto → inventory_updates con action:"remove"
-- Si afecta vida → stat_updates con hp_delta
-- next_character_id: elige ${leastActive} salvo que la instrucción indique otro
-- Presentes: ${activeIds.join(', ')}`
+    return `GM(${activeCharacter.id}): ${instruction}
+Personajes: ${buildMinimalCharContext()}
+${buildGameModeContext()}next:${leastActive}
+"yo/me/mi/dame"→${activeCharacter.id} | combat:enemies obligatorio | game_mode_data completo si activa modo`
   }
 
   // Prompt para el modelo narrador: contexto completo + JSON mecánico ya resuelto
@@ -261,6 +245,9 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
       const mechanicsPrompt = isGm && gmInstruction
         ? buildGmMechanicsPrompt(gmInstruction)
         : buildMechanicsPrompt(playerAction)
+      const estSystem = Math.round(MECHANICS_SYSTEM_PROMPT.length / 4)
+      const estUser = Math.round(mechanicsPrompt.length / 4)
+      console.log(`[tokens mecánico] system:~${estSystem} user:~${estUser} total:~${estSystem + estUser}`)
       const raw = await callMechanicsModel(MECHANICS_SYSTEM_PROMPT, mechanicsPrompt, { useTools: true })
       if (raw) {
         const match = raw.match(/\{[\s\S]*\}/)
