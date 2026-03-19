@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { getRandomItem } from '../lib/items'
 import { useMessages } from '../hooks/useMessages'
 import { usePresence } from '../hooks/usePresence'
 import { characters as allCharacters } from '../data/characters'
@@ -646,22 +647,27 @@ function InventoryPanel({ inventory }) {
   )
 }
 
-// Botón de debug solo visible en desarrollo
-const DEBUG_ITEMS = [
-  { name: 'Gomu Gomu no Mi', type: 'fruta', rarity: 'único', effect: 'Cuerpo de goma — inmune a golpes y balas, puede estirarse' },
-  { name: 'Espada oxidada', type: 'arma', rarity: 'común', effect: '+1 ataque en combate cuerpo a cuerpo' },
-  { name: 'Mapa del Gran Line', type: 'equipo', rarity: 'raro', effect: '+1 navegación en aguas desconocidas' },
-  { name: 'Poción de vida', type: 'consumible', rarity: 'común', effect: 'Recupera 2 HP al usarla' },
-]
+// Botón de debug solo visible en desarrollo — obtiene item aleatorio real de la BD
+const DEBUG_TYPES = ['arma', 'equipo', 'consumible', 'fruta']
 let debugCursor = 0
 
 function DebugInventoryButton({ onAdd }) {
+  const [loading, setLoading] = useState(false)
+  async function handleAdd() {
+    setLoading(true)
+    const type = DEBUG_TYPES[debugCursor % DEBUG_TYPES.length]
+    debugCursor++
+    const item = await getRandomItem({ type })
+    if (item) onAdd(item)
+    setLoading(false)
+  }
   return (
     <button
-      onClick={() => { onAdd(DEBUG_ITEMS[debugCursor % DEBUG_ITEMS.length]); debugCursor++ }}
-      className="mt-2 w-full text-xs text-gray-600 border border-dashed border-gray-800 rounded-lg py-1.5 hover:text-gray-400 hover:border-gray-700 transition-colors"
+      onClick={handleAdd}
+      disabled={loading}
+      className="mt-2 w-full text-xs text-gray-600 border border-dashed border-gray-800 rounded-lg py-1.5 hover:text-gray-400 hover:border-gray-700 disabled:opacity-40 transition-colors"
     >
-      + debug: añadir item
+      {loading ? 'cargando…' : '+ debug: añadir item'}
     </button>
   )
 }
