@@ -593,6 +593,7 @@ const ITEM_RARITY_STYLES = {
   raro:   'text-purple-400',
   común:  'text-gray-600',
 }
+const STAT_LABELS = { attack: 'Ataque', defense: 'Defensa', navigation: 'Navegación', hp: 'Vida', ability: 'Habilidad' }
 
 function InventoryPanel({ inventory }) {
   const [expanded, setExpanded] = useState(null)
@@ -603,24 +604,40 @@ function InventoryPanel({ inventory }) {
         const style = ITEM_TYPE_STYLES[item.type] || { bg: 'bg-gray-800', border: 'border-gray-700', text: 'text-gray-400', icon: '📦' }
         const rarityClass = ITEM_RARITY_STYLES[item.rarity] || 'text-gray-600'
         const isOpen = expanded === i
+        const description = item.effect || item.description
+        const hasDetails = description || item.special_ability || item.effects?.length || item.cure_description
         return (
           <button
             key={i}
-            onClick={() => setExpanded(isOpen ? null : i)}
-            className={`w-full text-left rounded-lg border px-3 py-2 transition-all ${style.bg} ${style.border}`}
+            onClick={() => hasDetails && setExpanded(isOpen ? null : i)}
+            className={`w-full text-left rounded-lg border px-3 py-2 transition-all ${style.bg} ${style.border} ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="text-sm leading-none shrink-0">{style.icon}</span>
                 <span className={`text-xs font-semibold truncate ${style.text}`}>{item.name}</span>
               </div>
-              <span className={`text-xs shrink-0 ${rarityClass}`}>{item.rarity || 'común'}</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {item.effects?.map((e, j) => (
+                  <span key={j} className={`text-xs font-bold ${e.modifier > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {e.modifier > 0 ? '+' : ''}{e.modifier} {STAT_LABELS[e.stat] || e.stat}
+                  </span>
+                ))}
+                <span className={`text-xs ${rarityClass}`}>{item.rarity || 'común'}</span>
+              </div>
             </div>
-            {isOpen && (item.effect || item.description || item.special_ability) && (
-              <p className="text-xs text-gray-400 mt-1.5 leading-relaxed border-t border-white/10 pt-1.5">
-                {item.effect || item.description}
-                {item.special_ability && <span className="block mt-1 text-amber-400/70">✦ {item.special_ability}</span>}
-              </p>
+            {isOpen && hasDetails && (
+              <div className="mt-1.5 border-t border-white/10 pt-1.5 flex flex-col gap-1">
+                {description && (
+                  <p className="text-xs text-gray-400 leading-relaxed">{description}</p>
+                )}
+                {item.special_ability && (
+                  <p className="text-xs text-amber-300/80 leading-relaxed">✦ {item.special_ability}</p>
+                )}
+                {item.cure_description && (
+                  <p className="text-xs text-teal-400/80 leading-relaxed">💊 {item.cure_description}</p>
+                )}
+              </div>
             )}
           </button>
         )
