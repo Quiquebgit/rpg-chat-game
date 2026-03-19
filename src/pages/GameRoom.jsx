@@ -3,6 +3,7 @@ import { getRandomItem } from '../lib/items'
 import { useMessages } from '../hooks/useMessages'
 import { usePresence } from '../hooks/usePresence'
 import { characters as allCharacters } from '../data/characters'
+import GameModePanel from '../components/GameModePanel'
 
 function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const [input, setInput] = useState('')
@@ -14,11 +15,23 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const inputRef = useRef(null)
 
   const { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant } = usePresence(session, character)
-  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, characterStates, startGame, announceEntry, debugAddItem } = useMessages(session, character, presentIds)
+  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, characterStates, startGame, announceEntry, debugAddItem } = useMessages(session, character, presentIds)
 
   const hasStarted = messages.length > 0
   const isSpectator = hasStarted && !isParticipant
   const presentedCharacters = allCharacters.filter(c => presentIds.includes(c.id))
+
+  // Modo de juego activo (sincronizado en tiempo real para todos via session subscription)
+  const gameMode = session?.game_mode || 'normal'
+  const gameModeData = session?.game_mode_data
+
+  // Tinte de fondo según modo
+  const MODE_BG = {
+    combat:      'bg-red-950/20',
+    navigation:  'bg-blue-950/15',
+    exploration: 'bg-green-950/15',
+    negotiation: 'bg-amber-950/15',
+  }
 
   async function handleStartGame() {
     // Marcar al iniciador y notificar al resto de presentes como participantes
@@ -37,10 +50,18 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const hpCurrent = activeCharacterState?.hp_current ?? character.hp
   const inventory = activeCharacterState?.inventory || []
   const hasFruit = inventory.some(i => i.type === 'fruta')
+  const isDead = activeCharacterState?.is_dead ?? false
 
   // ¿Es el turno de este jugador?
   const currentTurnName = allCharacters.find(c => c.id === session?.current_turn_character_id)?.name
-  const isMyTurn = session?.current_turn_character_id === character.id
+  const isMyTurn = session?.current_turn_character_id === character.id && !isDead
+
+  // Iniciativa pendiente: en combate y este jugador aún no ha tirado
+  const needsInitiativeRoll = gameMode === 'combat'
+    && gameModeData
+    && !gameModeData.initiative?.[character.id]
+    && !isSpectator
+    && !isDead
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -57,6 +78,12 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
 
     // Si era espectador, promover a participante automáticamente al hablar
     if (isSpectator) markAsParticipant()
+
+    // Personaje muerto: solo puede enviar mensajes de conversación
+    if (isDead) {
+      await sendChat(text)
+      return
+    }
 
     if (text.startsWith('/gm ')) {
       await sendGmMessage(text.slice(4).trim())
@@ -77,7 +104,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   }
 
   return (
-    <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
+    <div className={`flex h-screen bg-gray-950 text-white overflow-hidden transition-colors duration-700 ${MODE_BG[gameMode] || ''}`}>
 
       {/* Overlay sidebar izquierda */}
       {sidebarOpen && (
@@ -163,16 +190,22 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
           <span className="text-amber-400 text-2xl font-light leading-none">‹</span>
         </button>
 
-        <div>
+        <div className={`relative ${isDead ? 'opacity-60' : ''}`}>
           <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Jugando como</p>
           <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold text-amber-300">{character.name}</h2>
-            {hasFruit && (
+            <h2 className={`text-2xl font-bold ${isDead ? 'line-through text-gray-500' : 'text-amber-300'}`}>
+              {character.name}
+            </h2>
+            {isDead && <span title="Fuera de combate" className="text-xl leading-none">☠️</span>}
+            {!isDead && hasFruit && (
               <span title="Portador de fruta del diablo" className="text-lg leading-none">🍎</span>
             )}
           </div>
-          <p className="text-sm text-gray-400 uppercase tracking-widest">{character.role}</p>
+          <p className={`text-sm uppercase tracking-widest ${isDead ? 'text-gray-600' : 'text-gray-400'}`}>{character.role}</p>
           <p className="text-xs text-gray-600 italic mt-1">{character.combatStyle}</p>
+          {isDead && (
+            <p className="text-xs text-red-400/70 mt-1 font-semibold">— Fuera de combate —</p>
+          )}
         </div>
 
         <div>
@@ -284,6 +317,8 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
           </div>
         </header>
 
+        <GameModePanel gameMode={gameMode} gameModeData={gameModeData} currentTurnName={currentTurnName} />
+
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
           {!hasStarted && !sending && (
             <PreGameScreen
@@ -364,9 +399,33 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
           </div>
         )}
 
-        {/* Input / Botón de dados / Espectador */}
+        {/* Input / Botón de dados / Espectador / Iniciativa / Muerte */}
         <div className="border-t border-gray-800 px-6 py-4 shrink-0">
-          {isSpectator ? (
+          {isDead ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-center text-red-400/60 uppercase tracking-widest">☠️ Tu personaje está fuera de combate</p>
+              <div className="flex gap-3">
+                <span className="text-gray-600 font-bold text-sm self-center shrink-0">{character.name}:</span>
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Puedes hablar, pero no actuar..."
+                  rows={2}
+                  disabled={sending}
+                  className="flex-1 bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-sm text-gray-500 placeholder-gray-700 resize-none focus:outline-none"
+                />
+                <button
+                  onClick={() => { sendChat(input); setInput('') }}
+                  disabled={!input.trim() || sending}
+                  className="px-4 rounded-lg font-bold text-sm bg-gray-800 text-gray-500 hover:bg-gray-700 disabled:opacity-40 transition-colors shrink-0"
+                >
+                  Enviar
+                </button>
+              </div>
+            </div>
+          ) : isSpectator ? (
             <div className="flex flex-col items-center gap-3">
               <p className="text-xs text-gray-600 uppercase tracking-widest">Estás viendo la partida como espectador</p>
               <button
@@ -376,6 +435,18 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
               >
                 <span>🚪</span>
                 Unirme a la aventura
+              </button>
+            </div>
+          ) : needsInitiativeRoll ? (
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-xs text-red-400/70 uppercase tracking-widest">⚔️ ¡Combate! Tira tu iniciativa</p>
+              <button
+                onClick={rollInitiative}
+                disabled={sending}
+                className="flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-lg bg-red-600 text-white hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <span className="text-2xl">🎲</span>
+                Tirar iniciativa (1d6 + {character.attack} ATK)
               </button>
             </div>
           ) : diceRequest.required && isMyTurn ? (
