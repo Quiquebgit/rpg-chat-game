@@ -8,7 +8,8 @@ App web de rol multijugador cooperativo con chat en tiempo real, ambientada en u
 - **Estilos:** Tailwind CSS v4 (via PostCSS)
 - **Chat en tiempo real:** Supabase Realtime
 - **Base de datos:** Supabase (PostgreSQL)
-- **IA Narrador:** Groq API (`llama-3.1-8b-instant`)
+- **IA Mecánicas:** Groq API (`llama-3.1-8b-instant`) — JSON estricto, reglas del juego
+- **IA Narrador:** Groq API (`llama-3.3-70b-versatile`) — narrativa dramática, texto libre
 - **Deploy:** Vercel
 
 ## Variables de entorno

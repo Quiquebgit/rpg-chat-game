@@ -122,7 +122,7 @@ export function useMessages(session, activeCharacter, presentIds = []) {
   }
 
   // Prompt para el modelo mecánico: personajes + historial comprimido + acción
-  function buildMechanicsPrompt(playerAction, isGm = false) {
+  function buildMechanicsPrompt(playerAction) {
     const activeIds = presentIdsRef.current
     const leastActive = getLeastActive()
     const summary = narrativeSummaryRef.current
@@ -137,8 +137,28 @@ ${buildCharacterContext()}
 ${summary ? `## Resumen\n${summary}\n` : ''}## Historial reciente
 ${compactHistory}
 
-## Acción${isGm ? ' (instrucción GM)' : ''}: ${activeCharacter.name} → ${playerAction}
+## Acción: ${activeCharacter.name} → ${playerAction}
 ## Presentes: ${activeIds.join(', ')} | next preferido: ${leastActive} | no repetir: ${activeCharacter.id} salvo si es el único`
+  }
+
+  // Prompt específico para instrucciones GM — sin restricciones de turno
+  function buildGmMechanicsPrompt(instruction) {
+    const activeIds = presentIdsRef.current
+    const leastActive = getLeastActive()
+    const summary = narrativeSummaryRef.current
+
+    return `## Personajes
+${buildCharacterContext()}
+${summary ? `## Resumen\n${summary}\n` : ''}## Instrucción del Maestro de Juego:
+${instruction}
+
+Analiza la instrucción y determina los efectos mecánicos:
+- Si pide tirada de dados → dice_required:true
+- Si da o asigna un objeto a alguien → llama a getRandomItem(type, rarity) y pon el resultado en inventory_updates con action:"add"
+- Si quita un objeto → inventory_updates con action:"remove"
+- Si afecta vida → stat_updates con hp_delta
+- next_character_id: elige ${leastActive} salvo que la instrucción indique otro
+- Presentes: ${activeIds.join(', ')}`
   }
 
   // Prompt para el modelo narrador: contexto completo + JSON mecánico ya resuelto
@@ -214,7 +234,10 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
     // Modelo mecánico
     let mechanics = getDefaultMechanics()
     try {
-      const raw = await callMechanicsModel(MECHANICS_SYSTEM_PROMPT, buildMechanicsPrompt(playerAction, isGm), { useTools: true })
+      const mechanicsPrompt = isGm && gmInstruction
+        ? buildGmMechanicsPrompt(gmInstruction)
+        : buildMechanicsPrompt(playerAction)
+      const raw = await callMechanicsModel(MECHANICS_SYSTEM_PROMPT, mechanicsPrompt, { useTools: true })
       if (raw) {
         const match = raw.match(/\{[\s\S]*\}/)
         if (match) mechanics = { ...mechanics, ...JSON.parse(match[0]) }
