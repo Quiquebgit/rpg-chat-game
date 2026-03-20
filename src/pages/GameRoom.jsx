@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { getRandomItem } from '../lib/items'
 import { useMessages } from '../hooks/useMessages'
 import { usePresence } from '../hooks/usePresence'
+import { useNarration } from '../hooks/useNarration'
 import { characters as allCharacters } from '../data/characters'
 import GameModePanel from '../components/GameModePanel'
 
@@ -13,9 +14,21 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const [actionMode, setActionMode] = useState(true)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
+  const lastNarratedIdRef = useRef(null)
 
   const { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant } = usePresence(session, character)
   const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem } = useMessages(session, character, presentIds)
+  const { speak, stop, isNarrating, isEnabled: narrationEnabled, toggle: toggleNarration, error: narrationError, supported: narrationSupported } = useNarration()
+
+  // Narrar automáticamente los mensajes nuevos del narrador
+  useEffect(() => {
+    if (!messages.length) return
+    const last = messages[messages.length - 1]
+    if (last.type === 'narrator' && last.id !== lastNarratedIdRef.current) {
+      lastNarratedIdRef.current = last.id
+      speak(last.content)
+    }
+  }, [messages]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasStarted = messages.length > 0
   const isSpectator = hasStarted && !isParticipant
@@ -305,6 +318,22 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
               )}
             </div>
 
+            {/* Botón narración por voz */}
+            {narrationSupported && (
+              <button
+                onClick={toggleNarration}
+                className={`p-2 rounded-lg transition-colors ${
+                  narrationEnabled
+                    ? 'text-amber-400 hover:text-amber-300 hover:bg-gray-800'
+                    : 'text-gray-600 hover:text-gray-400 hover:bg-gray-800'
+                }`}
+                title={narrationEnabled ? 'Desactivar narración por voz' : 'Activar narración por voz'}
+                aria-label={narrationEnabled ? 'Desactivar narración' : 'Activar narración'}
+              >
+                <span className="text-lg leading-none">{narrationEnabled ? (isNarrating ? '🔊' : '🔈') : '🔇'}</span>
+              </button>
+            )}
+
             {/* Botón hamburguesa */}
             <button
               onClick={() => setMenuOpen(v => !v)}
@@ -317,6 +346,12 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             </button>
           </div>
         </header>
+
+        {narrationError && (
+          <div className="shrink-0 px-6 py-2 bg-amber-400/10 border-b border-amber-400/20 flex items-center gap-2">
+            <span className="text-xs text-amber-400/80">🔇 {narrationError}</span>
+          </div>
+        )}
 
         <GameModePanel gameMode={gameMode} gameModeData={gameModeData} currentTurnName={currentTurnName} />
 
