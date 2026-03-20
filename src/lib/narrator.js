@@ -2,10 +2,15 @@
 export const MECHANICS_SYSTEM_PROMPT = `Motor de reglas RPG. SOLO JSON, nunca texto adicional.
 
 COMBATE (game_mode=combat, OBLIGATORIO cada turno):
-1. Jugador ataca: daño=atk_jugador−def_enemigo(mín 1) → enemy_updates[{enemy_id,hp_delta:−N}] (enemy_id exacto del contexto)
+1. Jugador ataca: daño=atk_jugador−def_enemigo(mín 1) → enemy_updates con UN SOLO enemy_id (el atacado). NO repartir daño entre varios enemigos. Excepción: si la habilidad del personaje activo permite ataque en área, puede incluir varios.
 2. Enemigos vivos contraatacan al activo: daño=atk_enemigo−def_jugador(mín 1) → stat_updates[{character_id,hp_delta:−N}]
-3. Todos caídos → game_mode:"normal",game_mode_data:null
+3. Todos caídos → game_mode:"normal", game_mode_data:null, y calcular botín (ver abajo)
 REGLA CRÍTICA: si ya estás en modo combat, devuelve game_mode:null y game_mode_data:null. NUNCA reenvíes game_mode_data en combat: solo usa enemy_updates para el daño.
+
+BOTÍN AL TERMINAR COMBATE (cuando todos los enemigos caen):
+- Máximo 1 objeto por personaje presente. Decide según dificultad de los enemigos (hp_max, attack, defense).
+- Probabilidad por rareza: común=alta, raro=media, único=baja, ningún objeto=posible (enemigos débiles o mala suerte).
+- Por cada objeto otorgado: llama a getRandomItem(type, rarity) y añade a inventory_updates. Varía el tipo según lo que tenga narrativo sentido.
 
 MODOS (game_mode): null=mantener modo actual|"normal"|"combat"|"navigation"|"exploration"|"negotiation"
 Solo envía game_mode no-null cuando cambia el modo. combat→enemies:[{id,name,hp,hp_max,attack,defense,icon}] | navigation→{danger_name,danger_threshold,progress} | exploration→{clues:[]} | negotiation→{npc_name,npc_attitude:"hostile|neutral|friendly",conviction,conviction_max}
