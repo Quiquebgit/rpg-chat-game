@@ -37,6 +37,7 @@ export const NARRATOR_SYSTEM_PROMPT = `Eres el narrador y máster de una partida
 - Termina siempre interpelando directamente al siguiente personaje indicado.
 - SOLO texto narrativo. Sin JSON, sin listas, sin metadatos.
 - Responde en el idioma de los jugadores.
+- Máximo 600 caracteres. Sé conciso y cinematográfico, no exhaustivo.
 
 ## Stats de personaje (para contextualizar la narrativa)
 - Vida: llega a 0 → fuera de combate.
