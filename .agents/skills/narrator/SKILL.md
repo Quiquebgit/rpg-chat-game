@@ -1,9 +1,10 @@
 # Narrador IA — configuración y formato
 
 ## Modelos
-- **Mecánicas:** Groq `llama-3.1-8b-instant` — JSON estricto, reglas del juego, function calling
-- **Narrador:** Groq `llama-3.3-70b-versatile` — narrativa dramática, texto libre
+- **Mecánicas:** `llama-3.1-8b-instant` → `openai/gpt-oss-20b` → `llama-4-scout-17b` (fallback por 429/503)
+- **Narrador:** `llama-4-scout-17b` → `llama-3.3-70b-versatile` → `kimi-k2` → `qwen3-32b` → ... (fallback)
 - Clientes en `src/lib/groq.js`. System prompts en `src/lib/narrator.js`.
+- `tryModels()` itera la lista; solo avanza al siguiente modelo si recibe 429 o 503.
 
 ## Flujo de dos modelos
 1. **Modelo mecánico** (`callMechanicsModel`) recibe acción del jugador → devuelve JSON con decisiones
@@ -31,10 +32,16 @@
 ```
 
 ## Campos clave
-- `enemy_updates`: daño a enemigos en modo combat. enemy_id debe coincidir con el id en `game_mode_data.enemies`.
+- `enemy_updates`: daño a enemigos en modo combat. Formato `[{"enemy_id":<id exacto>,"hp_delta":<negativo>}]`. Solo un enemigo por turno salvo AoE explícita.
 - `game_mode`: null (mantener) | "normal" | "combat" | "navigation" | "exploration" | "negotiation"
 - `game_mode_data`: estructura completa del modo (reemplaza la anterior), o null para mantener.
 - `inventory_updates`: SIEMPRE usar `getRandomItem(type, rarity)` vía function calling al añadir items. Nunca inventar.
+
+## IMPORTANTE: daño calculado en código, no por el modelo
+- El `hp_delta` del modelo en `enemy_updates` es **ignorado**. El daño real se calcula en código: `Math.max(0, atk_jugador - def_enemigo)`.
+- El contraataque también se calcula en código: `Math.max(0, atk_enemigo - def_jugador)` sumado entre todos los enemigos vivos.
+- Esto garantiza que el daño sea siempre correcto aunque el modelo falle.
+- El narrador recibe `attackPreview` con el resultado real antes de narrar, para ser coherente.
 
 ## Contexto que recibe cada modelo en cada llamada
 - Estado de todos los personajes presentes (HP, stats, inventario, habilidad)
@@ -46,13 +53,17 @@
 ## Funciones especiales en useMessages.js
 - `buildMechanicsPrompt(playerAction)` — prompt para el modelo mecánico (jugador en turno)
 - `buildGmMechanicsPrompt(instruction)` — prompt GM, sin restricción de turno
-- `buildNarratorPrompt(playerAction, mechanics, diceResult)` — prompt para el narrador
+- `buildNarratorPrompt(playerAction, mechanics, diceResult, realNextId, attackPreview)` — prompt para el narrador; recibe el siguiente personaje real y el preview del ataque
+- `buildGameModeContext()` — genera sección de modo activo para los prompts; en combate filtra enemigos derrotados
 - `processAction(playerAction, { isGm, gmInstruction })` — orquesta mecánico → narrador
 - `deliverNarrative(playerAction, mechanics, diceResult, { gmInstruction })` — llama narrador y aplica efectos
-- `applyEnemyUpdates(enemyUpdates)` — aplica daño a enemigos, vuelve a normal si todos caen
+- `applyEnemyUpdates(enemyUpdates)` — aplica daño a **un solo** enemigo (código override), vuelve a normal si todos caen
 - `applyGameMode(mechanics)` — actualiza game_mode en sesión, calcula iniciativa al entrar en combate
 - `checkAndMarkDeaths(statUpdates)` — marca is_dead cuando HP llega a 0
 - `rollInitiative()` — 1d6 + ataque del personaje, establece orden de combate cuando todos tiran
+- `previewCombatAttack(enemyUpdates)` — calcula resultado real del ataque ANTES de narrar (enemyName, oldHp, newHp, damage, willBeDefeated, allWillFall)
+- `computeNextTurn(mechanics)` — determina el próximo personaje vivo en turno; tiene prioridad sobre `next_character_id` del modelo
+- `distributeLoot()` — otorga botín automáticamente al finalizar combate (70% por jugador, rareza aleatoria)
 
 ## Resumen narrativo incremental
 - Se actualiza cada 10 mensajes de jugador

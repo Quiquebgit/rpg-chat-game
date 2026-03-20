@@ -28,8 +28,15 @@ El modo activo se almacena en `sessions.game_mode` y se sincroniza en tiempo rea
 - Enemigos definidos en `game_mode_data.enemies[]` con HP, ataque, defensa, icono
 - Al entrar en combate: cada jugador tira iniciativa (1d6 + ataque) → orden de turno
 - Botón "Tirar iniciativa" reemplaza el input hasta que el jugador tire
-- `enemy_updates` del modelo mecánico reduce HP de enemigos en `game_mode_data`
-- Todos los enemigos a 0 HP → `game_mode` vuelve a `'normal'` automáticamente
+- **Daño calculado en código**, no por el modelo. `hp_delta` del modelo se ignora.
+  - Ataque jugador: `Math.max(0, atk_jugador - def_enemigo)`
+  - Contraataque: `Math.max(0, atk_enemigo - def_jugador)` × enemigos vivos
+- Solo un enemigo recibe daño por turno (salvo habilidad AoE). Código enforces esta regla.
+- Enemigos derrotados (`defeated: true`) se filtran del contexto del modelo en turnos posteriores
+- Todos los enemigos a 0 HP → `game_mode` vuelve a `'normal'` automáticamente + se distribuye botín
+- **Botín automático** al acabar combate: 70% probabilidad por jugador, rareza aleatoria
+- El siguiente turno es calculado por `computeNextTurn()` antes de narrar — nunca a un personaje muerto
+- `gameModeRef` / `gameModeDataRef`: refs siempre actualizados, usados como fuente de verdad en combate
 - Fondo de interfaz: tinte rojo oscuro
 
 ### Modo Navigation

@@ -8,8 +8,8 @@ App web de rol multijugador cooperativo con chat en tiempo real, ambientada en u
 - **Estilos:** Tailwind CSS v4 (via PostCSS)
 - **Chat en tiempo real:** Supabase Realtime
 - **Base de datos:** Supabase (PostgreSQL)
-- **IA Mecánicas:** Groq API (`llama-3.1-8b-instant`) — JSON estricto, reglas del juego
-- **IA Narrador:** Groq API (`llama-3.3-70b-versatile`) — narrativa dramática, texto libre
+- **IA Mecánicas:** Groq API — JSON estricto, reglas del juego. Fallback: `llama-3.1-8b-instant` → `gpt-oss-20b` → `llama-4-scout`
+- **IA Narrador:** Groq API — narrativa dramática, texto libre. Fallback: `llama-4-scout` → `llama-3.3-70b` → `kimi-k2` → ...
 - **Deploy:** Vercel
 
 ## Variables de entorno
@@ -52,6 +52,12 @@ Sin login. Personajes predefinidos. Foco en que la dinámica funcione.
   - Modo combat: iniciativa (1d6+atk), orden de turno en combate, HP de enemigos, auto-vuelta a normal
   - Sistema de muerte: `is_dead` en `session_character_state`, personaje muerto solo puede chatear
   - Tintes de fondo según modo (rojo/azul/verde/dorado)
+- [x] Combate robusto — daño calculado en código (no por el modelo):
+  - `Math.max(0, atk - def)` para ataques y contraataques; el modelo nunca decide el daño real
+  - Un solo enemigo dañado por turno; enemigos derrotados filtrados del contexto
+  - `previewCombatAttack` calcula resultado antes de narrar; narrador recibe info real
+  - `computeNextTurn` garantiza que el turno nunca va a un personaje muerto
+  - Botín automático al acabar combate (`distributeLoot`): 70% por jugador, rareza aleatoria
 
 ### Pendiente
 
