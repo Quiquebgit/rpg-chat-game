@@ -1,5 +1,4 @@
 import Groq from 'groq-sdk'
-import { getRandomItem, GET_RANDOM_ITEM_TOOL } from './items'
 
 const groqClient = new Groq({
   apiKey: import.meta.env.VITE_GROQ_API_KEY,
@@ -21,10 +20,6 @@ const MECHANICS_MODELS = [
   'openai/gpt-oss-20b',
   'meta-llama/llama-4-scout-17b-16e-instruct',
 ]
-
-// Mapa de herramientas disponibles para el modelo mecánico
-const TOOL_EXECUTORS = { getRandomItem }
-const MECHANICS_TOOLS = [GET_RANDOM_ITEM_TOOL]
 
 // Error que se lanza cuando todos los modelos de la lista devuelven 429
 export class ModelsBusyError extends Error {
@@ -54,14 +49,22 @@ async function tryModels(models, role, makeRequest) {
   throw new ModelsBusyError(role)
 }
 
-// Modelo mecánico: JSON estricto, reglas del juego, sin narrativa
-// useTools: activa function calling (getRandomItem). No usar para resúmenes.
-export async function callMechanicsModel(systemPrompt, userPrompt, { json = true, maxTokens = 400, temperature = 0.1, useTools = false } = {}) {
+// Modelo mecánico: JSON estricto, reglas del juego, sin narrativa.
+// tools y toolExecutors son opcionales: cuando se pasan, se usan en lugar de ninguna tool.
+export async function callMechanicsModel(systemPrompt, userPrompt, {
+  json = true,
+  maxTokens = 400,
+  temperature = 0.1,
+  useTools = false,
+  tools: customTools = null,
+  toolExecutors: customExecutors = null,
+} = {}) {
   const messages = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
   ]
-  const tools = useTools ? MECHANICS_TOOLS : undefined
+  const tools = useTools ? (customTools || undefined) : undefined
+  const executors = customExecutors || {}
 
   return tryModels(MECHANICS_MODELS, 'mecánico', async (model) => {
     // Primera llamada: con tools si aplica. Sin response_format para no conflictar con tool_choice.
@@ -80,7 +83,7 @@ export async function callMechanicsModel(systemPrompt, userPrompt, { json = true
     if (responseMessage?.tool_calls?.length > 0) {
       const toolResultMessages = []
       for (const toolCall of responseMessage.tool_calls) {
-        const fn = TOOL_EXECUTORS[toolCall.function.name]
+        const fn = executors[toolCall.function.name]
         let result = null
         if (fn) {
           try {
@@ -93,7 +96,7 @@ export async function callMechanicsModel(systemPrompt, userPrompt, { json = true
         toolResultMessages.push({
           role: 'tool',
           tool_call_id: toolCall.id,
-          content: result ? JSON.stringify(result) : 'ERROR: No se encontró ningún item con esos filtros. Deja inventory_updates vacío.',
+          content: result ? JSON.stringify(result) : 'ERROR: sin resultados. Omite este campo.',
         })
       }
       const completion2 = await groqClient.chat.completions.create({
