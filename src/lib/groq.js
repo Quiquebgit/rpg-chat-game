@@ -8,17 +8,18 @@ const groqClient = new Groq({
 
 // Listas de modelos en orden de preferencia. Cada petición empieza siempre desde el índice 0.
 const NARRATOR_MODELS = [
-  'moonshotai/kimi-k2-instruct',
   'meta-llama/llama-4-scout-17b-16e-instruct',
-  'qwen/qwen3-32b',
   'llama-3.3-70b-versatile',
+  'moonshotai/kimi-k2-instruct',
+  'qwen/qwen3-32b',
+  'openai/gpt-oss-20b',
   'openai/gpt-oss-120b',
 ]
 
 const MECHANICS_MODELS = [
   'llama-3.1-8b-instant',
-  'meta-llama/llama-4-scout-17b-16e-instruct',
   'openai/gpt-oss-20b',
+  'meta-llama/llama-4-scout-17b-16e-instruct',
 ]
 
 // Mapa de herramientas disponibles para el modelo mecánico
