@@ -350,11 +350,23 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
   // Actualiza el modo de juego en Supabase con los datos del modelo mecánico
   async function applyGameMode(mechanics) {
     const newMode = mechanics.game_mode
-    const newData = mechanics.game_mode_data
+    let newData = mechanics.game_mode_data
     if (!newMode) return
 
-    console.log('[applyGameMode] modo:', newMode, '| data:', JSON.stringify(newData))
+    const currentMode = sessionRef.current?.game_mode || 'normal'
 
+    // Si ya estamos en combat, no sobrescribir game_mode_data — enemy_updates lo gestiona
+    if (newMode === 'combat' && currentMode === 'combat') {
+      console.log('[applyGameMode] ya en combat, ignorando game_mode_data para no pisar enemy_updates')
+      return
+    }
+
+    // Al entrar en combat: normalizar hp === hp_max para que los enemigos empiecen con vida completa
+    if (newMode === 'combat' && newData?.enemies) {
+      newData = { ...newData, enemies: newData.enemies.map(e => ({ ...e, hp: e.hp_max ?? e.hp })) }
+    }
+
+    console.log('[applyGameMode] modo:', newMode, '| data:', JSON.stringify(newData))
     await supabase.from('sessions')
       .update({ game_mode: newMode, game_mode_data: newData })
       .eq('id', session.id)
@@ -391,8 +403,9 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
       await checkAndMarkDeaths(mechanics.stat_updates)
     }
     if (mechanics.inventory_updates?.length > 0) await applyInventoryUpdates(mechanics.inventory_updates)
-    if (mechanics.enemy_updates?.length > 0) await applyEnemyUpdates(mechanics.enemy_updates)
-    if (mechanics.game_mode) await applyGameMode(mechanics)
+    const enemyResult = mechanics.enemy_updates?.length > 0 ? await applyEnemyUpdates(mechanics.enemy_updates) : null
+    // No aplicar game_mode si el combate terminó por derrota de todos los enemigos en este mismo turno
+    if (mechanics.game_mode && enemyResult?.newMode !== 'normal') await applyGameMode(mechanics)
 
     // Determinar el siguiente turno, respetando el orden de combate si estamos en ese modo
     const s = sessionRef.current
