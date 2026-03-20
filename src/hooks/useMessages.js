@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { callMechanicsModel, callNarratorModel, ModelsBusyError } from '../lib/groq'
+import { getRandomItem } from '../lib/items'
 import { MECHANICS_SYSTEM_PROMPT, NARRATOR_SYSTEM_PROMPT, SUMMARY_SYSTEM_PROMPT } from '../lib/narrator'
 import { characters as allCharacters } from '../data/characters'
 
@@ -25,6 +26,9 @@ export function useMessages(session, activeCharacter, presentIds = []) {
   const characterStatesRef = useRef([])
   const presentIdsRef = useRef(presentIds)
   const narrativeSummaryRef = useRef(session?.narrative_summary || '')
+  // Refs dedicados para game_mode y game_mode_data — fuente de verdad para los prompts
+  const gameModeRef = useRef(session?.game_mode || 'normal')
+  const gameModeDataRef = useRef(session?.game_mode_data ?? null)
   // Guarda el resultado del modelo mecánico mientras el jugador tira los dados
   const pendingMechanicsRef = useRef(null)
 
@@ -34,8 +38,14 @@ export function useMessages(session, activeCharacter, presentIds = []) {
   useEffect(() => { presentIdsRef.current = presentIds }, [presentIds])
   useEffect(() => { sessionRef.current = session }, [session])
   // Sincronizar modo de juego desde sesión remota (otro jugador vía Realtime)
-  useEffect(() => { setGameMode(session?.game_mode || 'normal') }, [session?.game_mode])
-  useEffect(() => { setGameModeData(session?.game_mode_data ?? null) }, [session?.game_mode_data])
+  useEffect(() => {
+    setGameMode(session?.game_mode || 'normal')
+    gameModeRef.current = session?.game_mode || 'normal'
+  }, [session?.game_mode])
+  useEffect(() => {
+    setGameModeData(session?.game_mode_data ?? null)
+    gameModeDataRef.current = session?.game_mode_data ?? null
+  }, [session?.game_mode_data])
 
   useEffect(() => {
     if (!session) return
@@ -145,16 +155,19 @@ export function useMessages(session, activeCharacter, presentIds = []) {
   }
 
   // Contexto del modo de juego actual para los prompts del modelo mecánico
+  // Lee de los refs dedicados para tener siempre datos frescos (no Realtime delayed)
   function buildGameModeContext() {
-    const s = sessionRef.current
-    if (!s?.game_mode || s.game_mode === 'normal') return ''
-    let ctx = `## Modo de juego activo: ${s.game_mode}\n${s.game_mode_data ? JSON.stringify(s.game_mode_data) : ''}\n`
-    // Listar IDs de enemigos explícitamente para evitar errores de referencia
-    if (s.game_mode === 'combat' && s.game_mode_data?.enemies?.length) {
-      const alive = s.game_mode_data.enemies.filter(e => !e.defeated)
-      ctx += `Enemigos vivos (usa estos ids exactos en enemy_updates): ${alive.map(e => `${e.id}(${e.name} HP:${e.hp})`).join(', ')}\n`
+    const mode = gameModeRef.current
+    const data = gameModeDataRef.current
+    if (!mode || mode === 'normal') return ''
+    if (mode === 'combat' && data?.enemies) {
+      // Pasar solo enemigos VIVOS al modelo — los muertos no deben aparecer en el contexto
+      const alive = data.enemies.filter(e => !e.defeated)
+      if (!alive.length) return ''
+      const cleanData = { ...data, enemies: alive }
+      return `## Modo de juego activo: combat\n${JSON.stringify(cleanData)}\nEnemigos vivos (usa estos ids exactos en enemy_updates): ${alive.map(e => `${e.id}(${e.name} HP:${e.hp})`).join(', ')}\n`
     }
-    return ctx
+    return `## Modo de juego activo: ${mode}\n${data ? JSON.stringify(data) : ''}\n`
   }
 
   // Prompt mínimo para el modelo mecánico (sin historial ni resumen de sesión)
@@ -176,7 +189,7 @@ ${buildGameModeContext()}next:${leastActive}
   }
 
   // Prompt para el modelo narrador: contexto completo + JSON mecánico ya resuelto
-  function buildNarratorPrompt(playerAction, mechanics, diceResult) {
+  function buildNarratorPrompt(playerAction, mechanics, diceResult, realNextId = null, attackPreview = null) {
     const summary = narrativeSummaryRef.current
     const chatHistory = messagesRef.current.slice(-NARRATOR_CONTEXT_MESSAGES).map(m => {
       if (m.character_id === 'narrator') {
@@ -187,7 +200,12 @@ ${buildGameModeContext()}next:${leastActive}
       return `${name}: ${m.content}`
     }).join('\n')
 
-    const nextChar = allCharacters.find(c => c.id === mechanics.next_character_id)
+    const nextId = realNextId || mechanics.next_character_id
+    const nextChar = allCharacters.find(c => c.id === nextId)
+
+    const attackNote = attackPreview
+      ? `## Resultado del ataque (calculado):\n${attackPreview.enemyName} recibe ${attackPreview.damage} de daño: HP ${attackPreview.oldHp}→${attackPreview.newHp}${attackPreview.willBeDefeated ? ' (DERROTADO)' : ''}.${attackPreview.allWillFall ? ' TODOS LOS ENEMIGOS HAN CAÍDO. Narra el FIN del combate y la calma.' : ''}\n`
+      : ''
 
     return `## Personajes en sesión
 ${buildCharacterContext()}
@@ -196,10 +214,10 @@ ${chatHistory}
 
 ## Acción de ${activeCharacter.name}:
 ${playerAction}
-${diceResult ? `## Resultado de dados:\n${diceResult}${mechanics.dice_threshold ? ` (umbral para éxito: ${mechanics.dice_threshold})` : ''}\n` : ''}## Decisiones mecánicas (ya resueltas — nárralas):
+${diceResult ? `## Resultado de dados:\n${diceResult}${mechanics.dice_threshold ? ` (umbral para éxito: ${mechanics.dice_threshold})` : ''}\n` : ''}${attackNote}## Decisiones mecánicas (ya resueltas — nárralas):
 ${JSON.stringify(mechanics)}
 
-Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
+Termina interpelando a: ${nextChar?.name || nextId}`
   }
 
   // --- Aplicar efectos mecánicos ---
@@ -319,40 +337,72 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
     }
   }
 
-  // Aplica daño a enemigos en game_mode_data; si todos caen, vuelve a modo normal
-  // Lee directo de Supabase para evitar datos obsoletos en sessionRef
+  // Aplica daño a enemigos en game_mode_data; si todos caen, vuelve a modo normal.
+  // Lee de gameModeDataRef (fuente de verdad local, siempre al día) en vez de Supabase.
   async function applyEnemyUpdates(enemyUpdates) {
     if (!enemyUpdates?.length) return null
 
-    // Leer el game_mode_data más reciente de Supabase
-    const { data: fresh } = await supabase
-      .from('sessions').select('game_mode_data').eq('id', session.id).single()
-
-    const enemies = fresh?.game_mode_data?.enemies
-    console.log('[applyEnemyUpdates] enemigos en BD:', JSON.stringify(enemies))
+    const currentData = gameModeDataRef.current
+    const enemies = currentData?.enemies
+    console.log('[applyEnemyUpdates] enemigos en ref:', JSON.stringify(enemies))
     console.log('[applyEnemyUpdates] updates recibidos:', JSON.stringify(enemyUpdates))
 
-    if (!enemies?.length) return null
+    if (!enemies?.length) {
+      console.warn('[applyEnemyUpdates] sin enemigos en ref — abortando')
+      return null
+    }
 
+    // Normalización segura: convierte a string antes de operar (soporta números e undefined)
+    const norm = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+    // El modelo a veces usa "character_id" en lugar de "enemy_id" — aceptar ambos
+    const getUid = u => u.enemy_id ?? u.character_id
+
+    // Solo atacar UN enemigo vivo por turno (single-target por defecto).
+    // Calculamos el daño nosotros para no depender del hp_delta del modelo (suele ser incorrecto).
+    let targetFound = false
     const updatedEnemies = enemies.map(enemy => {
-      const update = enemyUpdates.find(u => u.enemy_id === enemy.id)
+      if (targetFound || enemy.defeated) return enemy  // ya atacado o ya muerto
+
+      // Buscar update: id exacto (números y strings) → fuzzy → substring
+      let update = enemyUpdates.find(u => {
+        const uid = getUid(u)
+        return uid === enemy.id || String(uid) === String(enemy.id)
+      })
+      if (!update) {
+        update = enemyUpdates.find(u => {
+          const uid = getUid(u)
+          return norm(uid) === norm(enemy.id) ||
+            norm(uid) === norm(enemy.name) ||
+            norm(String(enemy.id)).includes(norm(String(uid))) ||
+            norm(String(uid)).includes(norm(String(enemy.id)))
+        })
+        if (update) console.log(`[applyEnemyUpdates] match fuzzy: "${getUid(update)}" → "${enemy.name}"`)
+      }
       if (!update) return enemy
-      const newHp = Math.max(0, enemy.hp + update.hp_delta)
-      console.log(`[applyEnemyUpdates] ${enemy.name} (${enemy.id}): ${enemy.hp} → ${newHp}`)
+
+      targetFound = true
+      // Calcular daño con la fórmula correcta: max(1, ATK_atacante - DEF_enemigo)
+      const damage = Math.max(0, activeCharacter.attack - enemy.defense)
+      const newHp = Math.max(0, enemy.hp - damage)
+      console.log(`[applyEnemyUpdates] ${enemy.name}: ATK${activeCharacter.attack} - DEF${enemy.defense} = ${damage} daño → HP ${enemy.hp}→${newHp}`)
       return { ...enemy, hp: newHp, defeated: newHp <= 0 }
     })
 
     const allDefeated = updatedEnemies.every(e => e.defeated)
     const newMode = allDefeated ? 'normal' : 'combat'
-    const newData = allDefeated ? null : { ...fresh.game_mode_data, enemies: updatedEnemies }
+    const newData = allDefeated ? null : { ...currentData, enemies: updatedEnemies }
+
+    console.log('[applyEnemyUpdates] resultado:', newMode, JSON.stringify(newData?.enemies))
 
     await supabase.from('sessions')
       .update({ game_mode: newMode, game_mode_data: newData })
       .eq('id', session.id)
 
-    // Actualizar estado local inmediatamente (sin esperar Realtime)
+    // Actualizar estado local y refs inmediatamente (sin esperar Realtime)
     setGameMode(newMode)
     setGameModeData(newData)
+    gameModeRef.current = newMode
+    gameModeDataRef.current = newData
     sessionRef.current = { ...sessionRef.current, game_mode: newMode, game_mode_data: newData }
 
     return { newMode, newData }
@@ -364,7 +414,7 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
     let newData = mechanics.game_mode_data
     if (!newMode) return
 
-    const currentMode = sessionRef.current?.game_mode || 'normal'
+    const currentMode = gameModeRef.current || 'normal'
 
     // Si ya estamos en combat, no sobrescribir game_mode_data — enemy_updates lo gestiona
     if (newMode === 'combat' && currentMode === 'combat') {
@@ -372,30 +422,108 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
       return
     }
 
-    // Al entrar en combat: normalizar hp === hp_max para que los enemigos empiecen con vida completa
+    // Al entrar en combat: normalizar hp=hp_max, y garantizar que hp_max quede guardado
     if (newMode === 'combat' && newData?.enemies) {
-      newData = { ...newData, enemies: newData.enemies.map(e => ({ ...e, hp: e.hp_max ?? e.hp })) }
+      newData = {
+        ...newData,
+        enemies: newData.enemies.map(e => {
+          const maxHp = (e.hp_max > 0 ? e.hp_max : null) ?? (e.hp > 0 ? e.hp : 5)
+          return { ...e, hp: maxHp, hp_max: maxHp, defeated: false }
+        }),
+      }
     }
+    console.log('[applyGameMode] modo:', newMode, '| enemigos:', JSON.stringify(newData?.enemies))
 
-    console.log('[applyGameMode] modo:', newMode, '| data:', JSON.stringify(newData))
     await supabase.from('sessions')
       .update({ game_mode: newMode, game_mode_data: newData })
       .eq('id', session.id)
 
-    // Actualizar estado local inmediatamente (sin esperar Realtime)
+    // Actualizar estado local y refs inmediatamente (sin esperar Realtime)
     setGameMode(newMode)
     setGameModeData(newData)
+    gameModeRef.current = newMode
+    gameModeDataRef.current = newData
     sessionRef.current = { ...sessionRef.current, game_mode: newMode, game_mode_data: newData }
+  }
+
+  // Calcula el resultado del ataque actual ANTES de narrar, para que el narrador lo sepa
+  function previewCombatAttack(enemyUpdates) {
+    if (!enemyUpdates?.length || gameModeRef.current !== 'combat') return null
+    const enemies = gameModeDataRef.current?.enemies
+    if (!enemies?.length) return null
+    const norm = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+    const getUid = u => u.enemy_id ?? u.character_id
+    for (const enemy of enemies) {
+      if (enemy.defeated) continue
+      const update = enemyUpdates.find(u => {
+        const uid = getUid(u)
+        return uid === enemy.id || String(uid) === String(enemy.id) ||
+          norm(uid) === norm(enemy.id) || norm(uid) === norm(enemy.name)
+      })
+      if (update) {
+        const damage = Math.max(0, activeCharacter.attack - enemy.defense)
+        const newHp = Math.max(0, enemy.hp - damage)
+        const willBeDefeated = damage > 0 && newHp <= 0
+        const allWillFall = willBeDefeated &&
+          enemies.every(e => e.defeated || e.id === enemy.id)
+        return { enemyName: enemy.name, oldHp: enemy.hp, newHp, damage, willBeDefeated, allWillFall }
+      }
+    }
+    return null
+  }
+
+  // Distribuye botín automáticamente al terminar el combate (el modelo no sabe cuándo termina)
+  async function distributeLoot() {
+    const lootUpdates = []
+    for (const id of presentIdsRef.current) {
+      const roll = Math.random()
+      if (roll > 0.3) {  // 70% de probabilidad de loot
+        const rarity = roll > 0.85 ? 'raro' : 'común'
+        const types = ['arma', 'equipo', 'consumible']
+        const type = types[Math.floor(Math.random() * types.length)]
+        try {
+          const item = await getRandomItem({ type, rarity })
+          if (item) lootUpdates.push({ character_id: id, action: 'add', item })
+        } catch (e) {
+          console.warn('[loot] error obteniendo item:', e)
+        }
+      }
+    }
+    if (lootUpdates.length > 0) {
+      await applyInventoryUpdates(lootUpdates)
+      console.log('[loot] distribuido:', lootUpdates.map(u => `${u.character_id}: ${u.item?.name}`).join(', '))
+    }
+  }
+
+  // Calcula el siguiente turno real respetando el orden de combate y filtrando muertos
+  function computeNextTurn(mechanics) {
+    const s = sessionRef.current
+    const aliveIds = presentIdsRef.current.filter(
+      id => !characterStatesRef.current.find(cs => cs.character_id === id)?.is_dead
+    )
+    let nextId = mechanics.next_character_id
+    if (s?.game_mode === 'combat' && s.game_mode_data?.combat_turn_order?.length > 0) {
+      const order = s.game_mode_data.combat_turn_order.filter(id => aliveIds.includes(id))
+      const currentIdx = order.indexOf(s.current_turn_character_id)
+      nextId = order[(currentIdx + 1) % order.length] || nextId
+    }
+    if (nextId && characterStatesRef.current.find(cs => cs.character_id === nextId)?.is_dead) {
+      nextId = aliveIds.find(id => id !== activeCharacter.id) || aliveIds[0] || nextId
+    }
+    return nextId
   }
 
   // Llama al modelo narrador con todo el contexto y aplica los efectos
   async function deliverNarrative(playerAction, mechanics, diceResult, { gmInstruction = null } = {}) {
+    // Calcular el turno real y el resultado del ataque ANTES de narrar (para que el narrador lo sepa)
+    const realNextId = computeNextTurn(mechanics)
+    const attackPreview = previewCombatAttack(mechanics.enemy_updates)
     const systemPrompt = gmInstruction
       ? `${NARRATOR_SYSTEM_PROMPT}\n\n## INSTRUCCIÓN ACTIVA DEL GM — PRIORIDAD ABSOLUTA:\n${gmInstruction}\nEjecuta exactamente lo que pide. No la ignores ni la suavices.`
       : NARRATOR_SYSTEM_PROMPT
     let narrative
     try {
-      narrative = await callNarratorModel(systemPrompt, buildNarratorPrompt(playerAction, mechanics, diceResult))
+      narrative = await callNarratorModel(systemPrompt, buildNarratorPrompt(playerAction, mechanics, diceResult, realNextId, attackPreview))
     } catch (err) {
       if (err instanceof ModelsBusyError) {
         await supabase.from('messages').insert({
@@ -414,26 +542,36 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
       type: 'narrator',
     })
 
-    if (mechanics.stat_updates?.length > 0) {
-      await applyStatUpdates(mechanics.stat_updates)
-      await checkAndMarkDeaths(mechanics.stat_updates)
+    // En combate: recalcular daño de contraataque con la fórmula correcta (mín 0)
+    // para no depender del valor incorrecto que envía el modelo
+    let statUpdates = mechanics.stat_updates || []
+    if (gameModeRef.current === 'combat' && statUpdates.length > 0) {
+      const aliveEnemies = gameModeDataRef.current?.enemies?.filter(e => !e.defeated) || []
+      statUpdates = statUpdates.map(upd => {
+        if (upd.character_id === activeCharacter.id && upd.hp_delta < 0 && aliveEnemies.length > 0) {
+          const totalDamage = aliveEnemies.reduce(
+            (sum, e) => sum + Math.max(0, e.attack - activeCharacter.defense), 0
+          )
+          return totalDamage > 0 ? { ...upd, hp_delta: -totalDamage } : null
+        }
+        return upd
+      }).filter(Boolean)
+    }
+    if (statUpdates.length > 0) {
+      await applyStatUpdates(statUpdates)
+      await checkAndMarkDeaths(statUpdates)
     }
     if (mechanics.inventory_updates?.length > 0) await applyInventoryUpdates(mechanics.inventory_updates)
     const enemyResult = mechanics.enemy_updates?.length > 0 ? await applyEnemyUpdates(mechanics.enemy_updates) : null
     // No aplicar game_mode si el combate terminó por derrota de todos los enemigos en este mismo turno
     if (mechanics.game_mode && enemyResult?.newMode !== 'normal') await applyGameMode(mechanics)
+    // Distribuir botín automáticamente cuando termina el combate
+    if (enemyResult?.newMode === 'normal') await distributeLoot()
 
-    // Determinar el siguiente turno, respetando el orden de combate si estamos en ese modo
-    const s = sessionRef.current
-    let nextId = mechanics.next_character_id
-    if (s?.game_mode === 'combat' && s.game_mode_data?.combat_turn_order?.length > 0) {
-      const order = s.game_mode_data.combat_turn_order.filter(id => presentIdsRef.current.includes(id))
-      const currentIdx = order.indexOf(s.current_turn_character_id)
-      nextId = order[(currentIdx + 1) % order.length] || nextId
-    }
-    if (nextId && presentIdsRef.current.includes(nextId)) {
+    // Asignar el siguiente turno (ya calculado antes de narrar para coherencia)
+    if (realNextId && presentIdsRef.current.includes(realNextId)) {
       await supabase.from('sessions')
-        .update({ current_turn_character_id: nextId })
+        .update({ current_turn_character_id: realNextId })
         .eq('id', session.id)
     }
 
@@ -632,6 +770,7 @@ Personajes presentes: ${activeIds.join(', ')}.`
         .eq('id', session.id)
     }
     setGameModeData(updatedData)
+    gameModeDataRef.current = updatedData
     sessionRef.current = { ...sessionRef.current, game_mode_data: updatedData }
     setSending(false)
   }
