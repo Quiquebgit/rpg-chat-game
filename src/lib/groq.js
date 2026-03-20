@@ -43,8 +43,8 @@ async function tryModels(models, role, makeRequest) {
       return await makeRequest(model)
     } catch (err) {
       const status = err?.status || err?.error?.status
-      if (status === 429) {
-        console.warn(`[groq/${role}] ${model}: 429 — probando siguiente…`)
+      if (status === 429 || status === 503) {
+        console.warn(`[groq/${role}] ${model}: ${status} — probando siguiente…`)
         continue
       }
       throw err
