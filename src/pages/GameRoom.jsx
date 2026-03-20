@@ -15,15 +15,13 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const inputRef = useRef(null)
 
   const { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant } = usePresence(session, character)
-  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, characterStates, startGame, announceEntry, debugAddItem } = useMessages(session, character, presentIds)
+  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem } = useMessages(session, character, presentIds)
 
   const hasStarted = messages.length > 0
   const isSpectator = hasStarted && !isParticipant
   const presentedCharacters = allCharacters.filter(c => presentIds.includes(c.id))
 
-  // Modo de juego activo (sincronizado en tiempo real para todos via session subscription)
-  const gameMode = session?.game_mode || 'normal'
-  const gameModeData = session?.game_mode_data
+  // gameMode y gameModeData vienen del hook (actualización inmediata + sync via Realtime)
 
   // Vignette desde los bordes según modo (box-shadow inset, sin cambiar el fondo)
   const MODE_SHADOW = {

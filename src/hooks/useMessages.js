@@ -16,6 +16,9 @@ export function useMessages(session, activeCharacter, presentIds = []) {
   const [narratorTyping, setNarratorTyping] = useState(false)
   const [diceRequest, setDiceRequest] = useState({ required: false, count: 1 })
   const [narrativeSummary, setNarrativeSummary] = useState(session?.narrative_summary || '')
+  // Estado local de modo de juego — se actualiza inmediatamente sin esperar Realtime
+  const [gameMode, setGameMode] = useState(session?.game_mode || 'normal')
+  const [gameModeData, setGameModeData] = useState(session?.game_mode_data ?? null)
   const subscriptionRef = useRef(null)
   const characterStatesSubRef = useRef(null)
   const messagesRef = useRef([])
@@ -30,6 +33,9 @@ export function useMessages(session, activeCharacter, presentIds = []) {
   useEffect(() => { characterStatesRef.current = characterStates }, [characterStates])
   useEffect(() => { presentIdsRef.current = presentIds }, [presentIds])
   useEffect(() => { sessionRef.current = session }, [session])
+  // Sincronizar modo de juego desde sesión remota (otro jugador vía Realtime)
+  useEffect(() => { setGameMode(session?.game_mode || 'normal') }, [session?.game_mode])
+  useEffect(() => { setGameModeData(session?.game_mode_data ?? null) }, [session?.game_mode_data])
 
   useEffect(() => {
     if (!session) return
@@ -344,6 +350,11 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
       .update({ game_mode: newMode, game_mode_data: newData })
       .eq('id', session.id)
 
+    // Actualizar estado local inmediatamente (sin esperar Realtime)
+    setGameMode(newMode)
+    setGameModeData(newData)
+    sessionRef.current = { ...sessionRef.current, game_mode: newMode, game_mode_data: newData }
+
     return { newMode, newData }
   }
 
@@ -370,6 +381,11 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
     await supabase.from('sessions')
       .update({ game_mode: newMode, game_mode_data: newData })
       .eq('id', session.id)
+
+    // Actualizar estado local inmediatamente (sin esperar Realtime)
+    setGameMode(newMode)
+    setGameModeData(newData)
+    sessionRef.current = { ...sessionRef.current, game_mode: newMode, game_mode_data: newData }
   }
 
   // Llama al modelo narrador con todo el contexto y aplica los efectos
@@ -606,7 +622,6 @@ Personajes presentes: ${activeIds.join(', ')}.`
         (a, b) => (initiative[b] || 0) - (initiative[a] || 0)
       )
       updatedData.combat_turn_order = combatOrder
-      // El primero en el orden toma el turno
       const firstId = combatOrder[0]
       await supabase.from('sessions')
         .update({ game_mode_data: updatedData, current_turn_character_id: firstId })
@@ -616,6 +631,8 @@ Personajes presentes: ${activeIds.join(', ')}.`
         .update({ game_mode_data: updatedData })
         .eq('id', session.id)
     }
+    setGameModeData(updatedData)
+    sessionRef.current = { ...sessionRef.current, game_mode_data: updatedData }
     setSending(false)
   }
 
@@ -632,5 +649,5 @@ Personajes presentes: ${activeIds.join(', ')}.`
     )
   }
 
-  return { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, characterStates, startGame, announceEntry, debugAddItem }
+  return { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem }
 }
