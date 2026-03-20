@@ -6,16 +6,55 @@ const groqClient = new Groq({
   dangerouslyAllowBrowser: true,
 })
 
-const MECHANICS_MODEL = 'llama-3.1-8b-instant'
-const NARRATOR_MODEL = 'llama-3.3-70b-versatile'
+// Listas de modelos en orden de preferencia. Cada petición empieza siempre desde el índice 0.
+const NARRATOR_MODELS = [
+  'moonshotai/kimi-k2-instruct',
+  'meta-llama/llama-4-scout-17b-16e-instruct',
+  'qwen/qwen3-32b',
+  'llama-3.3-70b-versatile',
+  'openai/gpt-oss-120b',
+]
+
+const MECHANICS_MODELS = [
+  'llama-3.1-8b-instant',
+  'meta-llama/llama-4-scout-17b-16e-instruct',
+  'openai/gpt-oss-20b',
+]
 
 // Mapa de herramientas disponibles para el modelo mecánico
 const TOOL_EXECUTORS = { getRandomItem }
 const MECHANICS_TOOLS = [GET_RANDOM_ITEM_TOOL]
 
+// Error que se lanza cuando todos los modelos de la lista devuelven 429
+export class ModelsBusyError extends Error {
+  constructor(role) {
+    super(`Todos los modelos de ${role} están ocupados (429)`)
+    this.name = 'ModelsBusyError'
+  }
+}
+
+// Itera la lista de modelos intentando makeRequest(model) en cada uno.
+// Solo avanza al siguiente si recibe 429. Cualquier otro error se propaga.
+// Si todos fallan con 429, lanza ModelsBusyError.
+async function tryModels(models, role, makeRequest) {
+  for (const model of models) {
+    try {
+      console.log(`[groq/${role}] modelo: ${model}`)
+      return await makeRequest(model)
+    } catch (err) {
+      const status = err?.status || err?.error?.status
+      if (status === 429) {
+        console.warn(`[groq/${role}] ${model}: 429 — probando siguiente…`)
+        continue
+      }
+      throw err
+    }
+  }
+  throw new ModelsBusyError(role)
+}
+
 // Modelo mecánico: JSON estricto, reglas del juego, sin narrativa
 // useTools: activa function calling (getRandomItem). No usar para resúmenes.
-// Reintenta una vez tras 3s si recibe 429 (rate limit)
 export async function callMechanicsModel(systemPrompt, userPrompt, { json = true, maxTokens = 400, temperature = 0.1, useTools = false } = {}) {
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -23,10 +62,10 @@ export async function callMechanicsModel(systemPrompt, userPrompt, { json = true
   ]
   const tools = useTools ? MECHANICS_TOOLS : undefined
 
-  async function attempt() {
+  return tryModels(MECHANICS_MODELS, 'mecánico', async (model) => {
     // Primera llamada: con tools si aplica. Sin response_format para no conflictar con tool_choice.
     const completion = await groqClient.chat.completions.create({
-      model: MECHANICS_MODEL,
+      model,
       messages,
       max_tokens: maxTokens,
       temperature,
@@ -36,7 +75,7 @@ export async function callMechanicsModel(systemPrompt, userPrompt, { json = true
 
     const responseMessage = completion.choices[0]?.message
 
-    // Si el modelo llamó a una herramienta, ejecutarla y hacer segunda llamada
+    // Si el modelo llamó a una herramienta, ejecutarla y hacer segunda llamada con el mismo modelo
     if (responseMessage?.tool_calls?.length > 0) {
       const toolResultMessages = []
       for (const toolCall of responseMessage.tool_calls) {
@@ -57,7 +96,7 @@ export async function callMechanicsModel(systemPrompt, userPrompt, { json = true
         })
       }
       const completion2 = await groqClient.chat.completions.create({
-        model: MECHANICS_MODEL,
+        model,
         messages: [...messages, responseMessage, ...toolResultMessages],
         max_tokens: maxTokens,
         temperature,
@@ -67,53 +106,21 @@ export async function callMechanicsModel(systemPrompt, userPrompt, { json = true
     }
 
     return responseMessage?.content?.trim() || null
-  }
-
-  try {
-    return await attempt()
-  } catch (err) {
-    const status = err?.status || err?.error?.status
-    if (status === 429) {
-      console.warn(`[mecánico] Rate limit (429), reintentando en 3s…`)
-      await new Promise(r => setTimeout(r, 3000))
-      try {
-        return await attempt()
-      } catch (retryErr) {
-        console.error('[mecánico] Reintento también falló:', retryErr)
-        return null
-      }
-    }
-    throw err
-  }
+  })
 }
 
 // Modelo narrador: texto dramático libre, sin JSON
-// Si el modelo versatile falla (rate limit, error 429...) hace fallback al instant
 export async function callNarratorModel(systemPrompt, userPrompt) {
-  const params = {
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-    max_tokens: 500,
-    temperature: 0.85,
-  }
-
-  try {
-    const completion = await groqClient.chat.completions.create({ ...params, model: NARRATOR_MODEL })
+  return tryModels(NARRATOR_MODELS, 'narrador', async (model) => {
+    const completion = await groqClient.chat.completions.create({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      max_tokens: 500,
+      temperature: 0.85,
+    })
     return completion.choices[0]?.message?.content?.trim() || null
-  } catch (err) {
-    const status = err?.status || err?.error?.status
-    if (status === 429 || status === 503 || status >= 500) {
-      console.warn(`Narrador (${NARRATOR_MODEL}) no disponible (${status}), usando fallback ${MECHANICS_MODEL}`)
-      try {
-        const fallback = await groqClient.chat.completions.create({ ...params, model: MECHANICS_MODEL })
-        return fallback.choices[0]?.message?.content?.trim() || null
-      } catch (fallbackErr) {
-        console.error('Fallback también falló:', fallbackErr)
-        return null
-      }
-    }
-    throw err
-  }
+  })
 }

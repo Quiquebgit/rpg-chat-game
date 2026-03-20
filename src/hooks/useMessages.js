@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { callMechanicsModel, callNarratorModel } from '../lib/groq'
+import { callMechanicsModel, callNarratorModel, ModelsBusyError } from '../lib/groq'
 import { MECHANICS_SYSTEM_PROMPT, NARRATOR_SYSTEM_PROMPT, SUMMARY_SYSTEM_PROMPT } from '../lib/narrator'
 import { characters as allCharacters } from '../data/characters'
 
@@ -255,7 +255,11 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
       }
       console.log('[processAction] mecánicas:', JSON.stringify(mechanics))
     } catch (err) {
-      console.warn('Modelo mecánico falló, usando defaults:', err)
+      if (err instanceof ModelsBusyError) {
+        console.warn('[mecánico] Todos los modelos ocupados, usando defaults')
+      } else {
+        console.warn('Modelo mecánico falló, usando defaults:', err)
+      }
     }
 
     // Correcciones de turno en código (no depender solo del modelo)
@@ -361,7 +365,18 @@ Termina interpelando a: ${nextChar?.name || mechanics.next_character_id}`
     const systemPrompt = gmInstruction
       ? `${NARRATOR_SYSTEM_PROMPT}\n\n## INSTRUCCIÓN ACTIVA DEL GM — PRIORIDAD ABSOLUTA:\n${gmInstruction}\nEjecuta exactamente lo que pide. No la ignores ni la suavices.`
       : NARRATOR_SYSTEM_PROMPT
-    const narrative = await callNarratorModel(systemPrompt, buildNarratorPrompt(playerAction, mechanics, diceResult))
+    let narrative
+    try {
+      narrative = await callNarratorModel(systemPrompt, buildNarratorPrompt(playerAction, mechanics, diceResult))
+    } catch (err) {
+      if (err instanceof ModelsBusyError) {
+        await supabase.from('messages').insert({
+          session_id: session.id, character_id: 'narrator',
+          content: 'Los servidores están ocupados, inténtalo en unos minutos.', type: 'narrator',
+        })
+      }
+      return
+    }
     if (!narrative) return
 
     await supabase.from('messages').insert({
