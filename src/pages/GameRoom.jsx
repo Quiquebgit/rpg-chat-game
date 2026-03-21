@@ -3,6 +3,7 @@ import { getRandomItem } from '../lib/items'
 import { useMessages } from '../hooks/useMessages'
 import { usePresence } from '../hooks/usePresence'
 import { useNarration } from '../hooks/useNarration'
+import { useDirector } from '../hooks/useDirector'
 import { characters as allCharacters } from '../data/characters'
 import GameModePanel from '../components/GameModePanel'
 
@@ -17,7 +18,8 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const lastNarratedIdRef = useRef(null)
 
   const { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant } = usePresence(session, character)
-  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem, useItem, giftItem } = useMessages(session, character, presentIds)
+  const { completeCurrentEvent } = useDirector(session)
+  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem, useItem, giftItem } = useMessages(session, character, presentIds, completeCurrentEvent)
   const { speak, stop, isNarrating, isEnabled: narrationEnabled, toggle: toggleNarration, error: narrationError, supported: narrationSupported } = useNarration()
 
   // Narrar automáticamente los mensajes nuevos del narrador

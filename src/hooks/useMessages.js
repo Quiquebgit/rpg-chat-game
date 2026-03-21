@@ -19,7 +19,7 @@ const SUMMARY_EVERY_N_MESSAGES = 10
 const NORMAL_TOOL_EXECUTORS = { getRandomItem, getEnemies }
 const NORMAL_TOOLS = [GET_RANDOM_ITEM_TOOL, GET_ENEMIES_TOOL]
 
-export function useMessages(session, activeCharacter, presentIds = []) {
+export function useMessages(session, activeCharacter, presentIds = [], onEventComplete = null) {
   const sessionRef = useRef(session)
   const [messages, setMessages] = useState([])
   const [characterStates, setCharacterStates] = useState([])
@@ -167,6 +167,17 @@ export function useMessages(session, activeCharacter, presentIds = []) {
     return `## Modo de juego activo: ${currentGameMode}\n${currentGameModeData ? JSON.stringify(currentGameModeData) : ''}\n`
   }
 
+  // Contexto de historia (lore + evento actual) para el narrador, si la sesión tiene historia
+  function buildStoryContext() {
+    const lore = sessionRef.current?.story_lore
+    const briefing = sessionRef.current?.current_event_briefing
+    if (!lore && !briefing) return ''
+    const parts = []
+    if (lore) parts.push(`## Lore de la historia\n${lore}`)
+    if (briefing) parts.push(`## Evento actual\n${briefing}\nSigue el evento actual como guía narrativa obligatoria, narrándolo con libertad creativa.`)
+    return parts.join('\n\n') + '\n\n'
+  }
+
   // ─── Prompts ──────────────────────────────────────────────────────────────
 
   // Prompt del modelo mecánico en modo combate (solo intenciones)
@@ -212,7 +223,7 @@ ${buildGameModeContext(currentGameModeData, currentGameMode)}next:${leastActive}
     const nextChar = allCharacters.find(c => c.id === nextTurnId)
     const alive = currentGameModeData?.enemies?.filter(e => !e.defeated) || []
 
-    return `## Personajes en sesión
+    return `${buildStoryContext()}## Personajes en sesión
 ${buildCharacterContext()}
 ${summary ? `## Resumen de la sesión\n${summary}\n` : ''}## Estado del combate
 Enemigos vivos: ${alive.map(e => `${e.name}(HP:${e.hp}/${e.hp_max})`).join(', ') || 'ninguno — ¡combate terminado!'}
@@ -240,7 +251,7 @@ Termina interpelando a: ${nextChar?.name || nextTurnId}`
     const nextId = realNextId || mechanics.next_character_id
     const nextChar = allCharacters.find(c => c.id === nextId)
 
-    return `## Personajes en sesión
+    return `${buildStoryContext()}## Personajes en sesión
 ${buildCharacterContext()}
 ${summary ? `## Resumen de la sesión\n${summary}\n` : ''}## Historial reciente
 ${chatHistory}
@@ -412,7 +423,11 @@ Termina interpelando a: ${nextChar?.name || nextId}`
     if (affectedIds.length) await checkAndMarkDeaths(affectedIds)
 
     // Botín automático si el combate terminó
-    if (newMode === 'normal') await distributeLoot(defeatedEnemies)
+    if (newMode === 'normal') {
+      await distributeLoot(defeatedEnemies)
+      // Notificar al Director que el evento de combate se completó
+      if (onEventComplete) await onEventComplete()
+    }
   }
 
   // Llama al narrador solo con combatResult (sin JSON mecánico crudo)
@@ -610,6 +625,10 @@ Termina interpelando a: ${nextChar?.name || nextId}`
     }
     if (mechanics.game_mode) {
       await applyGameMode(mechanics, currentGameMode)
+      // Si el modo vuelve a normal desde un modo de evento, el evento se completó
+      if (mechanics.game_mode === 'normal' && currentGameMode !== 'normal' && onEventComplete) {
+        await onEventComplete()
+      }
     }
 
     if (realNextId && presentIdsRef.current.includes(realNextId)) {

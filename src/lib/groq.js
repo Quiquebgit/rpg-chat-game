@@ -113,6 +113,30 @@ export async function callMechanicsModel(systemPrompt, userPrompt, {
   })
 }
 
+// Modelos del Director de Guion — inteligencia máxima, latencia no crítica
+const DIRECTOR_MODELS = [
+  'moonshotai/kimi-k2-instruct',
+  'openai/gpt-oss-120b',
+  'llama-3.3-70b-versatile',
+]
+
+// Modelo director: planificación narrativa, siempre devuelve JSON
+export async function callDirectorModel(systemPrompt, userPrompt) {
+  return tryModels(DIRECTOR_MODELS, 'director', async (model) => {
+    const completion = await groqClient.chat.completions.create({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      max_tokens: 800,
+      temperature: 0.4,
+      response_format: { type: 'json_object' },
+    })
+    return completion.choices[0]?.message?.content?.trim() || null
+  })
+}
+
 // Modelo narrador: texto dramático libre, sin JSON
 export async function callNarratorModel(systemPrompt, userPrompt) {
   return tryModels(NARRATOR_MODELS, 'narrador', async (model) => {
