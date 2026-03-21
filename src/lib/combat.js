@@ -20,7 +20,7 @@ function findTarget(targetName, aliveEnemies) {
 }
 
 // Comprueba si la habilidad del enemigo se activa en este turno.
-// hpBefore: HP antes de recibir el daño del jugador.
+// hpBefore: HP del enemigo antes de recibir el daño del jugador.
 function shouldTriggerAbility(enemy, hpBefore) {
   const ability = enemy.ability
   if (!ability) return false
@@ -40,40 +40,38 @@ function shouldTriggerAbility(enemy, hpBefore) {
   }
 }
 
-// Calcula el daño de contraataque base del enemigo al jugador activo.
+// Daño base del enemigo al jugador activo.
 function baseCounterattack(enemy, activeCharacter) {
   return Math.max(0, enemy.attack - activeCharacter.defense)
 }
 
 // Aplica el efecto de la habilidad sobre el contraataque y devuelve los efectos adicionales.
-// Retorna: { counterDamage, healAmount, aoeActive, stunActive, poisonActive }
-function resolveAbilityEffect(ability, enemy, activeCharacter, allAliveChars) {
+function resolveAbilityEffect(ability, enemy, activeCharacter) {
   const baseDmg = baseCounterattack(enemy, activeCharacter)
 
   switch (ability.effect) {
     case 'double_attack':
-      return { counterDamage: baseDmg * 2, healAmount: 0, aoeActive: false, stunActive: false, poisonActive: false }
+      return { counterDamage: baseDmg * 2, healAmount: 0, aoeActive: false, stunActive: false }
 
     case 'aoe_attack':
-      // El daño del contraataque se aplica a TODOS los jugadores vivos (calculado por jugador fuera)
-      return { counterDamage: baseDmg, healAmount: 0, aoeActive: true, stunActive: false, poisonActive: false }
+      // El daño se aplica a TODOS los jugadores vivos (los demás se calculan fuera)
+      return { counterDamage: baseDmg, healAmount: 0, aoeActive: true, stunActive: false }
 
     case 'heal': {
-      // El enemigo se cura Math.ceil(hp_max * 0.20), mínimo 1
       const healAmount = Math.max(1, Math.ceil(enemy.hp_max * 0.20))
-      return { counterDamage: baseDmg, healAmount, aoeActive: false, stunActive: false, poisonActive: false }
+      return { counterDamage: baseDmg, healAmount, aoeActive: false, stunActive: false }
     }
 
     case 'stun':
-      // Contraataque normal pero el jugador pierde su próximo turno
-      return { counterDamage: baseDmg, healAmount: 0, aoeActive: false, stunActive: true, poisonActive: false }
+      // Contraataque normal + el jugador queda aturdido (stunned=true en DB)
+      return { counterDamage: baseDmg, healAmount: 0, aoeActive: false, stunActive: true }
 
     case 'poison':
-      // Contraataque normal + 1 daño extra de veneno
-      return { counterDamage: baseDmg + 1, healAmount: 0, aoeActive: false, stunActive: false, poisonActive: true }
+      // Contraataque normal + 1 daño extra
+      return { counterDamage: baseDmg + 1, healAmount: 0, aoeActive: false, stunActive: false }
 
     default:
-      return { counterDamage: baseDmg, healAmount: 0, aoeActive: false, stunActive: false, poisonActive: false }
+      return { counterDamage: baseDmg, healAmount: 0, aoeActive: false, stunActive: false }
   }
 }
 
@@ -82,10 +80,10 @@ function resolveAbilityEffect(ability, enemy, activeCharacter, allAliveChars) {
 // ─────────────────────────────────────────────────────────
 
 export function resolveCombatTurn({
-  mechanics,        // { player_intent, target_enemy_name, target_ally_id, use_special_ability, is_action, next_character_id }
+  mechanics,        // { player_intent, target_enemy_name, target_ally_id, use_special_ability, is_action }
   activeCharacter,  // { id, name, attack, defense, hp, ability }
-  gameModeData,     // { enemies: [...], combat_turn_order: [...], stunned: [...], ... }
-  characterStates,  // [{ character_id, hp_current, is_dead }]
+  gameModeData,     // { enemies: [...], combat_turn_order: [...], ... }
+  characterStates,  // [{ character_id, hp_current, is_dead, stunned }]
   presentIds,       // ['shin', 'darro']
   currentTurnId,    // session.current_turn_character_id
 }) {
@@ -95,117 +93,120 @@ export function resolveCombatTurn({
   const currentState = characterStates.find(s => s.character_id === activeCharacter.id)
   const currentPlayerHp = currentState?.hp_current ?? activeCharacter.hp
 
-  // ── Comprobar si el jugador activo está aturdido ──────────────────────────
-  const stunned = gameModeData?.stunned || []
-  if (stunned.includes(activeCharacter.id)) {
-    // Pierde el turno sin acción
-    const nextTurnId = computeNextTurn(presentIds, characterStates, gameModeData, currentTurnId, activeCharacter.id, false)
-    const newGameModeData = { ...gameModeData, stunned: stunned.filter(id => id !== activeCharacter.id) }
+  // ── Comprobar si el jugador activo está aturdido (campo en session_character_state) ──
+  const isStunned = currentState?.stunned ?? false
+  if (isStunned) {
+    // El jugador pierde su acción — pero TODOS los enemigos vivos le atacan por estar expuesto
+    const totalCounterDmg = aliveEnemies.reduce(
+      (sum, e) => sum + Math.max(0, e.attack - activeCharacter.defense), 0
+    )
+    const newPlayerHp = Math.max(0, currentPlayerHp - totalCounterDmg)
+    const playerIsDead = newPlayerHp <= 0
+    const nextTurnId = computeNextTurn(presentIds, characterStates, gameModeData, currentTurnId, activeCharacter.id, playerIsDead)
+
     return {
       combatResult: {
         attacker: activeCharacter.name,
         attacker_id: activeCharacter.id,
         skipped_turn: true,
+        stunned_exposed: true,
         target: null, damage_dealt: 0,
         enemy_hp_before: null, enemy_hp_after: null, enemy_dead: false,
         all_enemies_dead: false,
-        counterattack_damage: 0, counterattack_enemy: null,
-        attacker_hp_before: currentPlayerHp, attacker_hp_after: currentPlayerHp,
-        attacker_dead: false,
+        counterattack_damage: totalCounterDmg,
+        counterattack_enemy: aliveEnemies.map(e => e.name).join(', ') || null,
+        attacker_hp_before: currentPlayerHp,
+        attacker_hp_after: newPlayerHp,
+        attacker_dead: playerIsDead,
+        attacker_stunned: false,   // stun se acaba de consumir
         aoe_targets: [],
         enemy_ability_triggered: null,
         next_character: nextTurnId,
         remaining_enemies: aliveEnemies.map(e => e.name),
       },
-      newGameModeData,
+      newGameModeData: { ...gameModeData },
       newMode: 'combat',
-      playerUpdates: [],
+      // stunned: false limpia el stun en DB
+      playerUpdates: [{ character_id: activeCharacter.id, hp_current: newPlayerHp, is_dead: playerIsDead, stunned: false }],
       aoeUpdates: [],
+      applyStunTo: null,
       nextTurnId,
       defeatedEnemies: [],
     }
   }
 
   // ── Acción de curación (Vela, etc.) ──────────────────────────────────────
-  if (mechanics.player_intent === 'heal' || (!mechanics.is_action && mechanics.player_intent !== 'attack')) {
+  if (mechanics.player_intent === 'heal') {
     const healTargetId = mechanics.target_ally_id || activeCharacter.id
     const healTarget = characterStates.find(s => s.character_id === healTargetId)
-    const healChar = { id: healTargetId, hp: activeCharacter.hp }  // fallback
-    const maxHp = healChar.hp
-    const oldHp = healTarget?.hp_current ?? maxHp
-    const newHp = Math.min(maxHp, oldHp + 2)
+    const healChar = allCharacters_maxHp(activeCharacter, healTargetId)
+    const oldHp = healTarget?.hp_current ?? healChar
+    const newHp = Math.min(healChar, oldHp + 2)
     const nextTurnId = computeNextTurn(presentIds, characterStates, gameModeData, currentTurnId, activeCharacter.id, false)
 
     return {
       combatResult: {
-        attacker: activeCharacter.name,
-        attacker_id: activeCharacter.id,
-        skipped_turn: false,
+        attacker: activeCharacter.name, attacker_id: activeCharacter.id,
+        skipped_turn: false, stunned_exposed: false,
         target: null, damage_dealt: 0,
         enemy_hp_before: null, enemy_hp_after: null, enemy_dead: false,
         all_enemies_dead: false,
         counterattack_damage: 0, counterattack_enemy: null,
         attacker_hp_before: currentPlayerHp, attacker_hp_after: currentPlayerHp,
-        attacker_dead: false,
-        aoe_targets: [],
-        enemy_ability_triggered: null,
-        heal_target: healTargetId,
-        heal_amount: newHp - oldHp,
+        attacker_dead: false, attacker_stunned: false,
+        aoe_targets: [], enemy_ability_triggered: null,
+        heal_target: healTargetId, heal_amount: newHp - oldHp,
         next_character: nextTurnId,
         remaining_enemies: aliveEnemies.map(e => e.name),
       },
       newGameModeData: { ...gameModeData },
       newMode: 'combat',
       playerUpdates: [{ character_id: healTargetId, hp_current: newHp }],
-      aoeUpdates: [],
-      nextTurnId,
-      defeatedEnemies: [],
+      aoeUpdates: [], applyStunTo: null, nextTurnId, defeatedEnemies: [],
     }
   }
 
-  // ── Acción no ofensiva (huir, hablar, inspeccionar…) ─────────────────────
+  // ── Acción no ofensiva (huir, hablar…) ───────────────────────────────────
   if (mechanics.player_intent === 'other' || mechanics.is_action === false) {
     const nextTurnId = computeNextTurn(presentIds, characterStates, gameModeData, currentTurnId, activeCharacter.id, false)
     return {
       combatResult: {
-        attacker: activeCharacter.name,
-        attacker_id: activeCharacter.id,
-        skipped_turn: false,
+        attacker: activeCharacter.name, attacker_id: activeCharacter.id,
+        skipped_turn: false, stunned_exposed: false,
         target: null, damage_dealt: 0,
         enemy_hp_before: null, enemy_hp_after: null, enemy_dead: false,
         all_enemies_dead: false,
         counterattack_damage: 0, counterattack_enemy: null,
         attacker_hp_before: currentPlayerHp, attacker_hp_after: currentPlayerHp,
-        attacker_dead: false,
-        aoe_targets: [],
-        enemy_ability_triggered: null,
+        attacker_dead: false, attacker_stunned: false,
+        aoe_targets: [], enemy_ability_triggered: null,
         next_character: nextTurnId,
         remaining_enemies: aliveEnemies.map(e => e.name),
       },
       newGameModeData: { ...gameModeData },
       newMode: 'combat',
-      playerUpdates: [],
-      aoeUpdates: [],
-      nextTurnId,
-      defeatedEnemies: [],
+      playerUpdates: [], aoeUpdates: [], applyStunTo: null, nextTurnId, defeatedEnemies: [],
     }
   }
 
-  // ── Ataque / habilidad ofensiva ───────────────────────────────────────────
+  // ── Ataque, esquiva o habilidad ofensiva ──────────────────────────────────
   const targetEnemy = findTarget(mechanics.target_enemy_name, aliveEnemies)
+  const isDodge = mechanics.player_intent === 'dodge'
 
-  // Daño al enemigo
+  // Daño al enemigo:
+  // - dodge → 0 daño siempre, pero el enemigo contraataca (aprovecha el hueco)
+  // - attack / ability → fórmula normal o de habilidad especial
   let damageDealt = 0
-  if (targetEnemy) {
-    const atkEffective = mechanics.use_special_ability && activeCharacter.ability
+  if (targetEnemy && !isDodge) {
+    damageDealt = mechanics.use_special_ability && activeCharacter.ability
       ? resolvePlayerAbilityAttack(activeCharacter, targetEnemy)
       : Math.max(0, activeCharacter.attack - targetEnemy.defense)
-    damageDealt = atkEffective
   }
 
   const targetHpBefore = targetEnemy?.hp ?? null
   const targetHpAfter = targetEnemy ? Math.max(0, targetEnemy.hp - damageDealt) : null
-  const enemyDead = targetEnemy ? (targetHpAfter <= 0) : false
+  // dodge nunca mata al enemigo (damageDealt=0); ataque sí puede
+  const enemyDead = targetEnemy && !isDodge ? (targetHpAfter <= 0) : false
 
   // Actualizar array de enemigos
   let updatedEnemies = enemies.map(e => {
@@ -216,7 +217,12 @@ export function resolveCombatTurn({
   const aliveAfterAttack = updatedEnemies.filter(e => !e.defeated)
   const allEnemiesDead = aliveAfterAttack.length === 0
 
-  // ── Contraataque (solo si el objetivo sobrevivió) ─────────────────────────
+  // ── Contraataque ─────────────────────────────────────────────────────────
+  // - dodge: el enemigo SÍ contraataca (aprovecha el hueco), aunque el jugador esquivó el daño
+  // - attack: el enemigo contraataca solo si sobrevivió (enemyDead=false)
+  // No contraataca si: el ataque lo mató O no había target
+  const enemyCanCounter = targetEnemy && (isDodge || !enemyDead)
+
   let counterDamage = 0
   let aoeActive = false
   let stunActive = false
@@ -224,11 +230,11 @@ export function resolveCombatTurn({
   let abilityTriggered = null
   let updatedTarget = targetEnemy ? updatedEnemies.find(e => e.id === targetEnemy.id) : null
 
-  if (targetEnemy && !enemyDead) {
+  if (enemyCanCounter) {
     const triggered = shouldTriggerAbility(updatedTarget, targetHpBefore)
     if (triggered && updatedTarget.ability) {
       abilityTriggered = updatedTarget.ability
-      const fx = resolveAbilityEffect(updatedTarget.ability, updatedTarget, activeCharacter, [])
+      const fx = resolveAbilityEffect(updatedTarget.ability, updatedTarget, activeCharacter)
       counterDamage = fx.counterDamage
       healAmount = fx.healAmount
       aoeActive = fx.aoeActive
@@ -240,7 +246,7 @@ export function resolveCombatTurn({
           e.id === updatedTarget.id ? { ...e, ability_used: true } : e
         )
       }
-      // Aplicar curación al enemigo si es "heal"
+      // Curación al enemigo
       if (healAmount > 0) {
         updatedEnemies = updatedEnemies.map(e => {
           if (e.id !== updatedTarget.id) return e
@@ -252,28 +258,27 @@ export function resolveCombatTurn({
     }
   }
 
-  // Daño al jugador activo (y AoE al resto)
+  // Daño al jugador activo
   const newPlayerHp = Math.max(0, currentPlayerHp - counterDamage)
   const playerIsDead = newPlayerHp <= 0
 
-  // AoE: calcular daño a los demás jugadores vivos
+  // AoE: daño a los demás jugadores vivos
   const aoeUpdates = []
-  if (aoeActive && !allEnemiesDead) {
+  if (aoeActive && !allEnemiesDead && updatedTarget) {
     for (const id of presentIds) {
-      if (id === activeCharacter.id) continue  // el activo ya recibe counterDamage
+      if (id === activeCharacter.id) continue
       const cs = characterStates.find(s => s.character_id === id)
       if (!cs || cs.is_dead) continue
-      const char = { attack: activeCharacter.attack, defense: cs.defense ?? 0 }  // fallback
       const aoeDmg = Math.max(0, updatedTarget.attack - (cs.defense ?? 0))
       if (aoeDmg > 0) {
-        aoeUpdates.push({ character_id: id, hp_delta: -aoeDmg, hp_current: Math.max(0, cs.hp_current - aoeDmg) })
+        aoeUpdates.push({
+          character_id: id,
+          hp_current: Math.max(0, cs.hp_current - aoeDmg),
+          is_dead: cs.hp_current - aoeDmg <= 0,
+        })
       }
     }
   }
-
-  // Aturdimiento: añadir a stunned list
-  let newStunned = stunned.filter(id => id !== activeCharacter.id)
-  if (stunActive && !playerIsDead) newStunned = [...newStunned, activeCharacter.id]
 
   // ── Siguiente turno ───────────────────────────────────────────────────────
   const nextTurnId = computeNextTurn(presentIds, characterStates, gameModeData, currentTurnId, activeCharacter.id, playerIsDead)
@@ -282,9 +287,8 @@ export function resolveCombatTurn({
   const newMode = allEnemiesDead ? 'normal' : 'combat'
   const newGameModeData = allEnemiesDead
     ? null
-    : { ...gameModeData, enemies: updatedEnemies, stunned: newStunned }
+    : { ...gameModeData, enemies: updatedEnemies }
 
-  // Enemigos derrotados en este turno (para loot)
   const defeatedEnemies = allEnemiesDead
     ? updatedEnemies.filter(e => e.defeated)
     : (enemyDead ? [updatedEnemies.find(e => e.id === targetEnemy.id)] : [])
@@ -294,7 +298,9 @@ export function resolveCombatTurn({
     attacker: activeCharacter.name,
     attacker_id: activeCharacter.id,
     skipped_turn: false,
-    special_ability_used: mechanics.use_special_ability || false,
+    stunned_exposed: false,
+    dodge: isDodge,
+    special_ability_used: !isDodge && (mechanics.use_special_ability || false),
     target: targetEnemy?.name || null,
     damage_dealt: damageDealt,
     enemy_hp_before: targetHpBefore,
@@ -302,7 +308,7 @@ export function resolveCombatTurn({
     enemy_dead: enemyDead,
     all_enemies_dead: allEnemiesDead,
     counterattack_damage: counterDamage,
-    counterattack_enemy: (targetEnemy && !enemyDead) ? targetEnemy.name : null,
+    counterattack_enemy: enemyCanCounter ? targetEnemy.name : null,
     enemy_ability_triggered: abilityTriggered
       ? { name: abilityTriggered.name, effect: abilityTriggered.effect }
       : null,
@@ -310,21 +316,25 @@ export function resolveCombatTurn({
     attacker_hp_before: currentPlayerHp,
     attacker_hp_after: newPlayerHp,
     attacker_dead: playerIsDead,
-    attacker_stunned: stunActive,
-    aoe_targets: aoeUpdates.map(u => ({ character_id: u.character_id, damage: Math.abs(u.hp_delta) })),
+    attacker_stunned: stunActive && !playerIsDead,
+    aoe_targets: aoeUpdates.map(u => ({ character_id: u.character_id, damage: Math.abs((currentPlayerHp) - u.hp_current) })),
     next_character: nextTurnId,
     remaining_enemies: aliveAfterAttack.map(e => e.name),
   }
+
+  // playerUpdates: solo si hay daño o cambio de estado
+  const playerUpdateNeeded = counterDamage > 0 || playerIsDead || stunActive
+  const playerUpdate = playerUpdateNeeded
+    ? { character_id: activeCharacter.id, hp_current: newPlayerHp, is_dead: playerIsDead, stunned: stunActive && !playerIsDead }
+    : null
 
   return {
     combatResult,
     newGameModeData,
     newMode,
-    // Escrituras pendientes para Supabase
-    playerUpdates: counterDamage > 0 || playerIsDead
-      ? [{ character_id: activeCharacter.id, hp_current: newPlayerHp, is_dead: playerIsDead }]
-      : [],
+    playerUpdates: playerUpdate ? [playerUpdate] : [],
     aoeUpdates,
+    applyStunTo: (stunActive && !playerIsDead) ? activeCharacter.id : null,
     nextTurnId,
     defeatedEnemies,
   }
@@ -334,21 +344,25 @@ export function resolveCombatTurn({
 // HELPERS
 // ─────────────────────────────────────────────────────────
 
-// Daño del jugador cuando usa habilidad especial (en vez de ataque normal).
-// Basado en keywords de la descripción de la habilidad.
+// Daño del jugador cuando usa habilidad especial.
+// Basado en keywords de la descripción de la habilidad del personaje.
 function resolvePlayerAbilityAttack(character, enemy) {
   const desc = (character.ability?.description || '').toLowerCase()
 
-  // "dobla" / "doble" → ataque × 2
   if (desc.includes('dobla') || desc.includes('doble')) {
     return Math.max(0, character.attack * 2 - enemy.defense)
   }
-  // "ignora 1 de defensa" → restar 1 a la defensa del enemigo
   if (desc.includes('ignora') && desc.includes('defensa')) {
     return Math.max(0, character.attack - Math.max(0, enemy.defense - 1))
   }
-  // Por defecto: ataque normal
   return Math.max(0, character.attack - enemy.defense)
+}
+
+// HP máximo de un personaje aliado (para curación): usa el HP base del personaje activo como fallback.
+function allCharacters_maxHp(activeCharacter, targetId) {
+  // En combate no tenemos acceso a allCharacters aquí — devolvemos el HP del activo como aproximación.
+  // useMessages.js cap el heal al hp_max real del objetivo.
+  return activeCharacter.hp
 }
 
 // Calcula el siguiente personaje en el orden de combate.

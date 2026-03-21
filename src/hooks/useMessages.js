@@ -172,7 +172,7 @@ export function useMessages(session, activeCharacter, presentIds = []) {
   // Prompt del modelo mecánico en modo combate (solo intenciones)
   function buildCombatMechanicsPrompt(playerAction, currentGameModeData) {
     const alive = currentGameModeData?.enemies?.filter(e => !e.defeated) || []
-    const stunned = currentGameModeData?.stunned || []
+    const stunned = characterStatesRef.current.filter(s => s.stunned).map(s => s.character_id)
     return `Activo:${activeCharacter.id} [${activeCharacter.ability?.name}]
 Acción: ${playerAction}
 Personajes: ${buildMinimalCharContext()}
@@ -363,11 +363,12 @@ Termina interpelando a: ${nextChar?.name || nextId}`
     setGameModeData(newGameModeData)
     gameModeRef.current = newMode
 
-    // Daño al jugador activo
+    // Daño al jugador activo (incluye stunned: true/false si aplica)
     if (playerUpdates.length > 0) {
-      const { character_id, hp_current, is_dead } = playerUpdates[0]
+      const { character_id, hp_current, is_dead, stunned } = playerUpdates[0]
       const updateFields = { hp_current }
       if (is_dead) updateFields.is_dead = true
+      if (stunned !== undefined) updateFields.stunned = stunned
       await supabase.from('session_character_state')
         .update(updateFields)
         .eq('session_id', session.id).eq('character_id', character_id)
@@ -638,7 +639,6 @@ Termina interpelando a: ${nextChar?.name || nextId}`
           const maxHp = (e.hp_max > 0 ? e.hp_max : null) ?? (e.hp > 0 ? e.hp : 5)
           return { ...e, hp: maxHp, hp_max: maxHp, defeated: false, ability_used: false }
         }),
-        stunned: [],
       }
     }
 
@@ -754,7 +754,6 @@ Termina interpelando a: ${nextChar?.name || nextId}`
         (a, b) => (initiative[b] || 0) - (initiative[a] || 0)
       )
       updatedData.combat_turn_order = combatOrder
-      updatedData.stunned = []
       const firstId = combatOrder[0]
       await supabase.from('sessions')
         .update({ game_mode_data: updatedData, current_turn_character_id: firstId })
@@ -837,6 +836,66 @@ Personajes presentes: ${activeIds.join(', ')}.`
     }
   }
 
+  // ─── Acciones de inventario ───────────────────────────────────────────────
+
+  // Usa o equipa un item del inventario del jugador activo.
+  // Consumibles: aplica efecto HP y se elimina. Equippables: se marcan como equipados.
+  async function useItem(item, itemIndex) {
+    const current = characterStatesRef.current.find(s => s.character_id === activeCharacter.id)
+    if (!current) return
+
+    // Aplicar efecto de HP si es consumible
+    if (!item.equippable) {
+      const hpEffect = item.effects?.find(e => e.stat === 'hp')
+      if (hpEffect) {
+        const char = allCharacters.find(c => c.id === activeCharacter.id)
+        const newHp = Math.min(char?.hp ?? 999, Math.max(0, current.hp_current + hpEffect.modifier))
+        await supabase.from('session_character_state')
+          .update({ hp_current: newHp })
+          .eq('session_id', session.id).eq('character_id', activeCharacter.id)
+        setCharacterStates(prev =>
+          prev.map(s => s.character_id === activeCharacter.id ? { ...s, hp_current: newHp } : s)
+        )
+      }
+    }
+
+    // Actualizar inventario: equipar o eliminar
+    const newInventory = item.equippable
+      ? (current.inventory || []).map((it, i) => i === itemIndex ? { ...it, equipped: true } : it)
+      : (current.inventory || []).filter((_, i) => i !== itemIndex)
+
+    await supabase.from('session_character_state')
+      .update({ inventory: newInventory })
+      .eq('session_id', session.id).eq('character_id', activeCharacter.id)
+    setCharacterStates(prev =>
+      prev.map(s => s.character_id === activeCharacter.id ? { ...s, inventory: newInventory } : s)
+    )
+  }
+
+  // Transfiere un item del inventario del jugador activo al de un aliado.
+  async function giftItem(item, itemIndex, targetCharId) {
+    const ownState = characterStatesRef.current.find(s => s.character_id === activeCharacter.id)
+    const targetState = characterStatesRef.current.find(s => s.character_id === targetCharId)
+    if (!ownState) return
+
+    const newOwnInventory = (ownState.inventory || []).filter((_, i) => i !== itemIndex)
+    const newTargetInventory = [...(targetState?.inventory || []), item]
+
+    await Promise.all([
+      supabase.from('session_character_state')
+        .update({ inventory: newOwnInventory })
+        .eq('session_id', session.id).eq('character_id', activeCharacter.id),
+      supabase.from('session_character_state')
+        .update({ inventory: newTargetInventory })
+        .eq('session_id', session.id).eq('character_id', targetCharId),
+    ])
+    setCharacterStates(prev => prev.map(s => {
+      if (s.character_id === activeCharacter.id) return { ...s, inventory: newOwnInventory }
+      if (s.character_id === targetCharId) return { ...s, inventory: newTargetInventory }
+      return s
+    }))
+  }
+
   async function debugAddItem(item) {
     const current = characterStatesRef.current.find(s => s.character_id === activeCharacter.id)
     if (!current) return
@@ -855,5 +914,6 @@ Personajes presentes: ${activeIds.join(', ')}.`
     diceRequest, rollDice, rollInitiative,
     characterStates, gameMode, gameModeData,
     startGame, announceEntry, debugAddItem,
+    useItem, giftItem,
   }
 }
