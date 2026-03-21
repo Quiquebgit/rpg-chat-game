@@ -17,7 +17,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const lastNarratedIdRef = useRef(null)
 
   const { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant } = usePresence(session, character)
-  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem } = useMessages(session, character, presentIds)
+  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem, useItem, giftItem } = useMessages(session, character, presentIds)
   const { speak, stop, isNarrating, isEnabled: narrationEnabled, toggle: toggleNarration, error: narrationError, supported: narrationSupported } = useNarration()
 
   // Narrar automáticamente los mensajes nuevos del narrador
@@ -256,7 +256,13 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
         <div className="flex-1 min-h-0 flex flex-col">
           <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">Inventario</p>
           <div className="flex-1 overflow-y-auto">
-            <InventoryPanel inventory={inventory} />
+            <InventoryPanel
+              inventory={inventory}
+              isMyTurn={isMyTurn}
+              allies={presentedCharacters.filter(c => c.id !== character.id)}
+              onUse={useItem}
+              onGift={giftItem}
+            />
           </div>
           {import.meta.env.DEV && (
             <DebugInventoryButton onAdd={debugAddItem} />
@@ -726,51 +732,106 @@ const ITEM_RARITY_STYLES = {
 }
 const STAT_LABELS = { attack: 'Ataque', defense: 'Defensa', navigation: 'Navegación', hp: 'Vida', ability: 'Habilidad' }
 
-function InventoryPanel({ inventory }) {
+function InventoryPanel({ inventory, isMyTurn, allies = [], onUse, onGift }) {
   const [expanded, setExpanded] = useState(null)
+  const [giftTarget, setGiftTarget] = useState(null) // índice del item con selector abierto
+
   if (!inventory?.length) return <p className="text-xs text-gray-600 italic">Sin objetos</p>
+
+  function handleUse(e, item, i) {
+    e.stopPropagation()
+    onUse(item, i)
+    if (expanded === i) setExpanded(null)
+  }
+
+  function handleGiftSelect(e, item, i, targetId) {
+    e.stopPropagation()
+    setGiftTarget(null)
+    onGift(item, i, targetId)
+  }
+
   return (
     <div className="flex flex-col gap-1.5">
       {inventory.map((item, i) => {
         const style = ITEM_TYPE_STYLES[item.type] || { bg: 'bg-gray-800', border: 'border-gray-700', text: 'text-gray-400', icon: '📦' }
         const rarityClass = ITEM_RARITY_STYLES[item.rarity] || 'text-gray-600'
         const isOpen = expanded === i
+        const isEquipped = item.equipped === true
         const description = item.effect || item.description
         const hasDetails = description || item.special_ability || item.effects?.length || item.cure_description
+        const canGift = isMyTurn && !isEquipped && item.target !== 'self' && allies.length > 0
+
         return (
-          <button
+          <div
             key={i}
-            onClick={() => hasDetails && setExpanded(isOpen ? null : i)}
-            className={`w-full text-left rounded-lg border px-3 py-2 transition-all ${style.bg} ${style.border} ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
+            className={`rounded-lg border px-3 py-2 transition-all ${style.bg} ${style.border}`}
           >
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-sm leading-none shrink-0">{style.icon}</span>
-                <span className={`text-xs font-semibold truncate ${style.text}`}>{item.name}</span>
+            {/* Cabecera: icono + nombre + rareza */}
+            <button
+              onClick={() => hasDetails && setExpanded(isOpen ? null : i)}
+              className={`w-full text-left ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-sm leading-none shrink-0">{style.icon}</span>
+                  <span className={`text-xs font-semibold truncate ${style.text}`}>{item.name}</span>
+                  {isEquipped && <span className="text-xs text-amber-400/70 shrink-0">equipado</span>}
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {item.effects?.map((e, j) => (
+                    <span key={j} className={`text-xs font-bold ${e.modifier > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {e.modifier > 0 ? '+' : ''}{e.modifier} {STAT_LABELS[e.stat] || e.stat}
+                    </span>
+                  ))}
+                  <span className={`text-xs ${rarityClass}`}>{item.rarity || 'común'}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {item.effects?.map((e, j) => (
-                  <span key={j} className={`text-xs font-bold ${e.modifier > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {e.modifier > 0 ? '+' : ''}{e.modifier} {STAT_LABELS[e.stat] || e.stat}
-                  </span>
-                ))}
-                <span className={`text-xs ${rarityClass}`}>{item.rarity || 'común'}</span>
-              </div>
-            </div>
+            </button>
+
+            {/* Detalles expandibles */}
             {isOpen && hasDetails && (
               <div className="mt-1.5 border-t border-white/10 pt-1.5 flex flex-col gap-1">
-                {description && (
-                  <p className="text-xs text-gray-400 leading-relaxed">{description}</p>
-                )}
-                {item.special_ability && (
-                  <p className="text-xs text-amber-300/80 leading-relaxed">✦ {item.special_ability}</p>
-                )}
-                {item.cure_description && (
-                  <p className="text-xs text-teal-400/80 leading-relaxed">💊 {item.cure_description}</p>
+                {description && <p className="text-xs text-gray-400 leading-relaxed">{description}</p>}
+                {item.special_ability && <p className="text-xs text-amber-300/80 leading-relaxed">✦ {item.special_ability}</p>}
+                {item.cure_description && <p className="text-xs text-teal-400/80 leading-relaxed">💊 {item.cure_description}</p>}
+              </div>
+            )}
+
+            {/* Botones de acción — solo en el turno propio */}
+            {isMyTurn && !isEquipped && (
+              <div className="mt-2 flex gap-1.5 relative">
+                <button
+                  onClick={e => handleUse(e, item, i)}
+                  className="flex-1 text-xs py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold transition-colors"
+                >
+                  {item.equippable ? 'Equipar' : 'Usar'}
+                </button>
+                {canGift && (
+                  <div className="relative">
+                    <button
+                      onClick={e => { e.stopPropagation(); setGiftTarget(giftTarget === i ? null : i) }}
+                      className="text-xs px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold transition-colors"
+                    >
+                      Regalar
+                    </button>
+                    {giftTarget === i && (
+                      <div className="absolute bottom-full right-0 mb-1 w-36 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-10 overflow-hidden">
+                        {allies.map(ally => (
+                          <button
+                            key={ally.id}
+                            onClick={e => handleGiftSelect(e, item, i, ally.id)}
+                            className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors"
+                          >
+                            {ally.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
-          </button>
+          </div>
         )
       })}
     </div>
