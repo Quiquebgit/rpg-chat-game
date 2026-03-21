@@ -191,20 +191,27 @@ Enemigos vivos: ${alive.map(e => `"${e.name}"(HP:${e.hp})`).join(', ') || 'ningu
 ${stunned.length ? `Aturdidos (pierden turno): ${stunned.join(', ')}\n` : ''}next:${getLeastActive()} no_rep:${activeCharacter.id}`
   }
 
+  // Contexto compacto del evento activo para el modelo mecánico
+  function buildEventContext() {
+    const briefing = sessionRef.current?.current_event_briefing
+    if (!briefing) return ''
+    return `## Evento actual (activa el modo de juego correspondiente si no está activo)\n${briefing}\n`
+  }
+
   // Prompt del modelo mecánico fuera de combate
   function buildMechanicsPrompt(playerAction, currentGameModeData, currentGameMode) {
     const leastActive = getLeastActive()
     return `Activo:${activeCharacter.id}(ATK${activeCharacter.attack} DEF${activeCharacter.defense} NAV${activeCharacter.navigation})
 Acción: ${playerAction}
 Personajes: ${buildMinimalCharContext()}
-${buildGameModeContext(currentGameModeData, currentGameMode)}next:${leastActive} no_rep:${activeCharacter.id}`
+${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}next:${leastActive} no_rep:${activeCharacter.id}`
   }
 
   function buildGmMechanicsPrompt(instruction, currentGameModeData, currentGameMode) {
     const leastActive = getLeastActive()
     return `GM(${activeCharacter.id}): ${instruction}
 Personajes: ${buildMinimalCharContext()}
-${buildGameModeContext(currentGameModeData, currentGameMode)}next:${leastActive}
+${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}next:${leastActive}
 "yo/me/mi/dame"→${activeCharacter.id} | combat:usa getEnemies() | game_mode_data completo si activa modo`
   }
 
