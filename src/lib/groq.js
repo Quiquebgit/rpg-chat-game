@@ -21,6 +21,13 @@ const MECHANICS_MODELS = [
   'meta-llama/llama-4-scout-17b-16e-instruct',
 ]
 
+// Para llamadas con tools: solo modelos que soportan function calling OpenAI-compatible
+const MECHANICS_MODELS_WITH_TOOLS = [
+  'openai/gpt-oss-20b',
+  'meta-llama/llama-4-scout-17b-16e-instruct',
+  'llama-3.3-70b-versatile',
+]
+
 // Error que se lanza cuando todos los modelos de la lista devuelven 429
 export class ModelsBusyError extends Error {
   constructor(role) {
@@ -65,8 +72,9 @@ export async function callMechanicsModel(systemPrompt, userPrompt, {
   ]
   const tools = useTools ? (customTools || undefined) : undefined
   const executors = customExecutors || {}
+  const modelList = tools ? MECHANICS_MODELS_WITH_TOOLS : MECHANICS_MODELS
 
-  return tryModels(MECHANICS_MODELS, 'mecánico', async (model) => {
+  return tryModels(modelList, 'mecánico', async (model) => {
     // Primera llamada: con tools si aplica. Sin response_format para no conflictar con tool_choice.
     const completion = await groqClient.chat.completions.create({
       model,
