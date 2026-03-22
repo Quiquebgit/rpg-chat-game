@@ -536,12 +536,20 @@ Termina interpelando a: ${nextChar?.name || nextId}`
         useTools: true,
         toolExecutors: NORMAL_TOOL_EXECUTORS,
         tools: NORMAL_TOOLS,
+        maxTokens: 800,
       })
       if (raw) {
+        console.log('[mecánico] raw:', raw.slice(0, 300))
         const match = raw.match(/\{[\s\S]*\}/)
-        if (match) mechanics = { ...mechanics, ...JSON.parse(match[0]) }
+        if (match) {
+          try {
+            mechanics = { ...mechanics, ...JSON.parse(match[0]) }
+          } catch (parseErr) {
+            console.warn('[mecánico] JSON inválido (¿truncado?):', parseErr.message, '| raw length:', raw.length)
+          }
+        }
       }
-      console.log('[processAction] mecánicas:', JSON.stringify(mechanics))
+      console.log('[processAction] game_mode:', mechanics.game_mode, '| enemies:', mechanics.game_mode_data?.enemies?.length ?? 'n/a')
     } catch (err) {
       if (err instanceof ModelsBusyError) {
         console.warn('[mecánico] Todos los modelos ocupados, usando defaults')
