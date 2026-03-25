@@ -198,20 +198,31 @@ ${stunned.length ? `Aturdidos (pierden turno): ${stunned.join(', ')}\n` : ''}nex
     return `## Evento actual (activa el modo de juego correspondiente si no está activo)\n${briefing}\n`
   }
 
+  // Últimos mensajes del narrador para dar contexto de escena al modelo mecánico
+  function buildRecentNarratorContext() {
+    const lastNarrator = messagesRef.current
+      .filter(m => m.character_id === 'narrator')
+      .slice(-2)
+      .map(m => m.content.length > 300 ? m.content.slice(0, 300) + '…' : m.content)
+      .join('\n---\n')
+    return lastNarrator ? `## Contexto de escena (últimos mensajes del narrador)\n${lastNarrator}\n` : ''
+  }
+
   // Prompt del modelo mecánico fuera de combate
   function buildMechanicsPrompt(playerAction, currentGameModeData, currentGameMode) {
     const leastActive = getLeastActive()
     return `Activo:${activeCharacter.id}(ATK${activeCharacter.attack} DEF${activeCharacter.defense} NAV${activeCharacter.navigation})
 Acción: ${playerAction}
 Personajes: ${buildMinimalCharContext()}
-${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}next:${leastActive} no_rep:${activeCharacter.id}`
+${buildRecentNarratorContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}next:${leastActive} no_rep:${activeCharacter.id}`
   }
 
   function buildGmMechanicsPrompt(instruction, currentGameModeData, currentGameMode) {
     const leastActive = getLeastActive()
     return `GM(${activeCharacter.id}): ${instruction}
 Personajes: ${buildMinimalCharContext()}
-${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}next:${leastActive}
+${buildRecentNarratorContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}REGLA: si la instrucción implica combate, llama getEnemies() y pon game_mode:"combat" ahora mismo.
+next:${leastActive}
 "yo/me/mi/dame"→${activeCharacter.id} | combat:usa getEnemies() | game_mode_data completo si activa modo`
   }
 

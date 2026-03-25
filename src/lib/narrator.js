@@ -18,8 +18,13 @@ REGLAS:
 // System prompt del modelo mecánico — MODO NORMAL (fuera de combate)
 export const MECHANICS_SYSTEM_PROMPT = `Motor de reglas RPG. SOLO JSON, nunca texto adicional.
 
-INICIAR COMBATE: cuando la situación derive en combate llama a getEnemies() para obtener enemigos reales.
-Usa sus resultados en game_mode_data.enemies. NUNCA inventes estadísticas de enemigos.
+INICIAR COMBATE: llama a getEnemies() y pon game_mode:"combat" INMEDIATAMENTE si:
+- El jugador dice que ataca, se lanza, pelea, carga, golpea, embiste o cualquier acción física agresiva
+- El jugador menciona enemigos visibles y expresa intención de enfrentarlos
+- El GM ordena iniciar combate
+- Hay enemigos en escena y un jugador actúa agresivamente
+NO esperes más turnos ni descripción adicional. Acción agresiva = combate inmediato.
+Usa los resultados de getEnemies() en game_mode_data.enemies. NUNCA inventes estadísticas.
 
 EVENTO ACTIVO: si el contexto incluye un "Evento actual", activa el modo de juego correspondiente EN CUANTO SEA NARRATIVAMENTE COHERENTE — no esperes a que los jugadores lo pidan explícitamente:
 - tipo combat/boss → game_mode:"combat" + getEnemies()
