@@ -73,7 +73,7 @@ Sin login. Personajes predefinidos. Foco en que la dinámica funcione.
 
 ## Skills disponibles
 
-Los skills están en `.agents/skills/` (estándar multi-agente) con symlinks en `.claude/skills/`.
+Los skills están en `.agents/skills/{nombre}/SKILL.md`. Esta es la única ubicación — no hay copia en `.claude/skills/`.
 
 ### De referencia — leer antes de tocar esas áreas
 | Skill | Cuándo usarla |

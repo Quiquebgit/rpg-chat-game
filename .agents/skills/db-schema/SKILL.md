@@ -1,64 +1,141 @@
-# Esquema de base de datos — Supabase
+# Skill: db-schema
 
-Realtime habilitado en las tres tablas públicas.
+Referencia del esquema de base de datos del proyecto RPG Chat Game (Supabase/PostgreSQL).
+Leer antes de tocar la BD, escribir migraciones o modificar hooks de Supabase.
 
-## `sessions`
-| campo | tipo | descripción |
+---
+
+## Tablas actuales (`public`)
+
+| Tabla | Filas aprox. | RLS |
 |---|---|---|
-| id | uuid PK | automático |
-| created_at | timestamp | automático |
-| status | text | `active` / `finished` / `abandoned` |
-| current_turn_character_id | text | id del personaje al que le toca actuar |
-| turn_order | text[] | orden base de turnos |
-| narrative_summary | text | resumen incremental de la sesión (actualizado cada 10 mensajes) |
-| game_mode | text | `normal` / `combat` / `navigation` / `exploration` / `negotiation` (default: `normal`) |
-| game_mode_data | jsonb | datos del modo activo (enemigos, pistas, NPC, etc.) — ver estructura abajo |
+| `sessions` | ~26 | ✅ habilitado |
+| `messages` | ~790 | ✅ habilitado |
+| `session_character_state` | ~156 | ✅ habilitado |
+| `items` | ~92 | ✅ habilitado |
+| `enemies` | ~51 | ✅ habilitado |
+| `difficulty_templates` | ~3 | ✅ habilitado |
 
-### `game_mode_data` por modo
-- **combat**: `{ enemies: [{ id, name, hp, hp_max, attack, defense, icon, initiative, defeated }], initiative: { char_id: roll }, combat_turn_order: [char_id] }`
-- **navigation**: `{ danger_name, danger_threshold, progress }`
-- **exploration**: `{ clues: [] }`
-- **negotiation**: `{ npc_name, npc_attitude ("hostile"|"neutral"|"friendly"), conviction, conviction_max }`
+---
 
-## `messages`
-| campo | tipo | descripción |
-|---|---|---|
-| id | uuid PK | automático |
-| created_at | timestamp | automático |
-| session_id | uuid FK | referencia a `sessions` |
-| character_id | text | id del personaje o `'narrator'` |
-| content | text | texto del mensaje |
-| type | text | `player` / `narrator` / `action` / `gm` / `dice` / `ooc` |
+## Políticas RLS actuales
 
-## `session_character_state`
-| campo | tipo | descripción |
-|---|---|---|
-| id | uuid PK | automático |
-| session_id | uuid FK | referencia a `sessions` |
-| character_id | text | id del personaje |
-| hp_current | int | vida actual |
-| inventory | jsonb | array de items `{ name, type, rarity, effect, effects[], special_ability, cure_description, is_negative }` |
-| claimed_by | text | playerId del navegador que controla este personaje (nullable) |
-| is_active | boolean | true si el jugador está conectado actualmente |
-| is_dead | boolean | true si el personaje llegó a 0 HP (default: false) |
+La app **no tiene auth/login** — todos los jugadores usan el rol `anon`.
+Todas las tablas tienen una política permisiva `FOR ALL TO anon USING (true)`.
 
-## `items`
-| campo | tipo | descripción |
-|---|---|---|
-| id | uuid PK | automático |
-| name | text | nombre único del item |
-| type | text | `arma` / `equipo` / `consumible` / `fruta` |
-| rarity | text | `común` / `raro` / `único` |
-| is_negative | boolean | true si es un item negativo (veneno, trampa...) |
-| description | text | descripción narrativa corta (max ~10 palabras) |
-| effects | jsonb | array de `{ stat, modifier }` — efectos mecánicos |
-| special_ability | text | descripción de habilidad especial (nullable) |
-| cure_difficulty | text | `easy` / `normal` / `hard` (nullable, solo items negativos) |
-| cure_description | text | cómo curar el efecto (nullable, solo items negativos) |
+> Cuando se añada autenticación, reemplazar estas políticas por otras restrictivas
+> basadas en `auth.uid()` o roles de usuario.
 
-## Identificación de jugadores
-Sin auth. Cada **pestaña** genera un `playerId` (UUID) persistido en `sessionStorage` (único por pestaña, persiste al refrescar, no se comparte entre pestañas). Se usa para reclamar personajes en `claimed_by`.
+---
 
-## Hooks relevantes
-- `src/hooks/useSession.js` — gestión de sesión, `playerId`, `claimCharacter`
-- `src/hooks/useMessages.js` — historial, Realtime, envío a Groq, modos de juego
+## Regla obligatoria: RLS en tablas nuevas
+
+**Toda tabla nueva en `public` debe llevar RLS habilitado + política explícita.**
+Sin esto, Supabase lo marca como vulnerabilidad crítica y envía alertas de seguridad.
+
+Plantilla para nuevas tablas sin auth:
+
+```sql
+ALTER TABLE public.<nueva_tabla> ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow_all_<nueva_tabla>"
+  ON public.<nueva_tabla>
+  FOR ALL TO anon
+  USING (true) WITH CHECK (true);
+```
+
+Plantilla cuando haya auth (futuro):
+
+```sql
+ALTER TABLE public.<nueva_tabla> ENABLE ROW LEVEL SECURITY;
+-- Solo el propietario puede leer/escribir sus propias filas
+CREATE POLICY "owner_only_<nueva_tabla>"
+  ON public.<nueva_tabla>
+  FOR ALL TO authenticated
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+```
+
+---
+
+## Regla obligatoria: search_path en funciones
+
+Las funciones PL/pgSQL deben fijar `search_path` para evitar inyección de esquema:
+
+```sql
+CREATE OR REPLACE FUNCTION public.mi_funcion()
+  RETURNS ... LANGUAGE plpgsql
+  SET search_path = public  -- <-- obligatorio
+AS $$ ... $$;
+```
+
+---
+
+## Esquema de columnas principales
+
+### `sessions`
+- `id` uuid PK
+- `status` text — `active | finished | abandoned`
+- `game_mode` text — `normal | combat | navigation | exploration | negotiation`
+- `game_mode_data` jsonb — estado del modo activo (enemigos, pistas, NPCs...)
+- `current_turn_character_id` text
+- `turn_order` text[]
+- `narrative_summary` text
+- `story_file` text
+- `difficulty_template_id` uuid → `difficulty_templates.id`
+- `current_event_order` int
+- `current_event_briefing` text
+- `story_lore` text
+- `updated_at` timestamptz — actualizado por trigger `update_session_updated_at`
+
+### `messages`
+- `id` uuid PK
+- `session_id` uuid → `sessions.id`
+- `character_id` text
+- `content` text
+- `type` text — `player | narrator | dice | action | gm`
+- `created_at` timestamptz
+
+### `session_character_state`
+- `id` uuid PK
+- `session_id` uuid → `sessions.id`
+- `character_id` text
+- `hp_current` int
+- `inventory` jsonb `[]`
+- `claimed_by` text (playerId del jugador)
+- `is_active` boolean
+- `is_dead` boolean
+- `stunned` boolean
+
+### `items`
+- `id` uuid PK
+- `name` text (unique)
+- `type` text — `fruta | arma | equipo | consumible`
+- `rarity` text — `común | raro | único`
+- `is_negative` boolean
+- `effects` jsonb `[]`
+- `special_ability` text
+- `equippable` boolean
+- `target` text — `self | ally | any`
+- `cure_difficulty` text — `easy | normal | hard`
+
+### `enemies`
+- `id` uuid PK
+- `name` text (unique)
+- `type` text
+- `hp`, `attack`, `defense` int
+- `loot_table` jsonb
+- `loot_type` text — `cualquiera | arma | equipo | consumible`
+- `ability` jsonb
+
+### `difficulty_templates`
+- `id` uuid PK
+- `name` text (unique)
+- `description` text
+- `event_count` int
+- `events` jsonb
+
+---
+
+## Trigger
+
+`update_session_updated_at` — actualiza `sessions.updated_at = now()` en cada UPDATE.
+Función con `SET search_path = public`.
