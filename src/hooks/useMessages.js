@@ -226,6 +226,49 @@ next:${leastActive}
 "yo/me/mi/dame"→${activeCharacter.id} | combat:usa getEnemies() | game_mode_data completo si activa modo`
   }
 
+  // Beat actual del Director: objetivo concreto que el narrador debe alcanzar en este turno
+  function buildBeatContext() {
+    const s = sessionRef.current
+    const beats = s?.current_beats
+    if (!beats?.length) return ''
+    const index = s.current_beat_index ?? 0
+    const turnsUsed = s.current_beat_turns_used ?? 0
+    if (index >= beats.length) return ''
+    const beat = beats[index]
+    const remaining = beat.max_turns - turnsUsed
+    const warning = remaining <= 1
+      ? `⚠️ ÚLTIMO TURNO de este beat — ciérralo ya y lleva la situación al siguiente nivel.`
+      : `Tienes ${remaining - 1} turno${remaining - 1 !== 1 ? 's' : ''} más después de este para alcanzarlo.`
+    return `\n## Objetivo narrativo de este turno (obligatorio)\n"${beat.goal}"\n${warning}\n`
+  }
+
+  // Avanza el contador de turno del beat y pasa al siguiente si se agotó
+  async function advanceBeatIfNeeded() {
+    const s = sessionRef.current
+    const beats = s?.current_beats
+    if (!beats?.length) return
+    const index = s.current_beat_index ?? 0
+    const turnsUsed = s.current_beat_turns_used ?? 0
+    if (index >= beats.length) return
+
+    const beat = beats[index]
+    const newTurnsUsed = turnsUsed + 1
+
+    if (newTurnsUsed >= beat.max_turns) {
+      const newIndex = index + 1
+      await supabase.from('sessions')
+        .update({ current_beat_index: newIndex, current_beat_turns_used: 0 })
+        .eq('id', session.id)
+      sessionRef.current = { ...sessionRef.current, current_beat_index: newIndex, current_beat_turns_used: 0 }
+      console.log(`[beat] Beat ${index} completado → beat ${newIndex}`)
+    } else {
+      await supabase.from('sessions')
+        .update({ current_beat_turns_used: newTurnsUsed })
+        .eq('id', session.id)
+      sessionRef.current = { ...sessionRef.current, current_beat_turns_used: newTurnsUsed }
+    }
+  }
+
   // Prompt del narrador en modo combate (recibe combatResult, no JSON mecánico crudo)
   function buildNarratorCombatPrompt(combatResult, nextTurnId, currentGameModeData) {
     const summary = narrativeSummaryRef.current
@@ -250,7 +293,7 @@ ${chatHistory}
 
 ## Resultado del turno de combate (narra esto, sin mencionar números de HP ni daño):
 ${JSON.stringify(combatResult)}
-
+${buildBeatContext()}
 Termina interpelando a: ${nextChar?.name || nextTurnId}`
   }
 
@@ -278,7 +321,7 @@ ${chatHistory}
 ${playerAction}
 ${diceResult ? `## Resultado de dados:\n${diceResult}${mechanics.dice_threshold ? ` (umbral para éxito: ${mechanics.dice_threshold})` : ''}\n` : ''}## Decisiones mecánicas (ya resueltas — nárralas):
 ${JSON.stringify(mechanics)}
-
+${buildBeatContext()}
 Termina interpelando a: ${nextChar?.name || nextId}`
   }
 
@@ -470,6 +513,7 @@ Termina interpelando a: ${nextChar?.name || nextId}`
       session_id: session.id, character_id: 'narrator',
       content: narrative, type: 'narrator',
     })
+    await advanceBeatIfNeeded()
   }
 
   // Distribuye loot al final del combate usando las loot_tables de los enemigos derrotados
@@ -662,6 +706,8 @@ Termina interpelando a: ${nextChar?.name || nextId}`
         .update({ current_turn_character_id: realNextId })
         .eq('id', session.id)
     }
+
+    await advanceBeatIfNeeded()
 
     const playerMessages = messagesRef.current.filter(m => m.type === 'player' || m.type === 'action')
     if (playerMessages.length > 0 && playerMessages.length % SUMMARY_EVERY_N_MESSAGES === 0) {
