@@ -19,7 +19,7 @@ const SUMMARY_EVERY_N_MESSAGES = 10
 const NORMAL_TOOL_EXECUTORS = { getRandomItem, getEnemies }
 const NORMAL_TOOLS = [GET_RANDOM_ITEM_TOOL, GET_ENEMIES_TOOL]
 
-export function useMessages(session, activeCharacter, presentIds = [], onEventComplete = null) {
+export function useMessages(session, activeCharacter, presentIds = [], onEventComplete = null, currentEventSetup = null) {
   const sessionRef = useRef(session)
   const [messages, setMessages] = useState([])
   const [characterStates, setCharacterStates] = useState([])
@@ -39,12 +39,14 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
   // gameModeRef solo para comprobar el modo en closures async (no como fuente de verdad de los datos)
   const gameModeRef = useRef(session?.game_mode || 'normal')
   const pendingMechanicsRef = useRef(null)
+  const currentEventSetupRef = useRef(currentEventSetup)
 
   useEffect(() => { messagesRef.current = messages }, [messages])
   useEffect(() => { narrativeSummaryRef.current = narrativeSummary }, [narrativeSummary])
   useEffect(() => { characterStatesRef.current = characterStates }, [characterStates])
   useEffect(() => { presentIdsRef.current = presentIds }, [presentIds])
   useEffect(() => { sessionRef.current = session }, [session])
+  useEffect(() => { currentEventSetupRef.current = currentEventSetup }, [currentEventSetup])
   // Sincronizar modo de juego desde sesión remota (otro jugador vía Realtime)
   useEffect(() => {
     setGameMode(session?.game_mode || 'normal')
@@ -187,7 +189,7 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
     return `Activo:${activeCharacter.id} [${activeCharacter.ability?.name}]
 Acción: ${playerAction}
 Personajes: ${buildMinimalCharContext()}
-Enemigos vivos: ${alive.map(e => `"${e.name}"(HP:${e.hp})`).join(', ') || 'ninguno'}
+${buildActiveInventoryContext()}Enemigos vivos: ${alive.map(e => `"${e.name}"(HP:${e.hp})`).join(', ') || 'ninguno'}
 ${stunned.length ? `Aturdidos (pierden turno): ${stunned.join(', ')}\n` : ''}next:${getLeastActive()} no_rep:${activeCharacter.id}`
   }
 
@@ -214,16 +216,30 @@ ${stunned.length ? `Aturdidos (pierden turno): ${stunned.join(', ')}\n` : ''}nex
     return `Activo:${activeCharacter.id}(ATK${activeCharacter.attack} DEF${activeCharacter.defense} NAV${activeCharacter.navigation})
 Acción: ${playerAction}
 Personajes: ${buildMinimalCharContext()}
-${buildRecentNarratorContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}next:${leastActive} no_rep:${activeCharacter.id}`
+${buildActiveInventoryContext()}${buildRecentNarratorContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}next:${leastActive} no_rep:${activeCharacter.id}`
   }
 
   function buildGmMechanicsPrompt(instruction, currentGameModeData, currentGameMode) {
     const leastActive = getLeastActive()
     return `GM(${activeCharacter.id}): ${instruction}
 Personajes: ${buildMinimalCharContext()}
-${buildRecentNarratorContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}REGLA: si la instrucción implica combate, llama getEnemies() y pon game_mode:"combat" ahora mismo.
+${buildActiveInventoryContext()}${buildRecentNarratorContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}REGLA: si la instrucción implica combate, llama getEnemies() y pon game_mode:"combat" ahora mismo.
 next:${leastActive}
 "yo/me/mi/dame"→${activeCharacter.id} | combat:usa getEnemies() | game_mode_data completo si activa modo`
+  }
+
+  // Items equipados y frutas activas del jugador activo — solo lo que afecta mecánicamente
+  function buildActiveInventoryContext() {
+    const state = characterStatesRef.current.find(s => s.character_id === activeCharacter.id)
+    const inv = state?.inventory || []
+    const active = inv.filter(i => (i.equippable && i.equipped) || i.is_fruit)
+    if (!active.length) return ''
+    const lines = active.map(i => {
+      const effects = i.effects?.map(e => `${e.stat}${e.modifier > 0 ? '+' : ''}${e.modifier}`).join(' ') || ''
+      const ability = i.special_ability ? ` ✦${i.special_ability.slice(0, 60)}` : ''
+      return `  - ${i.name}${effects ? ` [${effects}]` : ''}${ability}`
+    }).join('\n')
+    return `## Equipo activo de ${activeCharacter.id}\n${lines}\n`
   }
 
   // Beat actual del Director: objetivo concreto que el narrador debe alcanzar en este turno
@@ -485,8 +501,8 @@ Termina interpelando a: ${nextChar?.name || nextId}`
 
     // Botín automático si el combate terminó
     if (newMode === 'normal') {
+      // Si el combate vino de "dar la vuelta" en navegación, restaurar el modo navegación
       await distributeLoot(defeatedEnemies)
-      // Notificar al Director que el evento de combate se completó
       if (onEventComplete) await onEventComplete()
     }
   }
@@ -733,6 +749,22 @@ Termina interpelando a: ${nextChar?.name || nextId}`
       }
     }
 
+    if (newMode === 'navigation') {
+      // El umbral escala con el número de jugadores activos.
+      // El modelo mecánico define la dificultad base (por jugador); aquí se multiplica.
+      const numPlayers = presentIdsRef.current.length || 1
+      const baseThreshold = newData?.danger_threshold || 10
+      newData = {
+        ...newData,
+        danger_threshold: baseThreshold * numPlayers,
+        navigation_accumulated: 0,
+        navigation_rolls: [],
+        all_players_rolled: false,
+        risky_move_used: false,
+        options_visible: false,
+      }
+    }
+
     await supabase.from('sessions')
       .update({ game_mode: newMode, game_mode_data: newData })
       .eq('id', session.id)
@@ -952,7 +984,7 @@ Personajes presentes: ${activeIds.join(', ')}.`
 
     // Actualizar inventario: equipar o eliminar
     const newInventory = item.equippable
-      ? (current.inventory || []).map((it, i) => i === itemIndex ? { ...it, equipped: true } : it)
+      ? (current.inventory || []).map((it, i) => i === itemIndex ? { ...it, equipped: true, ...(it.type === 'fruta' ? { is_fruit: true } : {}) } : it)
       : (current.inventory || []).filter((_, i) => i !== itemIndex)
 
     await supabase.from('session_character_state')
@@ -987,6 +1019,256 @@ Personajes presentes: ${activeIds.join(', ')}.`
     }))
   }
 
+  // ─── Navegación ───────────────────────────────────────────────────────────
+
+  // Prompt del narrador para tiradas de navegación
+  function buildNavigationNarratorPrompt(rollTotal, accumulated, threshold, completed, usedAbility) {
+    const summary = narrativeSummaryRef.current
+    const chatHistory = messagesRef.current.slice(-NARRATOR_CONTEXT_MESSAGES).map(m => {
+      if (m.character_id === 'narrator') {
+        const text = m.content.length > 200 ? m.content.slice(0, 200) + '…' : m.content
+        return `Narrador: ${text}`
+      }
+      const name = allCharacters.find(c => c.id === m.character_id)?.name || m.character_id
+      return `${name}: ${m.content}`
+    }).join('\n')
+
+    return `${buildStoryContext()}## Personajes en sesión
+${buildCharacterContext()}
+${summary ? `## Resumen de la sesión\n${summary}\n` : ''}## Historial reciente
+${chatHistory}
+
+## Tirada de navegación de ${activeCharacter.name}
+Resultado: ${rollTotal}${usedAbility ? ` (incluye ${activeCharacter.ability.name} de ${activeCharacter.name}, +${activeCharacter.ability.value})` : ''}
+Progreso acumulado: ${accumulated} / ${threshold}
+${completed ? '✅ ¡Umbral superado! La navegación fue un éxito — el peligro ha sido superado.' : `Falta ${threshold - accumulated} punto${threshold - accumulated !== 1 ? 's' : ''} para superar el umbral.`}
+${buildBeatContext()}
+Narra la tirada de forma dramática. ${completed ? 'El peligro ha sido superado — narra el éxito y la calma que llega.' : 'El peligro aún acecha, describe cómo el grupo avanza pero la amenaza sigue presente.'}
+Termina interpelando al siguiente personaje.`
+  }
+
+  // Tirada de navegación: dado(s) + stat navegación del personaje
+  async function rollNavigation(useAbility = false) {
+    if (sending) return
+    setSending(true)
+
+    const data = gameModeData || {}
+    const diceCount = currentEventSetupRef.current?.dice_count || data.dice_count || 1
+    const threshold = data.danger_threshold || data.navigation_threshold || 10
+    const accumulated = data.navigation_accumulated || 0
+
+    // Tirar dados y sumar navegación del personaje
+    const rolls = Array.from({ length: diceCount }, () => Math.ceil(Math.random() * 6))
+    const diceTotal = rolls.reduce((a, b) => a + b, 0)
+    const navStat = activeCharacter.navigation
+    const abilityBonus = useAbility ? (activeCharacter.ability?.value ?? 3) : 0
+    const totalResult = diceTotal + navStat + abilityBonus
+
+    const abilityLabel = useAbility ? ` + ${abilityBonus} (${activeCharacter.ability.name})` : ''
+    const rollDesc = diceCount === 1
+      ? `🎲 Navegación: ${diceTotal} + ${navStat} NAV${abilityLabel} = **${totalResult}**`
+      : `🎲 Navegación: (${rolls.join('+')}=${diceTotal}) + ${navStat} NAV${abilityLabel} = **${totalResult}**`
+
+    await supabase.from('messages').insert({
+      session_id: session.id, character_id: activeCharacter.id,
+      content: rollDesc, type: 'dice',
+    })
+
+    // Marcar habilidad como usada si aplica
+    if (useAbility) {
+      await supabase.from('session_character_state')
+        .update({ ability_used: true })
+        .eq('session_id', session.id).eq('character_id', activeCharacter.id)
+      setCharacterStates(prev =>
+        prev.map(s => s.character_id === activeCharacter.id ? { ...s, ability_used: true } : s)
+      )
+    }
+
+    // Actualizar acumulado y rastrear quién ha tirado esta ronda
+    const newAccumulated = accumulated + totalResult
+    const completed = newAccumulated >= threshold
+    const prevRolls = data.navigation_rolls || []
+    const newRolls = prevRolls.includes(activeCharacter.id) ? prevRolls : [...prevRolls, activeCharacter.id]
+    const allRolled = presentIdsRef.current.every(id => newRolls.includes(id))
+    const optionsVisible = !completed && allRolled
+
+    const newGameModeData = {
+      ...data,
+      navigation_accumulated: newAccumulated,
+      navigation_rolls: newRolls,
+      all_players_rolled: allRolled,
+      options_visible: optionsVisible,
+    }
+
+    if (completed) {
+      await supabase.from('sessions')
+        .update({ game_mode: 'normal', game_mode_data: newGameModeData })
+        .eq('id', session.id)
+      setGameMode('normal')
+      gameModeRef.current = 'normal'
+    } else {
+      await supabase.from('sessions')
+        .update({ game_mode_data: newGameModeData })
+        .eq('id', session.id)
+    }
+    setGameModeData(newGameModeData)
+
+    // Narrar la tirada
+    setNarratorTyping(true)
+    try {
+      const narrative = await callNarratorModel(
+        NARRATOR_SYSTEM_PROMPT,
+        buildNavigationNarratorPrompt(totalResult, newAccumulated, threshold, completed, useAbility)
+      )
+      if (narrative) {
+        await supabase.from('messages').insert({
+          session_id: session.id, character_id: 'narrator',
+          content: narrative, type: 'narrator',
+        })
+        await advanceBeatIfNeeded()
+      }
+    } catch (err) {
+      if (err instanceof ModelsBusyError) {
+        await supabase.from('messages').insert({
+          session_id: session.id, character_id: 'narrator',
+          content: 'Los servidores están ocupados, inténtalo en unos minutos.', type: 'narrator',
+        })
+      }
+    }
+    setNarratorTyping(false)
+
+    // Si completó el umbral, avisar al Director
+    if (completed && onEventComplete) await onEventComplete()
+
+    setSending(false)
+  }
+
+  // Sacrifica 1 HP del jugador activo para sumar 1 a navigation_accumulated
+  async function sacrificeForNavigation() {
+    if (sending) return
+    const current = characterStatesRef.current.find(s => s.character_id === activeCharacter.id)
+    if (!current || current.hp_current <= 0) return
+    setSending(true)
+
+    const newHp = Math.max(0, current.hp_current - 1)
+    const isDying = newHp === 0
+    await supabase.from('session_character_state')
+      .update({ hp_current: newHp, ...(isDying ? { is_dead: true } : {}) })
+      .eq('session_id', session.id).eq('character_id', activeCharacter.id)
+    setCharacterStates(prev =>
+      prev.map(s => s.character_id === activeCharacter.id ? { ...s, hp_current: newHp, ...(isDying ? { is_dead: true } : {}) } : s)
+    )
+
+    const data = gameModeData || {}
+    const newAccumulated = (data.navigation_accumulated || 0) + 1
+    const threshold = data.danger_threshold || 10
+    const completed = newAccumulated >= threshold
+    const newGameModeData = { ...data, navigation_accumulated: newAccumulated, ...(completed ? { options_visible: false } : {}) }
+
+    if (completed) {
+      await supabase.from('sessions').update({ game_mode: 'normal', game_mode_data: newGameModeData }).eq('id', session.id)
+      setGameMode('normal'); gameModeRef.current = 'normal'
+    } else {
+      await supabase.from('sessions').update({ game_mode_data: newGameModeData }).eq('id', session.id)
+    }
+    setGameModeData(newGameModeData)
+
+    await supabase.from('messages').insert({
+      session_id: session.id, character_id: activeCharacter.id,
+      content: `❤️ ${activeCharacter.name} sacrifica 1 de vida para avanzar. Navegación acumulada: ${newAccumulated}/${threshold}`,
+      type: 'action',
+    })
+
+    if (completed && onEventComplete) await onEventComplete()
+    setSending(false)
+  }
+
+  // Todos pierden 1 HP, el umbral baja 2 y todos vuelven a tirar
+  async function riskyMove() {
+    if (sending) return
+    setSending(true); setNarratorTyping(true)
+
+    const data = gameModeData || {}
+    const activePlayers = presentIdsRef.current.length
+    const currentThreshold = data.danger_threshold || 10
+    const newThreshold = Math.max(1, currentThreshold - activePlayers)
+
+    for (const id of presentIdsRef.current) {
+      const state = characterStatesRef.current.find(s => s.character_id === id)
+      if (!state || state.hp_current <= 0) continue
+      const newHp = Math.max(0, state.hp_current - 1)
+      await supabase.from('session_character_state')
+        .update({ hp_current: newHp, ...(newHp === 0 ? { is_dead: true } : {}) })
+        .eq('session_id', session.id).eq('character_id', id)
+      setCharacterStates(prev =>
+        prev.map(s => s.character_id === id ? { ...s, hp_current: newHp, ...(newHp === 0 ? { is_dead: true } : {}) } : s)
+      )
+    }
+
+    const newGameModeData = {
+      ...data,
+      danger_threshold: newThreshold,
+      navigation_rolls: [],
+      all_players_rolled: false,
+      options_visible: false,
+      risky_move_used: true,
+    }
+    await supabase.from('sessions').update({ game_mode_data: newGameModeData }).eq('id', session.id)
+    setGameModeData(newGameModeData)
+
+    // Narrar el riesgo colectivo
+    const chatHistory = messagesRef.current.slice(-5).map(m => {
+      if (m.character_id === 'narrator') return `Narrador: ${m.content.slice(0, 150)}`
+      return `${allCharacters.find(c => c.id === m.character_id)?.name || m.character_id}: ${m.content}`
+    }).join('\n')
+    const dangerName = data.danger_name || 'el peligro'
+    try {
+      const narrative = await callNarratorModel(NARRATOR_SYSTEM_PROMPT,
+        `${buildStoryContext()}## Personajes en sesión\n${buildCharacterContext()}\n## Historial reciente\n${chatHistory}\n\n## Situación: ¡La tripulación se arriesga!\nEl grupo (${activePlayers} jugadores) decide jugársela ante ${dangerName}. Todos sufren daño pero el peligro cede ${activePlayers} puntos (nuevo umbral: ${newThreshold}). Ahora deben tirar de nuevo.\n${buildBeatContext()}\nNarra la tensión del riesgo colectivo. Termina pidiendo al primer jugador que tire.`)
+      if (narrative) {
+        await supabase.from('messages').insert({ session_id: session.id, character_id: 'narrator', content: narrative, type: 'narrator' })
+        await advanceBeatIfNeeded()
+      }
+    } catch { /* silencioso */ }
+
+    const nextId = getLeastActive()
+    if (nextId) await supabase.from('sessions').update({ current_turn_character_id: nextId }).eq('id', session.id)
+    setSending(false); setNarratorTyping(false)
+  }
+
+  // Falla la navegación, activa un combate. Al terminar el combate, se vuelve a navegación.
+  async function turnBack() {
+    if (sending) return
+    setSending(true); setNarratorTyping(true)
+
+    const navData = { ...(gameModeData || {}) }
+    const enemies = await getEnemies({ difficulty: 'easy', count: 2, type: 'humano' })
+
+    const combatGameModeData = {
+      enemies: (enemies || []).map(e => ({ ...e, defeated: false, ability_used: false })),
+      resume_navigation: navData, // se restaurará al acabar el combate
+    }
+    await supabase.from('sessions').update({ game_mode: 'combat', game_mode_data: combatGameModeData }).eq('id', session.id)
+    setGameMode('combat'); setGameModeData(combatGameModeData); gameModeRef.current = 'combat'
+
+    const enemyNames = (enemies || []).map(e => e.name).join(' y ') || 'enemigos'
+    const dangerName = navData.danger_name || 'el peligro'
+    const chatHistory = messagesRef.current.slice(-5).map(m => {
+      if (m.character_id === 'narrator') return `Narrador: ${m.content.slice(0, 150)}`
+      return `${allCharacters.find(c => c.id === m.character_id)?.name || m.character_id}: ${m.content}`
+    }).join('\n')
+    try {
+      const narrative = await callNarratorModel(NARRATOR_SYSTEM_PROMPT,
+        `${buildStoryContext()}## Personajes en sesión\n${buildCharacterContext()}\n## Historial reciente\n${chatHistory}\n\n## ¡Al dar la vuelta, encuentran enemigos!\nAl retroceder ante ${dangerName}, el grupo se topa con ${enemyNames}. ¡El combate es inevitable!\n${buildBeatContext()}\nNarra el giro dramático: al dar la vuelta aparecen ${enemyNames}. Combate inevitable. Pide a los jugadores que tiren iniciativa.`)
+      if (narrative) {
+        await supabase.from('messages').insert({ session_id: session.id, character_id: 'narrator', content: narrative, type: 'narrator' })
+        await advanceBeatIfNeeded()
+      }
+    } catch { /* silencioso */ }
+
+    setSending(false); setNarratorTyping(false)
+  }
+
   async function debugAddItem(item) {
     const current = characterStatesRef.current.find(s => s.character_id === activeCharacter.id)
     if (!current) return
@@ -1002,7 +1284,8 @@ Personajes presentes: ${activeIds.join(', ')}.`
   return {
     messages, sending, narratorTyping,
     sendMessage, sendChat, sendAction, sendGmMessage,
-    diceRequest, rollDice, rollInitiative,
+    diceRequest, rollDice, rollInitiative, rollNavigation,
+    sacrificeForNavigation, riskyMove, turnBack,
     characterStates, gameMode, gameModeData,
     startGame, announceEntry, debugAddItem,
     useItem, giftItem,
