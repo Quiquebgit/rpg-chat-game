@@ -100,25 +100,72 @@ function CombatPanel({ data, currentTurnName }) {
 }
 
 // --- Modo Navegación ---
-function NavigationPanel({ data }) {
-  const { danger_name, danger_threshold = 10, progress = 0 } = data || {}
-  const pct = Math.min(1, progress / danger_threshold)
+function NavigationPanel({ data, totalPlayers = 0, canActInNav, sending, onSacrifice, onRiskyMove, onTurnBack }) {
+  const {
+    danger_name, danger_threshold = 10, navigation_accumulated = 0,
+    navigation_rolls = [], options_visible = false, risky_move_used = false,
+  } = data || {}
+  const pct = Math.min(1, navigation_accumulated / danger_threshold)
+  const barColor = pct >= 1 ? 'bg-green-500' : pct >= 0.5 ? 'bg-yellow-500' : 'bg-red-500'
+  const labelColor = pct >= 1 ? 'text-green-400' : pct >= 0.5 ? 'text-yellow-300' : 'text-red-400'
+  const rolledCount = navigation_rolls.length
+
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-xs font-black uppercase tracking-widest text-blue-400">🌊 Navegación en curso</span>
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-black uppercase tracking-widest text-blue-400">🌊 Navegación en curso</span>
+        {totalPlayers > 0 && (
+          <span className="text-xs text-gray-500">
+            Tiradas: <span className={rolledCount >= totalPlayers ? 'text-green-400 font-semibold' : 'text-blue-300 font-semibold'}>{rolledCount}/{totalPlayers}</span>
+          </span>
+        )}
+      </div>
       {danger_name && (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
           <div className="flex justify-between text-xs">
             <span className="text-gray-300 font-semibold">{danger_name}</span>
-            <span className="text-blue-300">Umbral: {danger_threshold}</span>
+            <span className={`font-semibold ${labelColor}`}>{navigation_accumulated} / {danger_threshold}</span>
           </div>
           <div className="h-2 w-full rounded-full bg-gray-800 overflow-hidden">
             <div
-              className="h-full rounded-full bg-blue-500 transition-all duration-500"
+              className={`h-full rounded-full transition-all duration-500 ${barColor}`}
               style={{ width: `${pct * 100}%` }}
             />
           </div>
-          <p className="text-xs text-gray-500">Navegación acumulada: {progress} / {danger_threshold}</p>
+          <p className="text-xs text-gray-500">
+            {navigation_accumulated >= danger_threshold
+              ? '✅ Navegación superada'
+              : `Faltan ${danger_threshold - navigation_accumulated} punto${danger_threshold - navigation_accumulated !== 1 ? 's' : ''} para superar el peligro`}
+          </p>
+        </div>
+      )}
+
+      {/* Opciones de fallo — disponibles para todos los jugadores simultáneamente */}
+      {options_visible && canActInNav && (
+        <div className="flex flex-wrap gap-2 mt-1 border-t border-gray-800 pt-2">
+          <button
+            onClick={onSacrifice}
+            disabled={sending}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-900/40 border border-red-500/30 text-red-300 hover:bg-red-900/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            ❤️ Sacrificar 1 vida (+1 nav)
+          </button>
+          {!risky_move_used && (
+            <button
+              onClick={onRiskyMove}
+              disabled={sending}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-900/40 border border-amber-500/30 text-amber-300 hover:bg-amber-900/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              ⚡ Arriesgarse (todos −1 HP, umbral −{totalPlayers || '?'})
+            </button>
+          )}
+          <button
+            onClick={onTurnBack}
+            disabled={sending}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-800 border border-gray-700 text-gray-400 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            🔙 Dar la vuelta
+          </button>
         </div>
       )}
     </div>
@@ -180,13 +227,13 @@ function NegotiationPanel({ data }) {
 }
 
 // --- Panel principal ---
-export default function GameModePanel({ gameMode, gameModeData, currentTurnName }) {
+export default function GameModePanel({ gameMode, gameModeData, currentTurnName, sending, canActInNav, totalPlayers, onSacrifice, onRiskyMove, onTurnBack }) {
   if (!gameMode || gameMode === 'normal') return null
 
   return (
     <div className="shrink-0 border-b border-gray-800 px-6 py-3">
       {gameMode === 'combat'      && <CombatPanel      data={gameModeData} currentTurnName={currentTurnName} />}
-      {gameMode === 'navigation'  && <NavigationPanel  data={gameModeData} />}
+      {gameMode === 'navigation'  && <NavigationPanel  data={gameModeData} totalPlayers={totalPlayers} canActInNav={canActInNav} sending={sending} onSacrifice={onSacrifice} onRiskyMove={onRiskyMove} onTurnBack={onTurnBack} />}
       {gameMode === 'exploration' && <ExplorationPanel data={gameModeData} />}
       {gameMode === 'negotiation' && <NegotiationPanel data={gameModeData} />}
     </div>

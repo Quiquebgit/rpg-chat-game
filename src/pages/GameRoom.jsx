@@ -13,13 +13,14 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [playersOpen, setPlayersOpen] = useState(false)
   const [actionMode, setActionMode] = useState(true)
+  const [useNavAbility, setUseNavAbility] = useState(false)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const lastNarratedIdRef = useRef(null)
 
   const { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant } = usePresence(session, character)
-  const { completeCurrentEvent } = useDirector(session)
-  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem, useItem, giftItem } = useMessages(session, character, presentIds, completeCurrentEvent)
+  const { completeCurrentEvent, currentEventSetup } = useDirector(session)
+  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, rollNavigation, sacrificeForNavigation, riskyMove, turnBack, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem, useItem, giftItem } = useMessages(session, character, presentIds, completeCurrentEvent, currentEventSetup)
   const { speak, stop, isNarrating, isEnabled: narrationEnabled, toggle: toggleNarration, error: narrationError, supported: narrationSupported } = useNarration()
 
   // Narrar automáticamente los mensajes nuevos del narrador
@@ -62,12 +63,43 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const activeCharacterState = characterStates.find(s => s.character_id === character.id)
   const hpCurrent = activeCharacterState?.hp_current ?? character.hp
   const inventory = activeCharacterState?.inventory || []
-  const hasFruit = inventory.some(i => i.type === 'fruta')
+  const hasFruit = inventory.some(i => i.is_fruit || (i.type === 'fruta' && i.equipped))
+  const equippedFruit = inventory.find(i => i.is_fruit || (i.type === 'fruta' && i.equipped))
   const isDead = activeCharacterState?.is_dead ?? false
+
+  // Bonificaciones de equipo equipado (suma por stat)
+  const equipmentBonuses = inventory
+    .filter(i => i.equippable && i.equipped)
+    .flatMap(i => i.effects || [])
+    .reduce((acc, e) => ({ ...acc, [e.stat]: (acc[e.stat] || 0) + e.modifier }), {})
+
+  // Modal de confirmación antes de comer una fruta del diablo
+  const [fruitConfirmItem, setFruitConfirmItem] = useState(null)
+  const [fruitFlash, setFruitFlash] = useState(false)
+  const prevHasFruit = useRef(hasFruit)
+  useEffect(() => {
+    if (!prevHasFruit.current && hasFruit) {
+      setFruitFlash(true)
+      setTimeout(() => setFruitFlash(false), 2000)
+    }
+    prevHasFruit.current = hasFruit
+  }, [hasFruit])
 
   // ¿Es el turno de este jugador?
   const currentTurnName = allCharacters.find(c => c.id === session?.current_turn_character_id)?.name
   const isMyTurn = session?.current_turn_character_id === character.id && !isDead
+
+  // Tirada de navegación: en modo navigation y es el turno de este jugador
+  // En navegación no hay turnos: cada jugador tira cuando quiera, si aún no lo ha hecho esta ronda
+  const navigationRolls = gameModeData?.navigation_rolls || []
+  const needsNavigationRoll = gameMode === 'navigation'
+    && !isSpectator && !isDead
+    && !navigationRolls.includes(character.id)
+  // Cualquier personaje con ability.type === 'navigation_bonus' puede usarlo si no lo ha gastado esta sesión
+  const navBonusAbility = character.ability?.type === 'navigation_bonus' ? character.ability : null
+  const navBonusAvailable = navBonusAbility
+    && needsNavigationRoll
+    && !(characterStates.find(s => s.character_id === character.id)?.ability_used ?? false)
 
   // Iniciativa pendiente: en combate y este jugador aún no ha tirado
   const needsInitiativeRoll = gameMode === 'combat'
@@ -193,7 +225,8 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
       {/* Panel lateral */}
       <aside className={`
         fixed md:relative z-20 h-full
-        w-72 shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col pr-7 pl-5 py-6 gap-6
+        w-[23rem] shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col pr-7 pl-5 py-5 gap-4
+        overflow-y-auto
         transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
@@ -206,7 +239,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
           <span className="text-amber-400 text-2xl font-light leading-none">‹</span>
         </button>
 
-        <div className={`relative ${isDead ? 'opacity-60' : ''}`}>
+        <div className={`relative rounded-lg p-3 transition-all duration-300 ${isDead ? 'opacity-60' : ''} ${fruitFlash ? 'ring-2 ring-purple-400 bg-purple-400/10 animate-pulse' : hasFruit ? 'ring-1 ring-purple-500/40' : ''}`}>
           <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Jugando como</p>
           <div className="flex items-center gap-2">
             <h2 className={`text-2xl font-bold ${isDead ? 'line-through text-gray-500' : 'text-amber-300'}`}>
@@ -243,26 +276,41 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
         <div>
           <p className="text-xs uppercase tracking-widest text-gray-500 mb-3">Stats</p>
           <div className="flex flex-col gap-3">
-            <StatRow icon="⚔️" label="Ataque" value={character.attack} color="bg-amber-400" />
-            <StatRow icon="🛡️" label="Defensa" value={character.defense} color="bg-blue-400" />
-            <StatRow icon="🧭" label="Navegación" value={character.navigation} color="bg-green-400" />
+            <StatRow icon="⚔️" label="Ataque" value={character.attack} bonus={equipmentBonuses.attack || 0} color="bg-amber-400" />
+            <StatRow icon="🛡️" label="Defensa" value={character.defense} bonus={equipmentBonuses.defense || 0} color="bg-blue-400" />
+            <StatRow icon="🧭" label="Navegación" value={character.navigation} bonus={equipmentBonuses.navigation || 0} color="bg-green-400" />
           </div>
         </div>
 
-        <div className="rounded-lg border border-amber-400/40 bg-amber-400/5 p-3">
-          <p className="text-xs uppercase tracking-widest text-amber-500/70 mb-1">Habilidad especial</p>
-          <p className="text-sm font-bold text-amber-300 mb-1">✦ {character.ability.name}</p>
-          <p className="text-xs text-gray-400 leading-relaxed">{character.ability.description}</p>
-        </div>
+        <CollapsibleAbility
+          label="Habilidad especial"
+          name={character.ability.name}
+          description={character.ability.description}
+          borderColor="border-amber-400/40"
+          bgColor="bg-amber-400/5"
+          labelColor="text-amber-500/70"
+          nameColor="text-amber-300"
+        />
+        {equippedFruit?.special_ability && (
+          <CollapsibleAbility
+            label="🍎 Poder de fruta"
+            name={equippedFruit.name}
+            description={equippedFruit.special_ability}
+            borderColor="border-purple-400/40"
+            bgColor="bg-purple-400/5"
+            labelColor="text-purple-500/70"
+            nameColor="text-purple-300"
+          />
+        )}
 
-        <div className="flex-1 min-h-0 flex flex-col">
+        <div className="flex flex-col">
           <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">Inventario</p>
-          <div className="flex-1 overflow-y-auto">
+          <div>
             <InventoryPanel
               inventory={inventory}
               isMyTurn={isMyTurn}
               allies={presentedCharacters.filter(c => c.id !== character.id)}
-              onUse={useItem}
+              onUse={(item, i) => item.type === 'fruta' && !item.equipped ? setFruitConfirmItem({ item, i }) : useItem(item, i)}
               onGift={giftItem}
             />
           </div>
@@ -272,6 +320,36 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
         </div>
 
       </aside>
+
+      {/* Modal confirmación fruta del diablo */}
+      {fruitConfirmItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="mx-4 max-w-sm w-full rounded-2xl border border-purple-400/40 bg-gray-950 p-6 flex flex-col gap-4 shadow-2xl shadow-purple-900/30">
+            <div className="text-center">
+              <p className="text-4xl mb-3">🍎</p>
+              <h3 className="text-lg font-bold text-purple-300 mb-2">¿Comer la fruta del diablo?</h3>
+              <p className="text-sm text-gray-400 leading-relaxed">
+                Ganarás poderes extraordinarios al comerla. Esta decisión es <span className="text-purple-300 font-semibold">irreversible</span>.
+              </p>
+              <p className="text-xs text-gray-600 mt-2 italic">"{fruitConfirmItem.item.name}"</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setFruitConfirmItem(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { useItem(fruitConfirmItem.item, fruitConfirmItem.i); setFruitConfirmItem(null) }}
+                className="flex-1 py-2 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-500 transition-colors"
+              >
+                Comerla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Área principal de chat */}
       <main className="flex flex-col flex-1 min-w-0 md:ml-0 ml-7">
@@ -361,7 +439,17 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
           </div>
         )}
 
-        <GameModePanel gameMode={gameMode} gameModeData={gameModeData} currentTurnName={currentTurnName} />
+        <GameModePanel
+          gameMode={gameMode}
+          gameModeData={gameModeData}
+          currentTurnName={currentTurnName}
+          sending={sending}
+          canActInNav={!isSpectator && !isDead}
+          totalPlayers={presentIds.length}
+          onSacrifice={sacrificeForNavigation}
+          onRiskyMove={riskyMove}
+          onTurnBack={turnBack}
+        />
 
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
           {!hasStarted && !sending && (
@@ -479,6 +567,31 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
               >
                 <span>🚪</span>
                 Unirme a la aventura
+              </button>
+            </div>
+          ) : needsNavigationRoll ? (
+            <div className="flex flex-col items-center gap-3">
+              <p className="text-xs text-blue-400/70 uppercase tracking-widest">🌊 Navegación — tira tus dados</p>
+              {navBonusAvailable && (
+                <button
+                  onClick={() => setUseNavAbility(v => !v)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                    useNavAbility
+                      ? 'bg-cyan-400/20 border-cyan-400/50 text-cyan-300'
+                      : 'bg-gray-800 border-gray-700 text-gray-500'
+                  }`}
+                >
+                  <span>{useNavAbility ? '✓' : '○'}</span>
+                  {navBonusAbility.name} (+{navBonusAbility.value}) — una vez por sesión
+                </button>
+              )}
+              <button
+                onClick={() => { rollNavigation(useNavAbility); setUseNavAbility(false) }}
+                disabled={sending}
+                className="flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-lg bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <span className="text-2xl">🎲</span>
+                Tirar navegación ({currentEventSetup?.dice_count === 2 ? '2d6' : '1d6'} + {character.navigation} NAV{useNavAbility ? ' +3' : ''})
               </button>
             </div>
           ) : needsInitiativeRoll ? (
@@ -734,122 +847,125 @@ const ITEM_RARITY_STYLES = {
 }
 const STAT_LABELS = { attack: 'Ataque', defense: 'Defensa', navigation: 'Navegación', hp: 'Vida', ability: 'Habilidad' }
 
-function InventoryPanel({ inventory, isMyTurn, allies = [], onUse, onGift }) {
-  const [expanded, setExpanded] = useState(null)
-  const [giftTarget, setGiftTarget] = useState(null) // índice del item con selector abierto
-
-  if (!inventory?.length) return <p className="text-xs text-gray-600 italic">Sin objetos</p>
-
-  function handleUse(e, item, i) {
-    e.stopPropagation()
-    onUse(item, i)
-    if (expanded === i) setExpanded(null)
-  }
-
-  function handleGiftSelect(e, item, i, targetId) {
-    e.stopPropagation()
-    setGiftTarget(null)
-    onGift(item, i, targetId)
-  }
+function ItemCard({ item, i, isMyTurn, allies, expanded, setExpanded, onUse, onGift, giftTarget, setGiftTarget }) {
+  const style = ITEM_TYPE_STYLES[item.type] || { bg: 'bg-gray-800', border: 'border-gray-700', text: 'text-gray-400', icon: '📦' }
+  const rarityClass = ITEM_RARITY_STYLES[item.rarity] || 'text-gray-600'
+  const isOpen = expanded === i
+  const isEquipped = item.equipped === true
+  const description = item.effect || item.description
+  const hasDetails = description || item.special_ability || item.effects?.length || item.cure_description
+  const canGift = !isEquipped && item.target !== 'self' && allies.length > 0
 
   return (
-    <div className="flex flex-col gap-1.5">
-      {inventory.map((item, i) => {
-        const style = ITEM_TYPE_STYLES[item.type] || { bg: 'bg-gray-800', border: 'border-gray-700', text: 'text-gray-400', icon: '📦' }
-        const rarityClass = ITEM_RARITY_STYLES[item.rarity] || 'text-gray-600'
-        const isOpen = expanded === i
-        const isEquipped = item.equipped === true
-        const description = item.effect || item.description
-        const hasDetails = description || item.special_ability || item.effects?.length || item.cure_description
-        const canGift = isMyTurn && !isEquipped && item.target !== 'self' && allies.length > 0
-
-        return (
-          <div
-            key={i}
-            className={`rounded-lg border px-3 py-2 transition-all ${style.bg} ${style.border}`}
-          >
-            {/* Cabecera: icono + nombre + rareza */}
-            <button
-              onClick={() => hasDetails && setExpanded(isOpen ? null : i)}
-              className={`w-full text-left ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="text-sm leading-none shrink-0">{style.icon}</span>
-                  <span className={`text-xs font-semibold truncate ${style.text}`}>{item.name}</span>
-                  {isEquipped && <span className="text-xs text-amber-400/70 shrink-0">equipado</span>}
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {item.effects?.map((e, j) => (
-                    <span key={j} className={`text-xs font-bold ${e.modifier > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {e.modifier > 0 ? '+' : ''}{e.modifier} {STAT_LABELS[e.stat] || e.stat}
-                    </span>
-                  ))}
-                  <span className={`text-xs ${rarityClass}`}>{item.rarity || 'común'}</span>
-                </div>
-              </div>
-            </button>
-
-            {/* Detalles expandibles */}
-            {isOpen && hasDetails && (
-              <div className="mt-1.5 border-t border-white/10 pt-1.5 flex flex-col gap-1">
-                {description && <p className="text-xs text-gray-400 leading-relaxed">{description}</p>}
-                {item.special_ability && <p className="text-xs text-amber-300/80 leading-relaxed">✦ {item.special_ability}</p>}
-                {item.cure_description && <p className="text-xs text-teal-400/80 leading-relaxed">💊 {item.cure_description}</p>}
-              </div>
-            )}
-
-            {/* Botones de acción — solo en el turno propio */}
-            {isMyTurn && !isEquipped && (
-              <div className="mt-2 flex gap-1.5 relative">
-                <button
-                  onClick={e => handleUse(e, item, i)}
-                  className="flex-1 text-xs py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold transition-colors"
-                >
-                  {item.equippable ? 'Equipar' : 'Usar'}
-                </button>
-                {canGift && (
-                  <div className="relative">
-                    <button
-                      onClick={e => { e.stopPropagation(); setGiftTarget(giftTarget === i ? null : i) }}
-                      className="text-xs px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold transition-colors"
-                    >
-                      Regalar
-                    </button>
-                    {giftTarget === i && (
-                      <div className="absolute bottom-full right-0 mb-1 w-36 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-10 overflow-hidden">
-                        {allies.map(ally => (
-                          <button
-                            key={ally.id}
-                            onClick={e => handleGiftSelect(e, item, i, ally.id)}
-                            className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors"
-                          >
-                            {ally.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+    <div className={`rounded-lg border px-3 py-2 transition-all ${style.bg} ${style.border}`}>
+      <button
+        onClick={() => hasDetails && setExpanded(isOpen ? null : i)}
+        className={`w-full text-left ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-sm leading-none shrink-0">{style.icon}</span>
+            <span className={`text-xs font-semibold truncate ${style.text}`}>{item.name}</span>
           </div>
-        )
-      })}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {item.effects?.map((e, j) => (
+              <span key={j} className={`text-xs font-bold ${e.modifier > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {e.modifier > 0 ? '+' : ''}{e.modifier} {STAT_LABELS[e.stat] || e.stat}
+              </span>
+            ))}
+            <span className={`text-xs ${rarityClass}`}>{item.rarity || 'común'}</span>
+          </div>
+        </div>
+      </button>
+
+      {isOpen && hasDetails && (
+        <div className="mt-1.5 border-t border-white/10 pt-1.5 flex flex-col gap-1">
+          {description && <p className="text-xs text-gray-400 leading-relaxed">{description}</p>}
+          {item.special_ability && <p className="text-xs text-amber-300/80 leading-relaxed">✦ {item.special_ability}</p>}
+          {item.cure_description && <p className="text-xs text-teal-400/80 leading-relaxed">💊 {item.cure_description}</p>}
+        </div>
+      )}
+
+      {(isMyTurn && !isEquipped || canGift) && (
+        <div className="mt-2 flex gap-1.5 relative">
+          {isMyTurn && !isEquipped && (
+            <button
+              onClick={e => { e.stopPropagation(); onUse(item, i) }}
+              className="flex-1 text-xs py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold transition-colors"
+            >
+              {item.equippable ? 'Equipar' : 'Usar'}
+            </button>
+          )}
+          {canGift && (
+            <div className="relative">
+              <button
+                onClick={e => { e.stopPropagation(); setGiftTarget(giftTarget === i ? null : i) }}
+                className="text-xs px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold transition-colors"
+              >
+                Regalar
+              </button>
+              {giftTarget === i && (
+                <div className="absolute bottom-full right-0 mb-1 w-36 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-10 overflow-hidden">
+                  {allies.map(ally => (
+                    <button
+                      key={ally.id}
+                      onClick={e => { e.stopPropagation(); setGiftTarget(null); onGift(item, i, ally.id) }}
+                      className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors"
+                    >
+                      {ally.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function InventoryPanel({ inventory, isMyTurn, allies = [], onUse, onGift }) {
+  const [expanded, setExpanded] = useState(null)
+  const [giftTarget, setGiftTarget] = useState(null)
+
+  const isEquippedFruit = item => item.is_fruit || (item.type === 'fruta' && item.equipped)
+  const equipped = inventory.map((item, i) => ({ item, i })).filter(({ item }) => item.equippable && item.equipped && !isEquippedFruit(item))
+  const backpack = inventory.map((item, i) => ({ item, i })).filter(({ item }) => !isEquippedFruit(item) && !(item.equippable && item.equipped))
+  if (!equipped.length && !backpack.length) return <p className="text-xs text-gray-600 italic">Sin objetos</p>
+
+  const cardProps = { isMyTurn, allies, expanded, setExpanded, onUse, onGift, giftTarget, setGiftTarget }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {equipped.length > 0 && (
+        <div>
+          <p className="text-xs text-amber-400/60 uppercase tracking-wider mb-1.5">⚔️ Equipado</p>
+          <div className="flex flex-col gap-1.5">
+            {equipped.map(({ item, i }) => <ItemCard key={i} item={item} i={i} {...cardProps} />)}
+          </div>
+        </div>
+      )}
+      {backpack.length > 0 && (
+        <div>
+          <p className="text-xs text-gray-500/60 uppercase tracking-wider mb-1.5">🎒 Mochila</p>
+          <div className="flex flex-col gap-1.5">
+            {backpack.map(({ item, i }) => <ItemCard key={i} item={item} i={i} {...cardProps} />)}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 // Botón de debug solo visible en desarrollo — obtiene item aleatorio real de la BD
 const DEBUG_TYPES = ['arma', 'equipo', 'consumible', 'fruta']
-let debugCursor = 0
 
 function DebugInventoryButton({ onAdd }) {
   const [loading, setLoading] = useState(false)
   async function handleAdd() {
     setLoading(true)
-    const type = DEBUG_TYPES[debugCursor % DEBUG_TYPES.length]
-    debugCursor++
+    const type = DEBUG_TYPES[Math.floor(Math.random() * DEBUG_TYPES.length)]
     const item = await getRandomItem({ type })
     if (item) onAdd(item)
     setLoading(false)
@@ -865,19 +981,55 @@ function DebugInventoryButton({ onAdd }) {
   )
 }
 
-function StatRow({ icon, label, value, color }) {
+function CollapsibleAbility({ label, name, description, borderColor, bgColor, labelColor, nameColor }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className={`rounded-lg border ${borderColor} ${bgColor}`}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-3 pt-3 pb-2 text-left"
+      >
+        <div className="min-w-0">
+          <p className={`text-xs uppercase tracking-widest ${labelColor} mb-0.5`}>{label}</p>
+          <p className={`text-sm font-bold ${nameColor} truncate`}>✦ {name}</p>
+        </div>
+        <span className={`text-base ml-2 shrink-0 transition-transform duration-200 ${open ? '' : '-rotate-90'} text-gray-500`}>▾</span>
+      </button>
+      {open && (
+        <p className="text-xs text-gray-400 leading-relaxed px-3 pb-3">{description}</p>
+      )}
+    </div>
+  )
+}
+
+function StatRow({ icon, label, value, bonus = 0, color }) {
+  const total = value + bonus
   return (
     <div>
       <div className="flex justify-between items-center mb-1">
         <p className="text-xs text-gray-500">{icon} {label}</p>
-        <span className="text-xs font-bold text-gray-400">{value}</span>
+        <div className="flex items-center gap-1">
+          <span className="text-xs font-bold text-gray-400">{value}</span>
+          {bonus !== 0 && (
+            <span className={`text-xs font-bold ${bonus > 0 ? 'text-amber-400' : 'text-red-400'}`}>
+              {bonus > 0 ? `+${bonus}` : bonus}
+            </span>
+          )}
+        </div>
       </div>
-      <div className="flex gap-1 items-center">
+      <div className="flex gap-1 items-center flex-wrap">
         {Array.from({ length: value }).map((_, i) => (
           <div
             key={i}
             className={`h-4 w-3 ${color} shrink-0 rotate-45`}
             style={{ clipPath: 'polygon(50% 0%, 100% 30%, 100% 70%, 50% 100%, 0% 70%, 0% 30%)' }}
+          />
+        ))}
+        {Array.from({ length: Math.abs(bonus) }).map((_, i) => (
+          <div
+            key={`b${i}`}
+            className={`h-4 w-3 shrink-0 rotate-45 ${bonus > 0 ? 'bg-amber-400' : 'bg-red-500'}`}
+            style={{ clipPath: 'polygon(50% 0%, 100% 30%, 100% 70%, 50% 100%, 0% 70%, 0% 30%)', opacity: 0.6 }}
           />
         ))}
       </div>

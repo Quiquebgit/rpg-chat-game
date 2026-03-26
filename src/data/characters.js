@@ -10,7 +10,9 @@ export const characters = [
     navigation: 3,
     ability: {
       name: 'Liderazgo',
-      description: 'Da +2 ataque o +2 defensa a un aliado durante un combate'
+      description: 'Da +2 ataque o +2 defensa a un aliado durante un combate',
+      type: 'attack_bonus_ally',
+      value: 2,
     }
   },
   {
@@ -24,7 +26,9 @@ export const characters = [
     navigation: 2,
     ability: {
       name: 'Onda de presión',
-      description: 'Ataque a distancia sin acercarse, ignora 1 de defensa enemiga'
+      description: 'Ataque a distancia sin acercarse, ignora 1 de defensa enemiga',
+      type: 'ranged_attack',
+      ignores_defense: 1,
     }
   },
   {
@@ -38,7 +42,10 @@ export const characters = [
     navigation: 2,
     ability: {
       name: 'Tratamiento',
-      description: 'Cura 2 de vida en combate, o 4 fuera de combate'
+      description: 'Cura 2 de vida en combate, o 4 fuera de combate',
+      type: 'heal',
+      value: 2,
+      value_out_combat: 4,
     }
   },
   {
@@ -52,7 +59,8 @@ export const characters = [
     navigation: 3,
     ability: {
       name: 'Emboscada',
-      description: 'Si actúa antes de ser detectado, dobla su ataque ese turno'
+      description: 'Si actúa antes de ser detectado, dobla su ataque ese turno',
+      type: 'double_attack_on_surprise',
     }
   },
   {
@@ -66,7 +74,9 @@ export const characters = [
     navigation: 5,
     ability: {
       name: 'Lectura del mar',
-      description: 'Puede evitar un encuentro peligroso en viaje una vez por sesión'
+      description: 'Puede evitar un encuentro peligroso en viaje una vez por sesión',
+      type: 'navigation_bonus',
+      value: 3,
     }
   },
   {
@@ -80,7 +90,9 @@ export const characters = [
     navigation: 1,
     ability: {
       name: 'Festín',
-      description: 'Fuera de combate, cocina para restaurar 1 de vida a toda la tripulación'
+      description: 'Fuera de combate, cocina para restaurar 1 de vida a toda la tripulación',
+      type: 'team_heal',
+      value: 1,
     }
   }
 ]
