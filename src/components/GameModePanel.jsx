@@ -1,25 +1,7 @@
 // Panel superior que muestra el estado del modo de juego activo
 // Se oculta en modo 'normal'. Se actualiza en tiempo real para todos los jugadores.
 
-const ATTITUDE_STYLES = {
-  hostile:  { label: 'Hostil',    color: 'text-red-400',    bg: 'bg-red-400/10',    border: 'border-red-400/30' },
-  neutral:  { label: 'Neutral',   color: 'text-gray-300',   bg: 'bg-gray-800',      border: 'border-gray-700' },
-  friendly: { label: 'Amistoso',  color: 'text-green-400',  bg: 'bg-green-400/10',  border: 'border-green-400/30' },
-}
-
-const ABILITY_TRIGGER_LABELS = {
-  hp_below_half: 'Al 50% HP',
-  first_turn:    'Primer turno',
-  every_turn:    'Cada turno',
-  random:        'Aleatorio',
-}
-const ABILITY_EFFECT_LABELS = {
-  double_attack: '⚔️⚔️ Doble ataque',
-  aoe_attack:    '💥 Ataque en área',
-  heal:          '💚 Curación propia',
-  stun:          '⚡ Aturde al atacante',
-  poison:        '☠️ Veneno',
-}
+import { ATTITUDE_STYLES, ABILITY_TRIGGER_LABELS, ABILITY_EFFECT_LABELS } from '../data/constants'
 
 // --- Modo Combate ---
 function EnemyCard({ enemy }) {

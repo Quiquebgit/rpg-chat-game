@@ -33,7 +33,7 @@ export const GET_RANDOM_ITEM_TOOL = {
 export async function getRandomItem({ type, rarity, is_negative } = {}) {
   let query = supabase
     .from('items')
-    .select('name, type, rarity, is_negative, description, effects, special_ability, cure_description, target, equippable')
+    .select('name, type, rarity, is_negative, description, effects, special_ability, cure_description, target, equippable, immune_to, special_effect')
 
   if (type) query = query.eq('type', type)
   if (rarity) query = query.eq('rarity', rarity)
@@ -55,5 +55,7 @@ export async function getRandomItem({ type, rarity, is_negative } = {}) {
     is_negative: item.is_negative,
     target: item.target || 'any',
     equippable: item.equippable ?? false,
+    immune_to: item.immune_to || [],
+    special_effect: item.special_effect || null,
   }
 }

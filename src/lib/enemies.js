@@ -32,7 +32,7 @@ export async function getEnemies({ difficulty = 'medium', count = 2, type = 'cua
 
   let query = supabase
     .from('enemies')
-    .select('id, name, type, hp, attack, defense, ability, loot_type, loot_table')
+    .select('id, name, type, hp, attack, defense, ability, loot_type, loot_table, attack_type')
 
   if (range.min !== undefined) query = query.gte('hp', range.min)
   if (range.max !== undefined) query = query.lte('hp', range.max)
@@ -62,7 +62,8 @@ export async function getEnemies({ difficulty = 'medium', count = 2, type = 'cua
     attack: e.attack,
     defense: e.defense,
     ability: e.ability || null,
-    ability_used: false,     // para trigger "first_turn"
+    ability_used: false,
+    attack_type: e.attack_type || ['physical'],
     loot_type: e.loot_type,
     loot_table: e.loot_table,
     icon: TYPE_ICONS[e.type] || '👾',

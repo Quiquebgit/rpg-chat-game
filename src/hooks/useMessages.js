@@ -11,8 +11,8 @@ import {
   SUMMARY_SYSTEM_PROMPT,
 } from '../lib/narrator'
 import { characters as allCharacters } from '../data/characters'
+import { createPromptBuilders } from '../lib/prompts'
 
-const NARRATOR_CONTEXT_MESSAGES = 10
 const SUMMARY_EVERY_N_MESSAGES = 10
 
 // Herramientas disponibles para el modelo mecánico (fuera de combate)
@@ -109,154 +109,25 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
       ).subscribe()
   }
 
-  // ─── Helpers de contexto ──────────────────────────────────────────────────
-
-  function buildCharacterContext() {
-    const activeIds = presentIdsRef.current
-    const activeStates = characterStatesRef.current.filter(s => activeIds.includes(s.character_id))
-    return allCharacters
-      .filter(c => activeIds.includes(c.id))
-      .map(c => {
-        const state = activeStates.find(s => s.character_id === c.id)
-        const hp = state ? state.hp_current : c.hp
-        const inventory = state?.inventory?.length
-          ? state.inventory.map(i => i.name).join(', ')
-          : 'sin objetos'
-        return `- ${c.name}(${c.role}) HP${hp}/${c.hp} ATK${c.attack} DEF${c.defense} NAV${c.navigation} [${c.ability.name}] ${inventory}`
-      }).join('\n')
-  }
-
-  function buildMinimalCharContext() {
-    return allCharacters
-      .filter(c => presentIdsRef.current.includes(c.id))
-      .map(c => {
-        const state = characterStatesRef.current.find(s => s.character_id === c.id)
-        const hp = state?.hp_current ?? c.hp
-        const dead = state?.is_dead ? '☠' : ''
-        return `${c.id}:HP${hp}/${c.hp} ATK${c.attack} DEF${c.defense} NAV${c.navigation}${dead}`
-      }).join(' | ')
-  }
-
-  function getLeastActive() {
-    const activeIds = presentIdsRef.current
-    const recentMessages = messagesRef.current.slice(-NARRATOR_CONTEXT_MESSAGES)
-    const counts = Object.fromEntries(activeIds.map(id => [id, 0]))
-    for (const m of recentMessages) {
-      if (m.character_id in counts) counts[m.character_id]++
-    }
-    return [...activeIds].sort((a, b) => counts[a] - counts[b])[0]
-  }
-
-  function getDefaultMechanics() {
-    const leastActive = getLeastActive()
-    return {
-      dice_required: false, dice_count: 1, dice_stat: null, dice_threshold: null,
-      next_character_id: leastActive || presentIdsRef.current[0] || null,
-      stat_updates: [], inventory_updates: [],
-      game_mode: null, game_mode_data: null,
-      event_type: null, session_event: null,
-    }
-  }
-
-  // Contexto del modo activo para los prompts (solo fuera de combate — en combate se pasa combat_context)
-  function buildGameModeContext(currentGameModeData, currentGameMode) {
-    if (!currentGameMode || currentGameMode === 'normal') return ''
-    if (currentGameMode === 'combat' && currentGameModeData?.enemies) {
-      const alive = currentGameModeData.enemies.filter(e => !e.defeated)
-      if (!alive.length) return ''
-      return `## Modo de juego activo: combat\nEnemigos vivos: ${alive.map(e => `${e.name}(HP:${e.hp})`).join(', ')}\n`
-    }
-    return `## Modo de juego activo: ${currentGameMode}\n${currentGameModeData ? JSON.stringify(currentGameModeData) : ''}\n`
-  }
-
-  // Contexto de historia (lore + evento actual) para el narrador, si la sesión tiene historia
-  function buildStoryContext() {
-    const lore = sessionRef.current?.story_lore
-    const briefing = sessionRef.current?.current_event_briefing
-    if (!lore && !briefing) return ''
-    const parts = []
-    if (lore) parts.push(`## Lore de la historia\n${lore}`)
-    if (briefing) parts.push(`## Evento actual\n${briefing}\nSigue el evento actual como guía narrativa obligatoria, narrándolo con libertad creativa.`)
-    return parts.join('\n\n') + '\n\n'
-  }
-
-  // ─── Prompts ──────────────────────────────────────────────────────────────
-
-  // Prompt del modelo mecánico en modo combate (solo intenciones)
-  function buildCombatMechanicsPrompt(playerAction, currentGameModeData) {
-    const alive = currentGameModeData?.enemies?.filter(e => !e.defeated) || []
-    const stunned = characterStatesRef.current.filter(s => s.stunned).map(s => s.character_id)
-    return `Activo:${activeCharacter.id} [${activeCharacter.ability?.name}]
-Acción: ${playerAction}
-Personajes: ${buildMinimalCharContext()}
-${buildActiveInventoryContext()}Enemigos vivos: ${alive.map(e => `"${e.name}"(HP:${e.hp})`).join(', ') || 'ninguno'}
-${stunned.length ? `Aturdidos (pierden turno): ${stunned.join(', ')}\n` : ''}next:${getLeastActive()} no_rep:${activeCharacter.id}`
-  }
-
-  // Contexto compacto del evento activo para el modelo mecánico
-  function buildEventContext() {
-    const briefing = sessionRef.current?.current_event_briefing
-    if (!briefing) return ''
-    return `## Evento actual (activa el modo de juego correspondiente si no está activo)\n${briefing}\n`
-  }
-
-  // Últimos mensajes del narrador para dar contexto de escena al modelo mecánico
-  function buildRecentNarratorContext() {
-    const lastNarrator = messagesRef.current
-      .filter(m => m.character_id === 'narrator')
-      .slice(-2)
-      .map(m => m.content.length > 300 ? m.content.slice(0, 300) + '…' : m.content)
-      .join('\n---\n')
-    return lastNarrator ? `## Contexto de escena (últimos mensajes del narrador)\n${lastNarrator}\n` : ''
-  }
-
-  // Prompt del modelo mecánico fuera de combate
-  function buildMechanicsPrompt(playerAction, currentGameModeData, currentGameMode) {
-    const leastActive = getLeastActive()
-    return `Activo:${activeCharacter.id}(ATK${activeCharacter.attack} DEF${activeCharacter.defense} NAV${activeCharacter.navigation})
-Acción: ${playerAction}
-Personajes: ${buildMinimalCharContext()}
-${buildActiveInventoryContext()}${buildRecentNarratorContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}next:${leastActive} no_rep:${activeCharacter.id}`
-  }
-
-  function buildGmMechanicsPrompt(instruction, currentGameModeData, currentGameMode) {
-    const leastActive = getLeastActive()
-    return `GM(${activeCharacter.id}): ${instruction}
-Personajes: ${buildMinimalCharContext()}
-${buildActiveInventoryContext()}${buildRecentNarratorContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}REGLA: si la instrucción implica combate, llama getEnemies() y pon game_mode:"combat" ahora mismo.
-next:${leastActive}
-"yo/me/mi/dame"→${activeCharacter.id} | combat:usa getEnemies() | game_mode_data completo si activa modo`
-  }
-
-  // Items equipados y frutas activas del jugador activo — solo lo que afecta mecánicamente
-  function buildActiveInventoryContext() {
-    const state = characterStatesRef.current.find(s => s.character_id === activeCharacter.id)
-    const inv = state?.inventory || []
-    const active = inv.filter(i => (i.equippable && i.equipped) || i.is_fruit)
-    if (!active.length) return ''
-    const lines = active.map(i => {
-      const effects = i.effects?.map(e => `${e.stat}${e.modifier > 0 ? '+' : ''}${e.modifier}`).join(' ') || ''
-      const ability = i.special_ability ? ` ✦${i.special_ability.slice(0, 60)}` : ''
-      return `  - ${i.name}${effects ? ` [${effects}]` : ''}${ability}`
-    }).join('\n')
-    return `## Equipo activo de ${activeCharacter.id}\n${lines}\n`
-  }
-
-  // Beat actual del Director: objetivo concreto que el narrador debe alcanzar en este turno
-  function buildBeatContext() {
-    const s = sessionRef.current
-    const beats = s?.current_beats
-    if (!beats?.length) return ''
-    const index = s.current_beat_index ?? 0
-    const turnsUsed = s.current_beat_turns_used ?? 0
-    if (index >= beats.length) return ''
-    const beat = beats[index]
-    const remaining = beat.max_turns - turnsUsed
-    const warning = remaining <= 1
-      ? `⚠️ ÚLTIMO TURNO de este beat — ciérralo ya y lleva la situación al siguiente nivel.`
-      : `Tienes ${remaining - 1} turno${remaining - 1 !== 1 ? 's' : ''} más después de este para alcanzarlo.`
-    return `\n## Objetivo narrativo de este turno (obligatorio)\n"${beat.goal}"\n${warning}\n`
-  }
+  // Constructores de prompts — se recrean en cada render para tener activeCharacter actualizado
+  const {
+    buildCharacterContext,
+    buildMinimalCharContext,
+    getLeastActive,
+    getDefaultMechanics,
+    buildGameModeContext,
+    buildStoryContext,
+    buildEventContext,
+    buildRecentNarratorContext,
+    buildActiveInventoryContext,
+    buildBeatContext,
+    buildCombatMechanicsPrompt,
+    buildMechanicsPrompt,
+    buildGmMechanicsPrompt,
+    buildNarratorCombatPrompt,
+    buildNarratorPrompt,
+    buildNavigationNarratorPrompt,
+  } = createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef })
 
   // Avanza el contador de turno del beat y pasa al siguiente si se agotó
   async function advanceBeatIfNeeded() {
@@ -285,61 +156,8 @@ next:${leastActive}
     }
   }
 
-  // Prompt del narrador en modo combate (recibe combatResult, no JSON mecánico crudo)
-  function buildNarratorCombatPrompt(combatResult, nextTurnId, currentGameModeData) {
-    const summary = narrativeSummaryRef.current
-    const chatHistory = messagesRef.current.slice(-NARRATOR_CONTEXT_MESSAGES).map(m => {
-      if (m.character_id === 'narrator') {
-        const text = m.content.length > 200 ? m.content.slice(0, 200) + '…' : m.content
-        return `Narrador: ${text}`
-      }
-      const name = allCharacters.find(c => c.id === m.character_id)?.name || m.character_id
-      return `${name}: ${m.content}`
-    }).join('\n')
-
-    const nextChar = allCharacters.find(c => c.id === nextTurnId)
-    const alive = currentGameModeData?.enemies?.filter(e => !e.defeated) || []
-
-    return `${buildStoryContext()}## Personajes en sesión
-${buildCharacterContext()}
-${summary ? `## Resumen de la sesión\n${summary}\n` : ''}## Estado del combate
-Enemigos vivos: ${alive.map(e => `${e.name}(HP:${e.hp}/${e.hp_max})`).join(', ') || 'ninguno — ¡combate terminado!'}
-## Historial reciente
-${chatHistory}
-
-## Resultado del turno de combate (narra esto, sin mencionar números de HP ni daño):
-${JSON.stringify(combatResult)}
-${buildBeatContext()}
-Termina interpelando a: ${nextChar?.name || nextTurnId}`
-  }
-
-  // Prompt del narrador fuera de combate (flujo clásico con JSON mecánico)
-  function buildNarratorPrompt(playerAction, mechanics, diceResult, realNextId) {
-    const summary = narrativeSummaryRef.current
-    const chatHistory = messagesRef.current.slice(-NARRATOR_CONTEXT_MESSAGES).map(m => {
-      if (m.character_id === 'narrator') {
-        const text = m.content.length > 200 ? m.content.slice(0, 200) + '…' : m.content
-        return `Narrador: ${text}`
-      }
-      const name = allCharacters.find(c => c.id === m.character_id)?.name || m.character_id
-      return `${name}: ${m.content}`
-    }).join('\n')
-
-    const nextId = realNextId || mechanics.next_character_id
-    const nextChar = allCharacters.find(c => c.id === nextId)
-
-    return `${buildStoryContext()}## Personajes en sesión
-${buildCharacterContext()}
-${summary ? `## Resumen de la sesión\n${summary}\n` : ''}## Historial reciente
-${chatHistory}
-
-## Acción de ${activeCharacter.name}:
-${playerAction}
-${diceResult ? `## Resultado de dados:\n${diceResult}${mechanics.dice_threshold ? ` (umbral para éxito: ${mechanics.dice_threshold})` : ''}\n` : ''}## Decisiones mecánicas (ya resueltas — nárralas):
-${JSON.stringify(mechanics)}
-${buildBeatContext()}
-Termina interpelando a: ${nextChar?.name || nextId}`
-  }
+  // ─── Prompt del narrador en modo combate (recibe combatResult, no JSON mecánico crudo) ───
+  // (buildNarratorCombatPrompt está en prompts.js)
 
   // ─── Aplicar efectos en Supabase ─────────────────────────────────────────
 
@@ -429,6 +247,7 @@ Termina interpelando a: ${nextChar?.name || nextId}`
       characterStates: characterStatesRef.current,
       presentIds: presentIdsRef.current,
       currentTurnId: sessionRef.current?.current_turn_character_id,
+      allCharacters,
     })
 
     const { combatResult, newGameModeData, newMode, playerUpdates, aoeUpdates, nextTurnId, defeatedEnemies } = result
@@ -451,18 +270,23 @@ Termina interpelando a: ${nextChar?.name || nextId}`
     setGameModeData(newGameModeData)
     gameModeRef.current = newMode
 
-    // Daño al jugador activo (incluye stunned: true/false si aplica)
+    // Actualizar estado del jugador activo (daño, stun, first_attack_done, combat_ability_used)
     if (playerUpdates.length > 0) {
-      const { character_id, hp_current, is_dead, stunned } = playerUpdates[0]
-      const updateFields = { hp_current }
+      const { character_id, hp_current, is_dead, stunned, first_attack_done, combat_ability_used } = playerUpdates[0]
+      const updateFields = {}
+      if (hp_current !== undefined) updateFields.hp_current = hp_current
       if (is_dead) updateFields.is_dead = true
       if (stunned !== undefined) updateFields.stunned = stunned
-      await supabase.from('session_character_state')
-        .update(updateFields)
-        .eq('session_id', session.id).eq('character_id', character_id)
-      setCharacterStates(prev =>
-        prev.map(s => s.character_id === character_id ? { ...s, ...updateFields } : s)
-      )
+      if (first_attack_done) updateFields.first_attack_done = true
+      if (combat_ability_used) updateFields.combat_ability_used = true
+      if (Object.keys(updateFields).length > 0) {
+        await supabase.from('session_character_state')
+          .update(updateFields)
+          .eq('session_id', session.id).eq('character_id', character_id)
+        setCharacterStates(prev =>
+          prev.map(s => s.character_id === character_id ? { ...s, ...updateFields } : s)
+        )
+      }
     }
 
     // Daño AoE al resto de jugadores
@@ -746,7 +570,21 @@ Termina interpelando a: ${nextChar?.name || nextId}`
           const maxHp = (e.hp_max > 0 ? e.hp_max : null) ?? (e.hp > 0 ? e.hp : 5)
           return { ...e, hp: maxHp, hp_max: maxHp, defeated: false, ability_used: false }
         }),
+        boosts: {},
+        fruit_specials_used: {},
       }
+      // Resetear contadores de combate para todos los jugadores presentes
+      for (const id of presentIdsRef.current) {
+        await supabase.from('session_character_state')
+          .update({ combat_ability_used: false, first_attack_done: false, stunned: false })
+          .eq('session_id', session.id).eq('character_id', id)
+      }
+      setCharacterStates(prev =>
+        prev.map(s => presentIdsRef.current.includes(s.character_id)
+          ? { ...s, combat_ability_used: false, first_attack_done: false, stunned: false }
+          : s
+        )
+      )
     }
 
     if (newMode === 'navigation') {
@@ -772,6 +610,19 @@ Termina interpelando a: ${nextChar?.name || nextId}`
     setGameMode(newMode)
     setGameModeData(newData)
     gameModeRef.current = newMode
+  }
+
+  // Suma bonos de equipo + frutas para una stat del jugador activo
+  function getEffectiveStat(characterId, stat) {
+    const state = characterStatesRef.current.find(s => s.character_id === characterId)
+    const inventory = state?.inventory || []
+    const bonus = inventory
+      .filter(i => i.equipped || i.is_fruit)
+      .flatMap(i => i.effects || [])
+      .filter(e => e.stat === stat)
+      .reduce((sum, e) => sum + (e.modifier || e.value || 0), 0)
+    const char = allCharacters.find(c => c.id === characterId)
+    return (char?.[stat] ?? 0) + bonus
   }
 
   // ─── Acciones del jugador ─────────────────────────────────────────────────
@@ -858,8 +709,11 @@ Termina interpelando a: ${nextChar?.name || nextId}`
     const s = sessionRef.current
     if (s?.game_mode !== 'combat') return
 
-    const roll = Math.ceil(Math.random() * 6) + activeCharacter.attack
-    const content = `🎲 Iniciativa: ${roll} (1d6 + ${activeCharacter.attack} ATK)`
+    const effAtk = getEffectiveStat(activeCharacter.id, 'attack')
+    const roll = Math.ceil(Math.random() * 6) + effAtk
+    const atkBonus = effAtk - activeCharacter.attack
+    const atkLabel = atkBonus > 0 ? `${activeCharacter.attack}+${atkBonus}` : `${activeCharacter.attack}`
+    const content = `🎲 Iniciativa: ${roll} (1d6 + ${atkLabel} ATK)`
 
     setSending(true)
     await supabase.from('messages').insert({
@@ -1021,32 +875,6 @@ Personajes presentes: ${activeIds.join(', ')}.`
 
   // ─── Navegación ───────────────────────────────────────────────────────────
 
-  // Prompt del narrador para tiradas de navegación
-  function buildNavigationNarratorPrompt(rollTotal, accumulated, threshold, completed, usedAbility) {
-    const summary = narrativeSummaryRef.current
-    const chatHistory = messagesRef.current.slice(-NARRATOR_CONTEXT_MESSAGES).map(m => {
-      if (m.character_id === 'narrator') {
-        const text = m.content.length > 200 ? m.content.slice(0, 200) + '…' : m.content
-        return `Narrador: ${text}`
-      }
-      const name = allCharacters.find(c => c.id === m.character_id)?.name || m.character_id
-      return `${name}: ${m.content}`
-    }).join('\n')
-
-    return `${buildStoryContext()}## Personajes en sesión
-${buildCharacterContext()}
-${summary ? `## Resumen de la sesión\n${summary}\n` : ''}## Historial reciente
-${chatHistory}
-
-## Tirada de navegación de ${activeCharacter.name}
-Resultado: ${rollTotal}${usedAbility ? ` (incluye ${activeCharacter.ability.name} de ${activeCharacter.name}, +${activeCharacter.ability.value})` : ''}
-Progreso acumulado: ${accumulated} / ${threshold}
-${completed ? '✅ ¡Umbral superado! La navegación fue un éxito — el peligro ha sido superado.' : `Falta ${threshold - accumulated} punto${threshold - accumulated !== 1 ? 's' : ''} para superar el umbral.`}
-${buildBeatContext()}
-Narra la tirada de forma dramática. ${completed ? 'El peligro ha sido superado — narra el éxito y la calma que llega.' : 'El peligro aún acecha, describe cómo el grupo avanza pero la amenaza sigue presente.'}
-Termina interpelando al siguiente personaje.`
-  }
-
   // Tirada de navegación: dado(s) + stat navegación del personaje
   async function rollNavigation(useAbility = false) {
     if (sending) return
@@ -1057,17 +885,19 @@ Termina interpelando al siguiente personaje.`
     const threshold = data.danger_threshold || data.navigation_threshold || 10
     const accumulated = data.navigation_accumulated || 0
 
-    // Tirar dados y sumar navegación del personaje
+    // Tirar dados y sumar navegación efectiva del personaje (base + equipo + frutas)
     const rolls = Array.from({ length: diceCount }, () => Math.ceil(Math.random() * 6))
     const diceTotal = rolls.reduce((a, b) => a + b, 0)
-    const navStat = activeCharacter.navigation
-    const abilityBonus = useAbility ? (activeCharacter.ability?.value ?? 3) : 0
-    const totalResult = diceTotal + navStat + abilityBonus
+    const effNav = getEffectiveStat(activeCharacter.id, 'navigation')
+    const navBonus = effNav - activeCharacter.navigation
+    const navLabel = navBonus > 0 ? `${activeCharacter.navigation}+${navBonus}` : `${activeCharacter.navigation}`
+    const abilityBonus = useAbility ? (activeCharacter.ability?.effect?.value ?? activeCharacter.ability?.value ?? 3) : 0
+    const totalResult = diceTotal + effNav + abilityBonus
 
     const abilityLabel = useAbility ? ` + ${abilityBonus} (${activeCharacter.ability.name})` : ''
     const rollDesc = diceCount === 1
-      ? `🎲 Navegación: ${diceTotal} + ${navStat} NAV${abilityLabel} = **${totalResult}**`
-      : `🎲 Navegación: (${rolls.join('+')}=${diceTotal}) + ${navStat} NAV${abilityLabel} = **${totalResult}**`
+      ? `🎲 Navegación: ${diceTotal} + ${navLabel} NAV${abilityLabel} = **${totalResult}**`
+      : `🎲 Navegación: (${rolls.join('+')}=${diceTotal}) + ${navLabel} NAV${abilityLabel} = **${totalResult}**`
 
     await supabase.from('messages').insert({
       session_id: session.id, character_id: activeCharacter.id,

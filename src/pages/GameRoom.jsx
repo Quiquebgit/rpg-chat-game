@@ -1,11 +1,19 @@
 import { useState, useEffect, useRef } from 'react'
-import { getRandomItem } from '../lib/items'
 import { useMessages } from '../hooks/useMessages'
 import { usePresence } from '../hooks/usePresence'
 import { useNarration } from '../hooks/useNarration'
 import { useDirector } from '../hooks/useDirector'
 import { characters as allCharacters } from '../data/characters'
+import { MODE_SHADOW } from '../data/constants'
 import GameModePanel from '../components/GameModePanel'
+import { NarratorMessage, NarratorTyping } from '../components/NarratorMessage'
+import { ActionMessage, OocMessage, GmMessage, PlayerMessage } from '../components/ChatMessages'
+import { DiceMessage } from '../components/DiceMessage'
+import { PreGameScreen } from '../components/PreGameScreen'
+import { InventoryPanel, DebugInventoryButton } from '../components/InventoryPanel'
+import { CollapsibleAbility } from '../components/CollapsibleAbility'
+import { StatRow } from '../components/StatRow'
+import { StatBoostPanel } from '../components/StatBoostPanel'
 
 function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const [input, setInput] = useState('')
@@ -39,14 +47,6 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
 
   // gameMode y gameModeData vienen del hook (actualización inmediata + sync via Realtime)
 
-  // Vignette desde los bordes según modo (box-shadow inset, sin cambiar el fondo)
-  const MODE_SHADOW = {
-    combat:      'inset 0 0 150px rgba(220, 38, 38, 0.55)',
-    navigation:  'inset 0 0 120px rgba(37, 99, 235, 0.22)',
-    exploration: 'inset 0 0 120px rgba(22, 163, 74, 0.22)',
-    negotiation: 'inset 0 0 120px rgba(217, 119, 6, 0.22)',
-  }
-
   async function handleStartGame() {
     // Marcar al iniciador y notificar al resto de presentes como participantes
     markAsParticipant()
@@ -67,11 +67,15 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const equippedFruit = inventory.find(i => i.is_fruit || (i.type === 'fruta' && i.equipped))
   const isDead = activeCharacterState?.is_dead ?? false
 
-  // Bonificaciones de equipo equipado (suma por stat)
+  // Bonificaciones de items equipados + frutas activas (suma por stat)
   const equipmentBonuses = inventory
-    .filter(i => i.equippable && i.equipped)
+    .filter(i => i.equipped || i.is_fruit)
     .flatMap(i => i.effects || [])
-    .reduce((acc, e) => ({ ...acc, [e.stat]: (acc[e.stat] || 0) + e.modifier }), {})
+    .reduce((acc, e) => ({ ...acc, [e.stat]: (acc[e.stat] || 0) + (e.modifier || e.value || 0) }), {})
+
+  // Stats efectivos (base + equipo + frutas) para mostrar en botones y labels
+  const effectiveAtk = character.attack + (equipmentBonuses.attack || 0)
+  const effectiveNav = character.navigation + (equipmentBonuses.navigation || 0)
 
   // Modal de confirmación antes de comer una fruta del diablo
   const [fruitConfirmItem, setFruitConfirmItem] = useState(null)
@@ -591,7 +595,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                 className="flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-lg bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <span className="text-2xl">🎲</span>
-                Tirar navegación ({currentEventSetup?.dice_count === 2 ? '2d6' : '1d6'} + {character.navigation} NAV{useNavAbility ? ' +3' : ''})
+                Tirar navegación ({currentEventSetup?.dice_count === 2 ? '2d6' : '1d6'} + {effectiveNav} NAV{useNavAbility ? ' +3' : ''})
               </button>
             </div>
           ) : needsInitiativeRoll ? (
@@ -603,7 +607,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                 className="flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-lg bg-red-600 text-white hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <span className="text-2xl">🎲</span>
-                Tirar iniciativa (1d6 + {character.attack} ATK)
+                Tirar iniciativa (1d6 + {effectiveAtk} ATK)
               </button>
             </div>
           ) : diceRequest.required && isMyTurn ? (
@@ -620,6 +624,15 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             </div>
           ) : (
             <>
+            {isMyTurn && gameMode === 'combat' && character.ability?.type === 'stat_boost' && !activeCharacterState?.combat_ability_used && (
+              <div className="mb-2">
+                <StatBoostPanel
+                  ability={character.ability}
+                  allies={presentedCharacters.filter(c => c.id !== character.id)}
+                  onActivate={ally => sendAction(`Uso ${character.ability.name} en ${ally.name}`)}
+                />
+              </div>
+            )}
             {isMyTurn && (
               <div className="flex justify-center mb-2">
                 <button
@@ -660,379 +673,6 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
         </div>
 
       </main>
-    </div>
-  )
-}
-
-
-function NarratorMessage({ content }) {
-  return (
-    <div className="flex flex-col items-center gap-1 px-4">
-      <span className="text-xs uppercase tracking-widest text-amber-500/60">Narrador</span>
-      <div className="bg-gray-900 border border-amber-400/20 rounded-xl px-5 py-3 max-w-2xl text-center">
-        <p className="text-sm text-gray-300 leading-relaxed italic">{content}</p>
-      </div>
-    </div>
-  )
-}
-
-function NarratorTyping() {
-  return (
-    <div className="flex flex-col items-center gap-1 px-4">
-      <span className="text-xs uppercase tracking-widest text-amber-500/60">Narrador</span>
-      <div className="bg-gray-900 border border-amber-400/20 rounded-xl px-5 py-3">
-        <span className="text-amber-400/60 animate-pulse text-sm italic">Narrando…</span>
-      </div>
-    </div>
-  )
-}
-
-// Emote de acción — /comando
-function ActionMessage({ name, content }) {
-  return (
-    <div className="flex justify-center px-4">
-      <p className="text-sm text-gray-500 italic text-center">
-        <span className="text-gray-700">✦</span>{' '}
-        <span className="text-gray-400 not-italic font-medium">{name}</span>
-        {' '}{content}{' '}
-        <span className="text-gray-700">✦</span>
-      </p>
-    </div>
-  )
-}
-
-// Mensaje fuera de personaje — //mensaje
-function OocMessage({ name, content }) {
-  return (
-    <div className="flex justify-center px-4">
-      <p className="text-xs text-gray-600 italic text-center">
-        <span className="text-gray-700 not-italic font-medium">{name}</span>
-        {' (OOC): '}{content}
-      </p>
-    </div>
-  )
-}
-
-// Instrucción al narrador — /gm
-function GmMessage({ name, content }) {
-  return (
-    <div className="flex justify-center px-4">
-      <div className="border border-amber-400/20 rounded-lg px-4 py-2 bg-amber-400/5 max-w-lg">
-        <p className="text-xs text-amber-500/50 uppercase tracking-widest mb-1">{name} · maestro de juego</p>
-        <p className="text-sm text-amber-200/60 italic">{content}</p>
-      </div>
-    </div>
-  )
-}
-
-const DICE_EMOJI = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅']
-
-function DiceMessage({ name, content }) {
-  // Intentar parsear el formato estándar "🎲 3 + 5 = 8" o "🎲 4 = 4"
-  const raw = content.replace('🎲 ', '')
-  const eqIdx = raw.lastIndexOf(' = ')
-  let dice = null
-  let total = null
-
-  if (eqIdx !== -1) {
-    const diceStr = raw.slice(0, eqIdx)
-    const parsedDice = diceStr.split(' + ').map(Number)
-    const parsedTotal = Number(raw.slice(eqIdx + 3))
-    if (!isNaN(parsedTotal) && parsedDice.every(d => !isNaN(d) && d > 0)) {
-      dice = parsedDice
-      total = parsedTotal
-    }
-  }
-
-  // Formato no estándar (iniciativa, etc.) — tarjeta simplificada
-  if (!dice) {
-    return (
-      <div className="flex flex-col items-center gap-2 w-full px-4">
-        <span className="text-xs uppercase tracking-widest text-amber-500/50">{name} · Tirada</span>
-        <div className="bg-gray-900 border border-amber-400/30 rounded-2xl px-8 py-4 flex items-center gap-3">
-          <span className="text-3xl">🎲</span>
-          <span className="text-lg font-bold text-amber-400">{raw}</span>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col items-center gap-2 w-full px-4">
-      <span className="text-xs uppercase tracking-widest text-amber-500/50">{name} · Tirada de dados</span>
-      <div className="bg-gray-900 border border-amber-400/30 rounded-2xl px-10 py-6 flex flex-col items-center gap-5 w-fit">
-        {/* Dados con emoji de cara */}
-        <div className="flex gap-6 items-center">
-          {dice.map((val, i) => (
-            <div key={i} className="flex flex-col items-center gap-1">
-              <span className="text-6xl leading-none" style={{ filter: 'drop-shadow(0 0 8px rgba(251,191,36,0.4))' }}>
-                {DICE_EMOJI[val]}
-              </span>
-              <span className="text-xs font-bold text-amber-400/60">{val}</span>
-            </div>
-          ))}
-          {dice.length > 1 && (
-            <span className="text-2xl text-gray-600 font-light mb-4">=</span>
-          )}
-        </div>
-        {/* Total */}
-        <div className="flex flex-col items-center gap-1">
-          <span className="text-xs uppercase tracking-widest text-gray-600">Total</span>
-          <span className="text-6xl font-black text-amber-400 leading-none">{total}</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function PlayerMessage({ name, content, isOwn }) {
-  return (
-    <div className={`flex flex-col gap-1 max-w-xl ${isOwn ? 'self-end items-end' : 'self-start items-start'}`}>
-      <span className="text-xs text-gray-500 px-1">{name}</span>
-      <div className={`rounded-xl px-4 py-2 text-sm leading-relaxed ${isOwn ? 'bg-amber-400/10 border border-amber-400/30 text-amber-100' : 'bg-gray-800 border border-gray-700 text-gray-300'}`}>
-        {content}
-      </div>
-    </div>
-  )
-}
-
-function PreGameScreen({ presentedCharacters, onStart, sending }) {
-  return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-8 px-6 py-12">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <p className="text-xs uppercase tracking-widest text-amber-500/60">La tripulación se reúne</p>
-        <h2 className="text-2xl font-bold text-amber-300">La aventura os espera</h2>
-        <p className="text-sm text-gray-500 mt-1">Nadie ha zarpado todavía. ¿Listos para partir?</p>
-      </div>
-
-      {presentedCharacters.length > 0 && (
-        <div className="flex flex-col gap-2 w-full max-w-xs">
-          <p className="text-xs uppercase tracking-widest text-gray-600 text-center mb-1">En la sala</p>
-          {presentedCharacters.map(c => (
-            <div key={c.id} className="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-lg px-4 py-2.5">
-              <span className="text-green-400 text-xs">●</span>
-              <div>
-                <p className="text-sm font-semibold text-gray-200">{c.name}</p>
-                <p className="text-xs text-gray-600">{c.role}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <button
-        onClick={onStart}
-        disabled={sending || presentedCharacters.length === 0}
-        className="flex items-center gap-3 px-8 py-4 rounded-2xl font-black text-xl bg-amber-400 text-gray-900 hover:bg-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95 shadow-lg shadow-amber-400/20"
-      >
-        <span className="text-3xl">⚓</span>
-        ¡Zarpar!
-      </button>
-    </div>
-  )
-}
-
-// --- Inventario ---
-
-const ITEM_TYPE_STYLES = {
-  fruta:      { bg: 'bg-purple-400/10', border: 'border-purple-400/30', text: 'text-purple-300', icon: '🍎' },
-  arma:       { bg: 'bg-red-400/10',    border: 'border-red-400/30',    text: 'text-red-300',    icon: '⚔️' },
-  equipo:     { bg: 'bg-blue-400/10',   border: 'border-blue-400/30',   text: 'text-blue-300',   icon: '🎒' },
-  consumible: { bg: 'bg-green-400/10',  border: 'border-green-400/30',  text: 'text-green-300',  icon: '🧪' },
-}
-const ITEM_RARITY_STYLES = {
-  único:  'text-amber-400',
-  raro:   'text-purple-400',
-  común:  'text-gray-600',
-}
-const STAT_LABELS = { attack: 'Ataque', defense: 'Defensa', navigation: 'Navegación', hp: 'Vida', ability: 'Habilidad' }
-
-function ItemCard({ item, i, isMyTurn, allies, expanded, setExpanded, onUse, onGift, giftTarget, setGiftTarget }) {
-  const style = ITEM_TYPE_STYLES[item.type] || { bg: 'bg-gray-800', border: 'border-gray-700', text: 'text-gray-400', icon: '📦' }
-  const rarityClass = ITEM_RARITY_STYLES[item.rarity] || 'text-gray-600'
-  const isOpen = expanded === i
-  const isEquipped = item.equipped === true
-  const description = item.effect || item.description
-  const hasDetails = description || item.special_ability || item.effects?.length || item.cure_description
-  const canGift = !isEquipped && item.target !== 'self' && allies.length > 0
-
-  return (
-    <div className={`rounded-lg border px-3 py-2 transition-all ${style.bg} ${style.border}`}>
-      <button
-        onClick={() => hasDetails && setExpanded(isOpen ? null : i)}
-        className={`w-full text-left ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-sm leading-none shrink-0">{style.icon}</span>
-            <span className={`text-xs font-semibold truncate ${style.text}`}>{item.name}</span>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            {item.effects?.map((e, j) => (
-              <span key={j} className={`text-xs font-bold ${e.modifier > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {e.modifier > 0 ? '+' : ''}{e.modifier} {STAT_LABELS[e.stat] || e.stat}
-              </span>
-            ))}
-            <span className={`text-xs ${rarityClass}`}>{item.rarity || 'común'}</span>
-          </div>
-        </div>
-      </button>
-
-      {isOpen && hasDetails && (
-        <div className="mt-1.5 border-t border-white/10 pt-1.5 flex flex-col gap-1">
-          {description && <p className="text-xs text-gray-400 leading-relaxed">{description}</p>}
-          {item.special_ability && <p className="text-xs text-amber-300/80 leading-relaxed">✦ {item.special_ability}</p>}
-          {item.cure_description && <p className="text-xs text-teal-400/80 leading-relaxed">💊 {item.cure_description}</p>}
-        </div>
-      )}
-
-      {(isMyTurn && !isEquipped || canGift) && (
-        <div className="mt-2 flex gap-1.5 relative">
-          {isMyTurn && !isEquipped && (
-            <button
-              onClick={e => { e.stopPropagation(); onUse(item, i) }}
-              className="flex-1 text-xs py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold transition-colors"
-            >
-              {item.equippable ? 'Equipar' : 'Usar'}
-            </button>
-          )}
-          {canGift && (
-            <div className="relative">
-              <button
-                onClick={e => { e.stopPropagation(); setGiftTarget(giftTarget === i ? null : i) }}
-                className="text-xs px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold transition-colors"
-              >
-                Regalar
-              </button>
-              {giftTarget === i && (
-                <div className="absolute bottom-full right-0 mb-1 w-36 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-10 overflow-hidden">
-                  {allies.map(ally => (
-                    <button
-                      key={ally.id}
-                      onClick={e => { e.stopPropagation(); setGiftTarget(null); onGift(item, i, ally.id) }}
-                      className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors"
-                    >
-                      {ally.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function InventoryPanel({ inventory, isMyTurn, allies = [], onUse, onGift }) {
-  const [expanded, setExpanded] = useState(null)
-  const [giftTarget, setGiftTarget] = useState(null)
-
-  const isEquippedFruit = item => item.is_fruit || (item.type === 'fruta' && item.equipped)
-  const equipped = inventory.map((item, i) => ({ item, i })).filter(({ item }) => item.equippable && item.equipped && !isEquippedFruit(item))
-  const backpack = inventory.map((item, i) => ({ item, i })).filter(({ item }) => !isEquippedFruit(item) && !(item.equippable && item.equipped))
-  if (!equipped.length && !backpack.length) return <p className="text-xs text-gray-600 italic">Sin objetos</p>
-
-  const cardProps = { isMyTurn, allies, expanded, setExpanded, onUse, onGift, giftTarget, setGiftTarget }
-
-  return (
-    <div className="flex flex-col gap-3">
-      {equipped.length > 0 && (
-        <div>
-          <p className="text-xs text-amber-400/60 uppercase tracking-wider mb-1.5">⚔️ Equipado</p>
-          <div className="flex flex-col gap-1.5">
-            {equipped.map(({ item, i }) => <ItemCard key={i} item={item} i={i} {...cardProps} />)}
-          </div>
-        </div>
-      )}
-      {backpack.length > 0 && (
-        <div>
-          <p className="text-xs text-gray-500/60 uppercase tracking-wider mb-1.5">🎒 Mochila</p>
-          <div className="flex flex-col gap-1.5">
-            {backpack.map(({ item, i }) => <ItemCard key={i} item={item} i={i} {...cardProps} />)}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Botón de debug solo visible en desarrollo — obtiene item aleatorio real de la BD
-const DEBUG_TYPES = ['arma', 'equipo', 'consumible', 'fruta']
-
-function DebugInventoryButton({ onAdd }) {
-  const [loading, setLoading] = useState(false)
-  async function handleAdd() {
-    setLoading(true)
-    const type = DEBUG_TYPES[Math.floor(Math.random() * DEBUG_TYPES.length)]
-    const item = await getRandomItem({ type })
-    if (item) onAdd(item)
-    setLoading(false)
-  }
-  return (
-    <button
-      onClick={handleAdd}
-      disabled={loading}
-      className="mt-2 w-full text-xs text-gray-600 border border-dashed border-gray-800 rounded-lg py-1.5 hover:text-gray-400 hover:border-gray-700 disabled:opacity-40 transition-colors"
-    >
-      {loading ? 'cargando…' : '+ debug: añadir item'}
-    </button>
-  )
-}
-
-function CollapsibleAbility({ label, name, description, borderColor, bgColor, labelColor, nameColor }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className={`rounded-lg border ${borderColor} ${bgColor}`}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-3 pt-3 pb-2 text-left"
-      >
-        <div className="min-w-0">
-          <p className={`text-xs uppercase tracking-widest ${labelColor} mb-0.5`}>{label}</p>
-          <p className={`text-sm font-bold ${nameColor} truncate`}>✦ {name}</p>
-        </div>
-        <span className={`text-base ml-2 shrink-0 transition-transform duration-200 ${open ? '' : '-rotate-90'} text-gray-500`}>▾</span>
-      </button>
-      {open && (
-        <p className="text-xs text-gray-400 leading-relaxed px-3 pb-3">{description}</p>
-      )}
-    </div>
-  )
-}
-
-function StatRow({ icon, label, value, bonus = 0, color }) {
-  const total = value + bonus
-  return (
-    <div>
-      <div className="flex justify-between items-center mb-1">
-        <p className="text-xs text-gray-500">{icon} {label}</p>
-        <div className="flex items-center gap-1">
-          <span className="text-xs font-bold text-gray-400">{value}</span>
-          {bonus !== 0 && (
-            <span className={`text-xs font-bold ${bonus > 0 ? 'text-amber-400' : 'text-red-400'}`}>
-              {bonus > 0 ? `+${bonus}` : bonus}
-            </span>
-          )}
-        </div>
-      </div>
-      <div className="flex gap-1 items-center flex-wrap">
-        {Array.from({ length: value }).map((_, i) => (
-          <div
-            key={i}
-            className={`h-4 w-3 ${color} shrink-0 rotate-45`}
-            style={{ clipPath: 'polygon(50% 0%, 100% 30%, 100% 70%, 50% 100%, 0% 70%, 0% 30%)' }}
-          />
-        ))}
-        {Array.from({ length: Math.abs(bonus) }).map((_, i) => (
-          <div
-            key={`b${i}`}
-            className={`h-4 w-3 shrink-0 rotate-45 ${bonus > 0 ? 'bg-amber-400' : 'bg-red-500'}`}
-            style={{ clipPath: 'polygon(50% 0%, 100% 30%, 100% 70%, 50% 100%, 0% 70%, 0% 30%)', opacity: 0.6 }}
-          />
-        ))}
-      </div>
     </div>
   )
 }

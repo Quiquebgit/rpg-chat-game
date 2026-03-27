@@ -3,17 +3,20 @@
 export const COMBAT_MECHANICS_SYSTEM_PROMPT = `Motor de reglas RPG en modo combate. SOLO JSON, nunca texto adicional.
 Devuelve ÚNICAMENTE la intención del jugador. El código calcula el daño.
 
-{"player_intent":"attack|ability|heal|dodge|other","target_enemy_name":"<nombre exacto del enemigo vivo, null si no aplica>","target_ally_id":"<character_id del aliado a curar, null si no aplica>","use_special_ability":false,"is_action":true,"next_character_id":"<id>","non_combat_event":null}
+{"player_intent":"attack|stat_boost|ability|heal|dodge|other","target_enemy_name":"<nombre exacto del enemigo vivo, null si no aplica>","target_ally_id":"<character_id del aliado objetivo, null si no aplica>","use_special_ability":false,"is_action":true,"next_character_id":"<id>","non_combat_event":null}
 
 REGLAS:
-- "attack": el jugador ataca a un enemigo. Copia el nombre exacto de la lista de vivos que se te proporciona.
-- "ability": usa su habilidad especial ofensiva. Sigue siendo un único objetivo salvo que la habilidad diga AoE explícitamente.
+- "attack": el jugador ataca a un enemigo. Copia el nombre exacto de la lista de vivos.
+- "stat_boost": el jugador usa una habilidad de tipo stat_boost (ej: Liderazgo de Darro). Incluye target_ally_id del aliado beneficiado.
+- "ability": usa su habilidad especial ofensiva/de fruta. use_special_ability:true activa el efecto mecánico (doble ataque, AoE, cegar, etc.).
 - "heal": usa su habilidad para curar a un aliado. Incluye target_ally_id.
-- "dodge": el jugador esquiva o intenta evitar el ataque. Hace 0 daño al enemigo, pero el enemigo contraataca aprovechando el hueco.
+- "dodge": el jugador esquiva o intenta evitar el ataque. Hace 0 daño al enemigo, pero el enemigo contraataca.
 - "other": acción no ofensiva (huir, intimidar, inspeccionar…). Sin daño ni contraataque.
 - is_action:false solo si es puro diálogo/conversación sin impacto en el combate.
 - next_character_id: NUNCA asignar a un personaje con ☠ en su línea (muerto/caído).
-- target_enemy_name: copia el nombre EXACTO de la lista de enemigos vivos. null si no ataca.`
+- target_enemy_name: copia el nombre EXACTO de la lista de enemigos vivos. null si no ataca.
+- Si el jugador activo tiene frutas activas con especiales y las usa, pon use_special_ability:true.
+- Si la habilidad ya aparece como :USADA o :PRIMERA_YA, no la actives de nuevo (use_special_ability:false).`
 
 // System prompt del modelo mecánico — MODO NORMAL (fuera de combate)
 export const MECHANICS_SYSTEM_PROMPT = `Motor de reglas RPG. SOLO JSON, nunca texto adicional.

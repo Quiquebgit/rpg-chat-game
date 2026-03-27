@@ -11,8 +11,8 @@ export const characters = [
     ability: {
       name: 'Liderazgo',
       description: 'Da +2 ataque o +2 defensa a un aliado durante un combate',
-      type: 'attack_bonus_ally',
-      value: 2,
+      type: 'stat_boost',
+      effect: { stat: 'attack', value: 2, target: 'ally', uses_per_combat: 1 },
     }
   },
   {
@@ -28,7 +28,7 @@ export const characters = [
       name: 'Onda de presión',
       description: 'Ataque a distancia sin acercarse, ignora 1 de defensa enemiga',
       type: 'ranged_attack',
-      ignores_defense: 1,
+      effect: { ignore_defense: 1, target: 'enemy' },
     }
   },
   {
@@ -44,8 +44,7 @@ export const characters = [
       name: 'Tratamiento',
       description: 'Cura 2 de vida en combate, o 4 fuera de combate',
       type: 'heal',
-      value: 2,
-      value_out_combat: 4,
+      effect: { value_combat: 2, value_out_combat: 4, target: 'any' },
     }
   },
   {
@@ -60,7 +59,8 @@ export const characters = [
     ability: {
       name: 'Emboscada',
       description: 'Si actúa antes de ser detectado, dobla su ataque ese turno',
-      type: 'double_attack_on_surprise',
+      type: 'double_attack_first',
+      effect: { multiplier: 2, trigger: 'first_attack_per_combat' },
     }
   },
   {
@@ -76,7 +76,7 @@ export const characters = [
       name: 'Lectura del mar',
       description: 'Puede evitar un encuentro peligroso en viaje una vez por sesión',
       type: 'navigation_bonus',
-      value: 3,
+      effect: { value: 3, uses_per_session: 1 },
     }
   },
   {
@@ -92,7 +92,7 @@ export const characters = [
       name: 'Festín',
       description: 'Fuera de combate, cocina para restaurar 1 de vida a toda la tripulación',
       type: 'team_heal',
-      value: 1,
+      effect: { value: 1, target: 'all', when: 'out_combat' },
     }
   }
 ]

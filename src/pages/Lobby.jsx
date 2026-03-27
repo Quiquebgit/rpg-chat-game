@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { characters } from '../data/characters'
 import { initializeStorySession } from '../lib/director'
+import { SESSION_STATUS } from '../data/constants'
 
 // Carga todos los ficheros .md de historias como texto plano
 const STORY_FILES = import.meta.glob('../data/stories/*.md', { query: '?raw', import: 'default', eager: true })
@@ -32,12 +33,6 @@ const STORIES = Object.entries(STORY_FILES).map(([path, content]) => {
   const filename = path.split('/').pop() // e.g. "porto-falcon.md"
   return { filename, content, ...meta }
 }).sort((a, b) => (a.title || '').localeCompare(b.title || ''))
-
-const STATUS = {
-  active:    { label: 'Activa',    style: 'text-green-400 bg-green-400/10 border-green-400/30' },
-  finished:  { label: 'Terminada', style: 'text-blue-400 bg-blue-400/10 border-blue-400/30' },
-  abandoned: { label: 'Archivada', style: 'text-gray-500 bg-gray-500/10 border-gray-500/30' },
-}
 
 function formatDate(iso) {
   if (!iso) return '—'
@@ -298,7 +293,7 @@ function Lobby({ onSessionSelect }) {
         ) : (
           <div className="flex flex-col gap-3">
             {sessions.map(session => {
-              const status = STATUS[session.status] || STATUS.abandoned
+              const status = SESSION_STATUS[session.status] || SESSION_STATUS.abandoned
               const isActive = session.status === 'active'
               const isBusy = busy === session.id
               const storyTitle = session.story_file
