@@ -64,8 +64,43 @@ Usada para huir, perseguir, sortear tormentas, evitar monstruos y eventos marino
 | Acción arriesgada | El narrador decide |
 
 ## Inventario
-Estructura JSONB: `{ "name": "...", "type": "fruta|arma|objeto", "effect": "..." }`
+Estructura JSONB en `session_character_state.inventory`:
+```json
+{
+  "name": "...", "type": "fruta|arma|equipo|consumible", "rarity": "común|raro|único",
+  "effects": [{ "stat": "attack|defense|navigation|hp", "modifier": 2 }],
+  "equippable": true, "equipped": false,
+  "is_fruit": true,
+  "immune_to": ["physical", "slash"],
+  "special_effect": { "type": "aoe_attack|blind|..." },
+  "special_ability": "descripción texto libre"
+}
+```
+- `equippable && equipped` → bonus de stat activo
+- `is_fruit` → fruta del diablo activa (comida, efecto permanente)
+- `immune_to[]` → tipos de ataque que el portador ignora. Haki (`haki`) perfora siempre cualquier inmunidad.
 
 ## Personajes
 Definidos en `src/data/characters.js`. 6 personajes fijos en el MVP.
-Campos: `id, name, role, combatStyle, hp, attack, defense, navigation, ability { name, description }`.
+Campos: `id, name, role, combatStyle, hp, attack, defense, navigation, ability`.
+
+Estructura de `ability`:
+```js
+{
+  name: 'Nombre',
+  description: 'Descripción narrativa',
+  type: 'stat_boost | ranged_attack | heal | double_attack_first | navigation_bonus | team_heal',
+  effect: { /* campos según type */ }
+}
+```
+
+Ejemplos de `ability.effect` por tipo:
+- `stat_boost`: `{ stat: 'attack', value: 2, target: 'ally', uses_per_combat: 1 }`
+- `ranged_attack`: `{ ignore_defense: 1, target: 'enemy' }`
+- `heal`: `{ value_combat: 2, value_out_combat: 4, target: 'any' }`
+- `double_attack_first`: `{ multiplier: 2, trigger: 'first_attack_per_combat' }`
+- `navigation_bonus`: `{ value: 3, uses_per_session: 1 }`
+- `team_heal`: `{ value: 1, target: 'all', when: 'out_combat' }`
+
+**IMPORTANTE:** El valor del bonus está en `ability.effect.value`, no en `ability.value`.
+Acceso seguro: `ability?.effect?.value ?? ability?.value ?? 0`.

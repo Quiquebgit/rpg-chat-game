@@ -19,11 +19,13 @@ Fichero `.env` en la raíz. **Nunca subir al repositorio. Nunca mostrar su conte
 ## Estructura de carpetas
 ```
 src/
-├── components/     # CharacterCard, SessionModal, GameModePanel
-├── pages/          # CharacterSelect, GameRoom
-├── hooks/          # useSession, useMessages, usePresence
-├── lib/            # supabase.js, groq.js, narrator.js, items.js
-└── data/           # characters.js
+├── components/     # GameModePanel, NarratorMessage, ChatMessages, DiceMessage,
+│                   # PreGameScreen, InventoryPanel, CollapsibleAbility, StatRow, StatBoostPanel
+├── pages/          # CharacterSelect, GameRoom, Lobby
+├── hooks/          # useSession, useMessages, usePresence, useNarration, useDirector
+├── lib/            # supabase.js, groq.js, narrator.js, items.js, enemies.js,
+│                   # combat.js, prompts.js
+└── data/           # characters.js, constants.js
 ```
 
 ## Estado actual del MVP
@@ -58,6 +60,17 @@ Sin login. Personajes predefinidos. Foco en que la dinámica funcione.
   - `previewCombatAttack` calcula resultado antes de narrar; narrador recibe info real
   - `computeNextTurn` garantiza que el turno nunca va a un personaje muerto
   - Botín automático al acabar combate (`distributeLoot`): 70% por jugador, rareza aleatoria
+- [x] Combate con frutas del diablo e inmunidades:
+  - Stats efectivos en combate: base + bonos de equipo equipado + boosts del `game_mode_data`
+  - Inmunidades por fruta: si el tipo de ataque enemigo está en `immune_to[]`, el personaje no recibe daño
+  - Efectos especiales de fruta (`special_effect`) aplicados en turno de combate
+  - Nuevo intent `stat_boost` en modelo mecánico: habilidades de buff a aliado (ej. Liderazgo de Darro)
+- [x] Refactorización de código (sin cambios de lógica):
+  - Constantes de estilo centralizadas en `src/data/constants.js`
+  - Constructores de prompts extraídos a `src/lib/prompts.js` (factory `createPromptBuilders`)
+  - Componentes UI extraídos de `GameRoom.jsx` a ficheros propios en `src/components/`
+- [x] Fix presencia: jugador local presente de inmediato al entrar a la sala (sin esperar a Supabase Presence)
+  - `usePresence` inicializa `presentIds` con el ID del jugador local; Presence añade los remotos al sincronizar
 
 ### Pendiente
 

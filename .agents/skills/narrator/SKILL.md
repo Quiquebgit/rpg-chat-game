@@ -1,3 +1,8 @@
+---
+name: narrator
+description: Referencia del sistema de narración IA, modelos, prompts y flujo de mensajes del RPG Chat Game. Leer antes de tocar narrator.js, useMessages o la llamada a Groq.
+---
+
 # Narrador IA — configuración y formato
 
 ## Modelos
@@ -38,10 +43,10 @@
 - `inventory_updates`: SIEMPRE usar `getRandomItem(type, rarity)` vía function calling al añadir items. Nunca inventar.
 
 ## IMPORTANTE: daño calculado en código, no por el modelo
-- El `hp_delta` del modelo en `enemy_updates` es **ignorado**. El daño real se calcula en código: `Math.max(0, atk_jugador - def_enemigo)`.
-- El contraataque también se calcula en código: `Math.max(0, atk_enemigo - def_jugador)` sumado entre todos los enemigos vivos.
-- Esto garantiza que el daño sea siempre correcto aunque el modelo falle.
-- El narrador recibe `attackPreview` con el resultado real antes de narrar, para ser coherente.
+- El `hp_delta` del modelo en `enemy_updates` es **ignorado**. El daño real se calcula en código con stats efectivos (base + equipo + boosts).
+- El contraataque también se calcula en código. Si el personaje es inmune al tipo de ataque del enemigo (`immune_to[]`), recibe 0 daño. Haki perfora siempre.
+- El narrador recibe el `combatResult` (objeto con ataques, daños, defeats) calculado en código — nunca interpreta el JSON crudo del modelo mecánico.
+- Intent `stat_boost` (ej. Liderazgo de Darro): aplica bonus de stat a un aliado vía `game_mode_data.boosts`; no hace daño.
 
 ## Contexto que recibe cada modelo en cada llamada
 - Estado de todos los personajes presentes (HP, stats, inventario, habilidad)
@@ -50,20 +55,42 @@
 - Historial comprimido de los últimos 10 mensajes
 - Acción del jugador actual
 
+## Constructores de prompts — src/lib/prompts.js
+
+Los builders de prompt están en `src/lib/prompts.js`, NO en `useMessages.js`.
+Se instancian con un factory al inicio de cada render de `useMessages`:
+
+```js
+const { buildMechanicsPrompt, buildNarratorPrompt, ... } =
+  createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef })
+```
+
+Los refs se pasan como objetos estables; las funciones acceden a `.current` en el momento de la llamada. `activeCharacter` se pasa como valor (el factory se re-ejecuta en cada render para mantenerlo actualizado).
+
+Builders disponibles:
+- `buildMechanicsPrompt(playerAction, gameModeData, gameMode)` — prompt mecánico fuera de combate
+- `buildCombatMechanicsPrompt(playerAction, gameModeData)` — prompt mecánico en combate (incluye estado de habilidad, frutas, inmunidades)
+- `buildGmMechanicsPrompt(instruction, gameModeData, gameMode)` — prompt GM
+- `buildNarratorPrompt(playerAction, mechanics, diceResult, realNextId)` — narrador fuera de combate
+- `buildNarratorCombatPrompt(combatResult, nextTurnId, gameModeData)` — narrador en combate
+- `buildNavigationNarratorPrompt(rollTotal, accumulated, threshold, completed, usedAbility)` — narrador navegación
+- `buildCharacterContext()` — contexto completo de personajes presentes
+- `buildMinimalCharContext()` — contexto compacto para modelo mecánico
+- `buildEventContext()` — contexto del evento activo; si `currentEventSetup.type === 'combat'|'boss'`, emite instrucción imperativa: `"ACTIVA game_mode:combat con getEnemies() AHORA"` en lugar de texto ambiguo. Requiere `currentEventSetupRef` en el factory.
+- `buildBeatContext()` — objetivo narrativo del beat actual (Director de Guion)
+- `getLeastActive()` / `getDefaultMechanics()` — helpers de turno
+
 ## Funciones especiales en useMessages.js
-- `buildMechanicsPrompt(playerAction)` — prompt para el modelo mecánico (jugador en turno)
-- `buildGmMechanicsPrompt(instruction)` — prompt GM, sin restricción de turno
-- `buildNarratorPrompt(playerAction, mechanics, diceResult, realNextId, attackPreview)` — prompt para el narrador; recibe el siguiente personaje real y el preview del ataque
-- `buildGameModeContext()` — genera sección de modo activo para los prompts; en combate filtra enemigos derrotados
-- `processAction(playerAction, { isGm, gmInstruction })` — orquesta mecánico → narrador
-- `deliverNarrative(playerAction, mechanics, diceResult, { gmInstruction })` — llama narrador y aplica efectos
-- `applyEnemyUpdates(enemyUpdates)` — aplica daño a **un solo** enemigo (código override), vuelve a normal si todos caen
-- `applyGameMode(mechanics)` — actualiza game_mode en sesión, calcula iniciativa al entrar en combate
-- `checkAndMarkDeaths(statUpdates)` — marca is_dead cuando HP llega a 0
+- `processCombatAction(playerAction, gameModeData)` — orquesta mecánico → resolver turno en código → narrar
+- `resolveCombatTurn(...)` — en `src/lib/combat.js`; calcula daño con stats efectivos (equipo + boosts + frutas)
+- `applyStatUpdates(updates)` — aplica `hp_delta` a personajes en Supabase
+- `applyInventoryUpdates(updates)` — add/remove items del inventario en Supabase
+- `checkAndMarkDeaths(affectedIds)` — marca is_dead cuando HP llega a 0
 - `rollInitiative()` — 1d6 + ataque del personaje, establece orden de combate cuando todos tiran
-- `previewCombatAttack(enemyUpdates)` — calcula resultado real del ataque ANTES de narrar (enemyName, oldHp, newHp, damage, willBeDefeated, allWillFall)
-- `computeNextTurn(mechanics)` — determina el próximo personaje vivo en turno; tiene prioridad sobre `next_character_id` del modelo
-- `distributeLoot()` — otorga botín automáticamente al finalizar combate (70% por jugador, rareza aleatoria)
+- `rollNavigation(useAbility)` — tirada de navegación; bonus de habilidad: `ability?.effect?.value ?? ability?.value ?? 3`
+- `distributeLoot()` — botín automático al finalizar combate (70% por jugador, rareza aleatoria)
+- `startGame()` — genera apertura narrativa; llama a `buildCharacterContext()` que usa `presentIdsRef.current`
+- `announceEntry()` — mensaje de entrada para jugadores tardíos (espectadores)
 
 ## Resumen narrativo incremental
 - Se actualiza cada 10 mensajes de jugador

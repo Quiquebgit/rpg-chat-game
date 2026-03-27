@@ -6,7 +6,7 @@ import { characters as allCharacters } from '../data/characters'
 
 const NARRATOR_CONTEXT_MESSAGES = 10
 
-export function createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef }) {
+export function createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef, currentEventSetupRef }) {
 
   // ─── Contexto de personajes ────────────────────────────────────────────────
 
@@ -82,8 +82,32 @@ export function createPromptBuilders({ activeCharacter, presentIdsRef, character
   // Contexto compacto del evento activo para el modelo mecánico
   function buildEventContext() {
     const briefing = sessionRef.current?.current_event_briefing
-    if (!briefing) return ''
-    return `## Evento actual (activa el modo de juego correspondiente si no está activo)\n${briefing}\n`
+    const setup = currentEventSetupRef?.current
+    if (!briefing && !setup) return ''
+
+    const eventType = setup?.type
+    const isCombatEvent = eventType === 'combat' || eventType === 'boss'
+    const isNavEvent = eventType === 'navigation'
+
+    // Instrucción explícita según tipo — cuanto más directa, mejor para el modelo
+    let header = '## Evento actual'
+    if (isCombatEvent) {
+      header += ' — ACTIVA game_mode:"combat" con getEnemies() AHORA si el modo es normal. No esperes.'
+    } else if (isNavEvent) {
+      header += ' — ACTIVA game_mode:"navigation" si el modo aún es normal'
+    } else {
+      header += ' — activa el modo de juego correspondiente si no está activo'
+    }
+
+    let ctx = `${header}\n`
+    if (briefing) ctx += `${briefing}\n`
+
+    // Parámetros de enemigos del template si existen (guían los args de getEnemies)
+    if (isCombatEvent && (setup?.enemy_difficulty || setup?.enemy_count || setup?.enemy_type)) {
+      ctx += `Usa getEnemies con: difficulty:${setup.enemy_difficulty || 'medium'} count:${setup.enemy_count || 2} type:${setup.enemy_type || 'cualquiera'}\n`
+    }
+
+    return ctx
   }
 
   // Últimos mensajes del narrador para dar contexto de escena al modelo mecánico
@@ -248,7 +272,7 @@ ${summary ? `## Resumen de la sesión\n${summary}\n` : ''}## Historial reciente
 ${chatHistory}
 
 ## Tirada de navegación de ${activeCharacter.name}
-Resultado: ${rollTotal}${usedAbility ? ` (incluye ${activeCharacter.ability.name} de ${activeCharacter.name}, +${activeCharacter.ability.value})` : ''}
+Resultado: ${rollTotal}${usedAbility ? ` (incluye ${activeCharacter.ability.name} de ${activeCharacter.name}, +${activeCharacter.ability?.effect?.value ?? activeCharacter.ability?.value ?? 0})` : ''}
 Progreso acumulado: ${accumulated} / ${threshold}
 ${completed ? '✅ ¡Umbral superado! La navegación fue un éxito — el peligro ha sido superado.' : `Falta ${threshold - accumulated} punto${threshold - accumulated !== 1 ? 's' : ''} para superar el umbral.`}
 ${buildBeatContext()}

@@ -111,11 +111,13 @@ AS $$ ... $$;
 - `type` text — `fruta | arma | equipo | consumible`
 - `rarity` text — `común | raro | único`
 - `is_negative` boolean
-- `effects` jsonb `[]`
+- `effects` jsonb `[]` — `[{ stat, modifier }]`
 - `special_ability` text
 - `equippable` boolean
 - `target` text — `self | ally | any`
 - `cure_difficulty` text — `easy | normal | hard`
+- `immune_to` jsonb `[]` — tipos de ataque que el portador ignora (frutas): `["physical","slash",...]`
+- `special_effect` jsonb — efecto especial activable en combate: `{ type: "aoe_attack|blind|..." }`
 
 ### `enemies`
 - `id` uuid PK

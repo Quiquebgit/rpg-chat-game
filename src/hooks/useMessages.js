@@ -127,7 +127,7 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
     buildNarratorCombatPrompt,
     buildNarratorPrompt,
     buildNavigationNarratorPrompt,
-  } = createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef })
+  } = createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef, currentEventSetupRef })
 
   // Avanza el contador de turno del beat y pasa al siguiente si se agotó
   async function advanceBeatIfNeeded() {
@@ -433,8 +433,9 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
         tools: NORMAL_TOOLS,
         maxTokens: 800,
       })
+      if (!raw) console.warn('[mecánico] raw=null — el modelo no devolvió contenido')
       if (raw) {
-        console.log('[mecánico] raw:', raw.slice(0, 300))
+        console.log('[mecánico] raw:', raw.slice(0, 400))
         const match = raw.match(/\{[\s\S]*\}/)
         if (match) {
           try {

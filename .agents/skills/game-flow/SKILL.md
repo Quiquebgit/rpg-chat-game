@@ -7,9 +7,16 @@
 4. `CharacterSelect` muestra personajes; los reclamados por Presence aparecen bloqueados en tiempo real
 5. Al confirmar personaje: graba `claimed_by = playerId` en `session_character_state`
 
+## Presencia (usePresence.js)
+- `presentIds` se inicializa con `[character.id]` al montar — el jugador local está presente de inmediato.
+- Supabase Presence sincroniza los jugadores remotos asincrónicamente (~1-2s); `syncState` actualiza la lista.
+- Esto garantiza que el botón "Zarpar" esté habilitado sin esperar a la suscripción de Presence.
+- `participantIds` — jugadores que ya jugaron (marcados como participantes en el canal de Presence).
+- `isParticipant` — persistido en `sessionStorage`; sobrevive navegación entre páginas.
+
 ## Sistema de espectadores
 - Jugadores presentes al inicio de partida → participantes (pueden actuar)
-- Jugadores que llegan tarde → espectadores (solo ven el chat)
+- Jugadores que llegan tarde → espectadores (`isSpectator = hasStarted && !isParticipant`)
 - Espectador puede unirse pulsando "Unirme a la aventura" → `announceEntry()` + `markAsParticipant()`
 - Estado de participante persistido en `sessionStorage` con clave `participant_{session.id}_{char.id}`
 
@@ -25,18 +32,23 @@
 El modo activo se almacena en `sessions.game_mode` y se sincroniza en tiempo real para todos los clientes.
 
 ### Modo Combat
-- Enemigos definidos en `game_mode_data.enemies[]` con HP, ataque, defensa, icono
+- Enemigos definidos en `game_mode_data.enemies[]` con HP, ataque, defensa, icono, `attack_type[]`
+- `game_mode_data.boosts` — bonos de stat temporales por personaje: `{ [char_id]: { attack, defense } }`
 - Al entrar en combate: cada jugador tira iniciativa (1d6 + ataque) → orden de turno
 - Botón "Tirar iniciativa" reemplaza el input hasta que el jugador tire
-- **Daño calculado en código**, no por el modelo. `hp_delta` del modelo se ignora.
-  - Ataque jugador: `Math.max(0, atk_jugador - def_enemigo)`
-  - Contraataque: `Math.max(0, atk_enemigo - def_jugador)` × enemigos vivos
-- Solo un enemigo recibe daño por turno (salvo habilidad AoE). Código enforces esta regla.
+- **Daño calculado en código** en `src/lib/combat.js → resolveCombatTurn()`:
+  - Stats efectivos = base + equipo equipado + frutas activas + `game_mode_data.boosts`
+  - Ataque: `Math.max(0, atk_efectivo - def_enemigo)`
+  - Contraataque: `Math.max(0, atk_enemigo - def_efectiva)`. Si personaje es inmune al tipo de ataque → 0 daño.
+  - Haki perfora siempre cualquier inmunidad.
+- Intents del modelo mecánico: `attack | stat_boost | ability | heal | dodge | other`
+  - `stat_boost` → aplica bonus en `game_mode_data.boosts` para el turno; no hace daño
+  - `ability` con `use_special_ability: true` → activa `special_effect` de fruta (AoE, cegar, etc.)
+- Solo un enemigo recibe daño por turno (salvo AoE). Código enforces esta regla.
 - Enemigos derrotados (`defeated: true`) se filtran del contexto del modelo en turnos posteriores
 - Todos los enemigos a 0 HP → `game_mode` vuelve a `'normal'` automáticamente + se distribuye botín
 - **Botín automático** al acabar combate: 70% probabilidad por jugador, rareza aleatoria
 - El siguiente turno es calculado por `computeNextTurn()` antes de narrar — nunca a un personaje muerto
-- `gameModeRef` / `gameModeDataRef`: refs siempre actualizados, usados como fuente de verdad en combate
 - Fondo de interfaz: tinte rojo oscuro
 
 ### Modo Navigation

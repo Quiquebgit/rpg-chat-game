@@ -6,7 +6,8 @@ import { supabase } from '../lib/supabase'
 // Si se pasa character, registra presencia activa.
 // Si no, solo observa (útil en CharacterSelect).
 export function usePresence(session, character = null) {
-  const [presentIds, setPresentIds] = useState([])
+  // El jugador local se considera presente de inmediato; Presence añade los remotos al sincronizar
+  const [presentIds, setPresentIds] = useState(character?.id ? [character.id] : [])
   const [participantIds, setParticipantIds] = useState([])
   const channelRef = useRef(null)
 

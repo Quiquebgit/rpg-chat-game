@@ -586,7 +586,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                   }`}
                 >
                   <span>{useNavAbility ? '✓' : '○'}</span>
-                  {navBonusAbility.name} (+{navBonusAbility.value}) — una vez por sesión
+                  {navBonusAbility.name} (+{navBonusAbility.effect?.value ?? navBonusAbility.value ?? 0}) — una vez por sesión
                 </button>
               )}
               <button
