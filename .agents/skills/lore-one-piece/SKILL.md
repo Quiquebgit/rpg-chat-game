@@ -1,3 +1,8 @@
+---
+name: lore-one-piece
+description: Referencia de lore y mecánicas de One Piece para el narrador. Usar antes de tocar el system prompt, añadir localizaciones, enemigos o personajes.
+---
+
 # Lore One Piece — Referencia para el narrador
 
 Referencia de ambientación y mecánicas extraída del manual de rol C-System One Piece.

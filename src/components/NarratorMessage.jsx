@@ -9,6 +9,18 @@ export function NarratorMessage({ content }) {
   )
 }
 
+// Mensaje del NPC durante negociación — estilo diferenciado (tono teal, nombre del NPC)
+export function NpcMessage({ name, content }) {
+  return (
+    <div className="flex flex-col items-center gap-1 px-4">
+      <span className="text-xs uppercase tracking-widest text-teal-500/70">{name}</span>
+      <div className="bg-gray-900 border border-teal-400/25 rounded-xl px-5 py-3 max-w-2xl text-center">
+        <p className="text-sm text-teal-100/85 leading-relaxed">{content}</p>
+      </div>
+    </div>
+  )
+}
+
 export function NarratorTyping() {
   return (
     <div className="flex flex-col items-center gap-1 px-4">

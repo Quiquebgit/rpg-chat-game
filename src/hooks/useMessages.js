@@ -7,9 +7,12 @@ import { resolveCombatTurn } from '../lib/combat'
 import {
   COMBAT_MECHANICS_SYSTEM_PROMPT,
   MECHANICS_SYSTEM_PROMPT,
+  NEGOTIATION_MECHANICS_SYSTEM_PROMPT,
+  NPC_NARRATOR_SYSTEM_PROMPT,
   NARRATOR_SYSTEM_PROMPT,
   SUMMARY_SYSTEM_PROMPT,
 } from '../lib/narrator'
+import { generateExplorationTree, generateNegotiationConsequence } from '../lib/director'
 import { characters as allCharacters } from '../data/characters'
 import { createPromptBuilders } from '../lib/prompts'
 
@@ -28,6 +31,8 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
   const [diceRequest, setDiceRequest] = useState({ required: false, count: 1 })
   const [narrativeSummary, setNarrativeSummary] = useState(session?.narrative_summary || '')
   const [gameMode, setGameMode] = useState(session?.game_mode || 'normal')
+  const [explorationNodeId, setExplorationNodeId] = useState(null)
+  const explorationGoalHandlingRef = useRef(false)
   const [gameModeData, setGameModeData] = useState(session?.game_mode_data ?? null)
 
   const subscriptionRef = useRef(null)
@@ -55,6 +60,16 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
   useEffect(() => {
     setGameModeData(session?.game_mode_data ?? null)
   }, [session?.game_mode_data])
+
+  // Sincronizar nodo de exploración local cuando el árbol llega vía Realtime (jugadores remotos)
+  useEffect(() => {
+    if (gameMode === 'exploration') {
+      const startId = session?.game_mode_data?.exploration_tree?.start_node_id
+      if (startId && !explorationNodeId) setExplorationNodeId(startId)
+    } else {
+      setExplorationNodeId(null)
+    }
+  }, [gameMode, session?.game_mode_data?.exploration_tree?.start_node_id])
 
   useEffect(() => {
     if (!session) return
@@ -127,6 +142,8 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
     buildNarratorCombatPrompt,
     buildNarratorPrompt,
     buildNavigationNarratorPrompt,
+    buildNegotiationMechanicsPrompt,
+    buildNpcNarratorPrompt,
   } = createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef, currentEventSetupRef })
 
   // Avanza el contador de turno del beat y pasa al siguiente si se agotó
@@ -400,6 +417,147 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
     }
   }
 
+  // ─── Exploración — navegación local del árbol de decisión ────────────────
+
+  // Navega al nodo indicado. Si es el nodo objetivo, cierra el modo y completa el evento.
+  function navigateExplorationNode(nodeId) {
+    const tree = gameModeData?.exploration_tree
+    if (!tree) return
+    const node = tree.nodes?.find(n => n.id === nodeId)
+    if (!node) return
+    setExplorationNodeId(nodeId)
+    if (node.is_goal) handleExplorationGoal(node)
+  }
+
+  // Narra el descubrimiento, cierra el modo exploration y completa el evento del Director.
+  async function handleExplorationGoal(goalNode) {
+    if (explorationGoalHandlingRef.current) return
+    explorationGoalHandlingRef.current = true
+    setNarratorTyping(true)
+    try {
+      const s = sessionRef.current
+      const narratorPrompt = `${s?.story_lore ? `## Lore de la historia\n${s.story_lore}\n\n` : ''}## Descubrimiento
+El personaje ${activeCharacter.name} ha encontrado lo que buscaba: "${goalNode.description}"
+Narra el descubrimiento de forma dramática y evocadora (máx. 120 palabras). Termina interpelando al grupo.`
+      let narrative
+      try {
+        narrative = await callNarratorModel(NARRATOR_SYSTEM_PROMPT, narratorPrompt)
+      } catch (_) { /* sin narrativa si el modelo falla */ }
+      if (narrative) {
+        await supabase.from('messages').insert({
+          session_id: session.id, character_id: 'narrator',
+          content: narrative, type: 'narrator',
+        })
+      }
+      await supabase.from('sessions')
+        .update({ game_mode: 'normal', game_mode_data: null })
+        .eq('id', session.id)
+      setGameMode('normal')
+      setGameModeData(null)
+      gameModeRef.current = 'normal'
+      if (onEventComplete) await onEventComplete()
+    } finally {
+      explorationGoalHandlingRef.current = false
+      setNarratorTyping(false)
+    }
+  }
+
+  // ─── Negociación — motor de convicción ───────────────────────────────────
+
+  async function processNegotiationAction(playerAction) {
+    const currentData = gameModeData || {}
+    setNarratorTyping(true)
+
+    // 1. Evaluar mecánicamente el mensaje
+    let mechanics = getDefaultMechanics()
+    try {
+      const raw = await callMechanicsModel(
+        NEGOTIATION_MECHANICS_SYSTEM_PROMPT,
+        buildNegotiationMechanicsPrompt(playerAction, currentData),
+        { maxTokens: 200 }
+      )
+      if (raw) {
+        const match = raw.match(/\{[\s\S]*\}/)
+        if (match) mechanics = { ...mechanics, ...JSON.parse(match[0]) }
+      }
+    } catch (_) { /* fallback silencioso — conviction_delta queda en 0 */ }
+
+    // 2. Calcular nueva conviction (el código manda, no el modelo)
+    const convMax = currentData.conviction_max ?? 10
+    let newConviction = currentData.conviction ?? 0
+    if (mechanics.is_violent) {
+      newConviction = 0
+    } else {
+      newConviction = Math.max(0, Math.min(convMax, newConviction + (mechanics.conviction_delta ?? 0)))
+    }
+
+    const success = newConviction >= convMax
+    const failed = newConviction <= 0 && (mechanics.is_violent || (mechanics.conviction_delta ?? 0) < 0)
+
+    // 3. Persistir conviction actualizada
+    const updatedData = { ...currentData, conviction: newConviction }
+    await supabase.from('sessions').update({ game_mode_data: updatedData }).eq('id', session.id)
+    setGameModeData(updatedData)
+
+    // 4. Respuesta del NPC (solo si la negociación no ha terminado)
+    if (!success && !failed) {
+      try {
+        const npcText = await callNarratorModel(
+          NPC_NARRATOR_SYSTEM_PROMPT,
+          buildNpcNarratorPrompt(playerAction, updatedData)
+        )
+        if (npcText) {
+          await supabase.from('messages').insert({
+            session_id: session.id,
+            character_id: currentData.npc_name || 'NPC',
+            content: npcText,
+            type: 'narrator',
+          })
+        }
+      } catch (_) { /* sin respuesta NPC si el modelo falla */ }
+    }
+
+    // 5. Actualizar turno
+    const nextId = mechanics.next_character_id
+    if (nextId && presentIdsRef.current.includes(nextId)) {
+      await supabase.from('sessions').update({ current_turn_character_id: nextId }).eq('id', session.id)
+    }
+
+    // 6. Resolver fin de negociación
+    if (success) {
+      // Éxito: el NPC da su última respuesta positiva y el evento se completa
+      try {
+        const npcText = await callNarratorModel(
+          NPC_NARRATOR_SYSTEM_PROMPT,
+          buildNpcNarratorPrompt('(la negociación ha concluido con éxito — responde de forma que aceptas)', { ...updatedData, npc_attitude: 'friendly' })
+        )
+        if (npcText) {
+          await supabase.from('messages').insert({
+            session_id: session.id,
+            character_id: currentData.npc_name || 'NPC',
+            content: npcText,
+            type: 'narrator',
+          })
+        }
+      } catch (_) { /* silencioso */ }
+      await supabase.from('sessions').update({ game_mode: 'normal', game_mode_data: null }).eq('id', session.id)
+      setGameMode('normal')
+      setGameModeData(null)
+      gameModeRef.current = 'normal'
+      if (onEventComplete) await onEventComplete()
+    } else if (failed) {
+      // Fallo: el Director genera consecuencia narrativa; el evento NO se completa
+      await generateNegotiationConsequence(sessionRef.current, currentData.npc_name)
+      await supabase.from('sessions').update({ game_mode: 'normal', game_mode_data: null }).eq('id', session.id)
+      setGameMode('normal')
+      setGameModeData(null)
+      gameModeRef.current = 'normal'
+      // onEventComplete no se llama — el evento falla, la historia continúa en modo normal
+    }
+
+    setNarratorTyping(false)
+  }
+
   // ─── Motor fuera de combate ───────────────────────────────────────────────
 
   async function processAction(playerAction, { isGm = false, gmInstruction = null } = {}) {
@@ -412,6 +570,13 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
     // ── Rama COMBATE ─────────────────────────────────────────────────────────
     if (currentGameMode === 'combat') {
       await processCombatAction(playerAction, currentGameModeData)
+      setNarratorTyping(false)
+      return
+    }
+
+    // ── Rama NEGOCIACIÓN ─────────────────────────────────────────────────────
+    if (currentGameMode === 'negotiation') {
+      await processNegotiationAction(playerAction)
       setNarratorTyping(false)
       return
     }
@@ -604,6 +769,12 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
       }
     }
 
+    if (newMode === 'negotiation') {
+      // conviction_max escala con el número de jugadores, igual que navegación
+      const numPlayers = presentIdsRef.current.length || 1
+      newData = { ...newData, conviction: 0, conviction_max: Math.max(10, Math.round(numPlayers * 10 / 2)) }
+    }
+
     await supabase.from('sessions')
       .update({ game_mode: newMode, game_mode_data: newData })
       .eq('id', session.id)
@@ -611,6 +782,17 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
     setGameMode(newMode)
     setGameModeData(newData)
     gameModeRef.current = newMode
+
+    if (newMode === 'exploration') {
+      // El árbol se genera después de guardar el modo inicial (es una operación lenta)
+      const s = sessionRef.current
+      const tree = await generateExplorationTree(session.id, s?.story_lore, s?.current_event_briefing)
+      if (tree) {
+        const dataWithTree = { ...newData, exploration_tree: tree }
+        setGameModeData(dataWithTree)
+        setExplorationNodeId(tree.start_node_id)
+      }
+    }
   }
 
   // Suma bonos de equipo + frutas para una stat del jugador activo
@@ -815,6 +997,16 @@ Personajes presentes: ${activeIds.join(', ')}.`
   }
 
   // ─── Acciones de inventario ───────────────────────────────────────────────
+
+  // Mata al personaje inmediatamente (segunda fruta del diablo).
+  async function killCharacter(characterId) {
+    await supabase.from('session_character_state')
+      .update({ hp_current: 0, is_dead: true })
+      .eq('session_id', session.id).eq('character_id', characterId)
+    setCharacterStates(prev =>
+      prev.map(s => s.character_id === characterId ? { ...s, hp_current: 0, is_dead: true } : s)
+    )
+  }
 
   // Usa o equipa un item del inventario del jugador activo.
   // Consumibles: aplica efecto HP y se elimina. Equippables: se marcan como equipados.
@@ -1119,6 +1311,13 @@ Personajes presentes: ${activeIds.join(', ')}.`
     sacrificeForNavigation, riskyMove, turnBack,
     characterStates, gameMode, gameModeData,
     startGame, announceEntry, debugAddItem,
-    useItem, giftItem,
+    useItem, giftItem, killCharacter,
+    explorationNodeId, navigateExplorationNode,
+    setGameModeDirect: (mode) => applyGameMode({
+      game_mode: mode,
+      game_mode_data: mode === 'normal' ? null
+        : mode === 'negotiation' ? { npc_name: 'NPC', npc_attitude: 'neutral', conviction: 0, conviction_max: 10 }
+        : {},
+    }, gameMode),
   }
 }

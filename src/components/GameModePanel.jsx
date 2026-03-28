@@ -155,22 +155,35 @@ function NavigationPanel({ data, totalPlayers = 0, canActInNav, sending, onSacri
 }
 
 // --- Modo Exploración ---
-function ExplorationPanel({ data }) {
-  const clues = data?.clues || []
+function ExplorationPanel({ data, explorationNodeId, onNavigate }) {
+  const tree = data?.exploration_tree
+  const currentNode = tree?.nodes?.find(n => n.id === explorationNodeId)
+    ?? tree?.nodes?.find(n => n.id === tree?.start_node_id)
+
   return (
     <div className="flex flex-col gap-2">
       <span className="text-xs font-black uppercase tracking-widest text-green-400">🗺️ Explorando</span>
-      {clues.length > 0 ? (
-        <ul className="flex flex-col gap-1">
-          {clues.map((clue, i) => (
-            <li key={i} className="text-xs text-gray-400 flex gap-1.5">
-              <span className="text-green-500 shrink-0">◆</span>
-              <span>{clue}</span>
-            </li>
-          ))}
-        </ul>
+      {!tree ? (
+        <p className="text-xs text-gray-600 italic animate-pulse">Generando mapa de exploración…</p>
+      ) : !currentNode ? (
+        <p className="text-xs text-gray-600 italic">Preparando la exploración…</p>
       ) : (
-        <p className="text-xs text-gray-600 italic">Sin pistas descubiertas aún.</p>
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-gray-300 leading-relaxed">{currentNode.description}</p>
+          {!currentNode.is_goal && currentNode.options?.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {currentNode.options.map((opt, i) => (
+                <button
+                  key={i}
+                  onClick={() => onNavigate?.(opt.next_node_id)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-900/40 border border-green-500/30 text-green-300 hover:bg-green-900/60 transition-colors"
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
@@ -184,10 +197,10 @@ function NegotiationPanel({ data }) {
   return (
     <div className="flex flex-col gap-2">
       <span className="text-xs font-black uppercase tracking-widest text-amber-400">💬 Negociación en curso</span>
-      {npc_name && (
+      {conviction_max > 0 && (
         <div className="flex items-center gap-3">
           <div className={`rounded-lg border px-3 py-1.5 ${attStyle.bg} ${attStyle.border}`}>
-            <p className="text-xs font-bold text-gray-200">{npc_name}</p>
+            <p className="text-xs font-bold text-gray-200">{npc_name || 'NPC'}</p>
             <p className={`text-xs font-semibold ${attStyle.color}`}>{attStyle.label}</p>
           </div>
           <div className="flex-1 flex flex-col gap-1">
@@ -209,14 +222,14 @@ function NegotiationPanel({ data }) {
 }
 
 // --- Panel principal ---
-export default function GameModePanel({ gameMode, gameModeData, currentTurnName, sending, canActInNav, totalPlayers, onSacrifice, onRiskyMove, onTurnBack }) {
+export default function GameModePanel({ gameMode, gameModeData, currentTurnName, sending, canActInNav, totalPlayers, onSacrifice, onRiskyMove, onTurnBack, explorationNodeId, onNavigateExploration }) {
   if (!gameMode || gameMode === 'normal') return null
 
   return (
     <div className="shrink-0 border-b border-gray-800 px-6 py-3">
       {gameMode === 'combat'      && <CombatPanel      data={gameModeData} currentTurnName={currentTurnName} />}
       {gameMode === 'navigation'  && <NavigationPanel  data={gameModeData} totalPlayers={totalPlayers} canActInNav={canActInNav} sending={sending} onSacrifice={onSacrifice} onRiskyMove={onRiskyMove} onTurnBack={onTurnBack} />}
-      {gameMode === 'exploration' && <ExplorationPanel data={gameModeData} />}
+      {gameMode === 'exploration' && <ExplorationPanel data={gameModeData} explorationNodeId={explorationNodeId} onNavigate={onNavigateExploration} />}
       {gameMode === 'negotiation' && <NegotiationPanel data={gameModeData} />}
     </div>
   )

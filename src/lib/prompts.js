@@ -254,6 +254,45 @@ ${buildBeatContext()}
 Termina interpelando a: ${nextChar?.name || nextId}`
   }
 
+  // Prompt del modelo mecánico en modo negociación (evalúa conviction_delta)
+  function buildNegotiationMechanicsPrompt(playerAction, gameModeData) {
+    const { npc_name, npc_attitude, conviction, conviction_max } = gameModeData || {}
+    return `NPC: ${npc_name || 'desconocido'} (actitud: ${npc_attitude || 'neutral'})
+Convicción: ${conviction ?? 0}/${conviction_max ?? 10}
+Personajes: ${buildMinimalCharContext()}
+Acción de ${activeCharacter.id}: ${playerAction}
+next:${getLeastActive()} no_rep:${activeCharacter.id}`
+  }
+
+  // Prompt para el narrador-NPC en negociación (primera persona, sin ambientación)
+  function buildNpcNarratorPrompt(playerAction, gameModeData) {
+    const { npc_name, npc_attitude, conviction, conviction_max } = gameModeData || {}
+    const convMax = conviction_max ?? 10
+    const conv = conviction ?? 0
+    const convNote = conv <= 2
+      ? 'Estás muy escéptico y a punto de cortar la conversación.'
+      : conv >= convMax - 2
+      ? 'Casi te han convencido, aunque te resistes a mostrarlo.'
+      : 'Escuchas con cautela.'
+    // Últimos 6 mensajes para dar contexto al NPC
+    const recentHistory = messagesRef.current.slice(-6).map(m => {
+      if (m.type === 'npc') return `${m.character_id}: ${m.content}`
+      if (m.character_id === 'narrator') {
+        return `(escena): ${m.content.slice(0, 80)}…`
+      }
+      const name = allCharacters.find(c => c.id === m.character_id)?.name || m.character_id
+      return `${name}: ${m.content}`
+    }).join('\n')
+    return `Eres ${npc_name || 'el NPC'} (actitud: ${npc_attitude || 'neutral'}). ${convNote}
+
+Historial reciente:
+${recentHistory}
+
+${activeCharacter.name} dice/hace: ${playerAction}
+
+Responde en primera persona como ${npc_name || 'el NPC'}. Máx. 3 frases cortas.`
+  }
+
   // Prompt del narrador para tiradas de navegación
   function buildNavigationNarratorPrompt(rollTotal, accumulated, threshold, completed, usedAbility) {
     const summary = narrativeSummaryRef.current
@@ -297,5 +336,7 @@ Termina interpelando al siguiente personaje.`
     buildNarratorCombatPrompt,
     buildNarratorPrompt,
     buildNavigationNarratorPrompt,
+    buildNegotiationMechanicsPrompt,
+    buildNpcNarratorPrompt,
   }
 }

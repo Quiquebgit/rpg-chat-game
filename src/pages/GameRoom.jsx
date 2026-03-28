@@ -6,7 +6,7 @@ import { useDirector } from '../hooks/useDirector'
 import { characters as allCharacters } from '../data/characters'
 import { MODE_SHADOW } from '../data/constants'
 import GameModePanel from '../components/GameModePanel'
-import { NarratorMessage, NarratorTyping } from '../components/NarratorMessage'
+import { NarratorMessage, NarratorTyping, NpcMessage } from '../components/NarratorMessage'
 import { ActionMessage, OocMessage, GmMessage, PlayerMessage } from '../components/ChatMessages'
 import { DiceMessage } from '../components/DiceMessage'
 import { PreGameScreen } from '../components/PreGameScreen'
@@ -28,7 +28,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
 
   const { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant } = usePresence(session, character)
   const { completeCurrentEvent, currentEventSetup } = useDirector(session)
-  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, rollNavigation, sacrificeForNavigation, riskyMove, turnBack, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem, useItem, giftItem } = useMessages(session, character, presentIds, completeCurrentEvent, currentEventSetup)
+  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, rollNavigation, sacrificeForNavigation, riskyMove, turnBack, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem, useItem, giftItem, killCharacter, explorationNodeId, navigateExplorationNode, setGameModeDirect } = useMessages(session, character, presentIds, completeCurrentEvent, currentEventSetup)
   const { speak, stop, isNarrating, isEnabled: narrationEnabled, toggle: toggleNarration, error: narrationError, supported: narrationSupported } = useNarration()
 
   // Narrar automáticamente los mensajes nuevos del narrador
@@ -77,8 +77,13 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const effectiveAtk = character.attack + (equipmentBonuses.attack || 0)
   const effectiveNav = character.navigation + (equipmentBonuses.navigation || 0)
 
+  // Selector de modo GM (se abre con /gm solo, sin texto)
+  const [showGmModeSelector, setShowGmModeSelector] = useState(false)
+
   // Modal de confirmación antes de comer una fruta del diablo
   const [fruitConfirmItem, setFruitConfirmItem] = useState(null)
+  // Modal de muerte por segunda fruta del diablo
+  const [fruitDeathConfirm, setFruitDeathConfirm] = useState(false)
   const [fruitFlash, setFruitFlash] = useState(false)
   const prevHasFruit = useRef(hasFruit)
   useEffect(() => {
@@ -134,7 +139,9 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
       return
     }
 
-    if (text.startsWith('/gm ')) {
+    if (text === '/gm') {
+      setShowGmModeSelector(true)
+    } else if (text.startsWith('/gm ')) {
       await sendGmMessage(text.slice(4).trim())
     } else if (text.startsWith('/')) {
       await sendAction(text.slice(1).trim())
@@ -300,6 +307,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             label="🍎 Poder de fruta"
             name={equippedFruit.name}
             description={equippedFruit.special_ability}
+            effects={equippedFruit.effects}
             borderColor="border-purple-400/40"
             bgColor="bg-purple-400/5"
             labelColor="text-purple-500/70"
@@ -345,12 +353,87 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                 Cancelar
               </button>
               <button
-                onClick={() => { useItem(fruitConfirmItem.item, fruitConfirmItem.i); setFruitConfirmItem(null) }}
+                onClick={() => {
+                  if (hasFruit) {
+                    // Ya tiene una fruta — mostrar advertencia de muerte
+                    setFruitConfirmItem(null)
+                    setFruitDeathConfirm(true)
+                  } else {
+                    useItem(fruitConfirmItem.item, fruitConfirmItem.i)
+                    setFruitConfirmItem(null)
+                  }
+                }}
                 className="flex-1 py-2 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-500 transition-colors"
               >
                 Comerla
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de muerte por segunda fruta del diablo */}
+      {fruitDeathConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="mx-4 max-w-sm w-full rounded-2xl border border-red-500/60 bg-gray-950 p-6 flex flex-col gap-4 shadow-2xl shadow-red-900/40">
+            <div className="text-center">
+              <p className="text-4xl mb-3">💀</p>
+              <h3 className="text-lg font-bold text-red-400 mb-2">Segunda fruta del diablo</h3>
+              <p className="text-sm text-gray-300 leading-relaxed">
+                Si consumes una segunda fruta del diablo, <span className="text-red-400 font-bold">morirás</span>. ¿Estás seguro?
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setFruitDeathConfirm(false)}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { killCharacter(character.id); setFruitDeathConfirm(false) }}
+                className="flex-1 py-2 rounded-lg text-sm font-bold bg-red-700 text-white hover:bg-red-600 transition-colors"
+              >
+                Moriré por ella
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Selector de modo GM */}
+      {showGmModeSelector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="mx-4 max-w-sm w-full rounded-2xl border border-amber-400/30 bg-gray-950 p-6 flex flex-col gap-4 shadow-2xl">
+            <div className="text-center">
+              <p className="text-xs uppercase tracking-widest text-amber-500/60 mb-1">GM</p>
+              <h3 className="text-lg font-bold text-amber-300">Cambiar modo de juego</h3>
+              <p className="text-xs text-gray-600 mt-1">Sin pasar por el modelo — efecto inmediato</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              {[
+                { mode: 'normal',      label: '⚓ Normal',       cls: 'border-gray-700 text-gray-300 hover:bg-gray-800' },
+                { mode: 'combat',      label: '⚔️ Combate',      cls: 'border-red-500/40 text-red-300 hover:bg-red-900/30' },
+                { mode: 'navigation',  label: '🌊 Navegación',   cls: 'border-blue-500/40 text-blue-300 hover:bg-blue-900/30' },
+                { mode: 'exploration', label: '🗺️ Exploración',  cls: 'border-green-500/40 text-green-300 hover:bg-green-900/30' },
+                { mode: 'negotiation', label: '💬 Negociación',  cls: 'border-amber-500/40 text-amber-300 hover:bg-amber-900/30' },
+              ].map(({ mode, label, cls }) => (
+                <button
+                  key={mode}
+                  onClick={() => { setGameModeDirect(mode); setShowGmModeSelector(false) }}
+                  disabled={gameMode === mode}
+                  className={`w-full py-2.5 rounded-lg text-sm font-semibold border bg-transparent transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${cls}`}
+                >
+                  {label}{gameMode === mode ? ' (activo)' : ''}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowGmModeSelector(false)}
+              className="text-xs text-gray-600 hover:text-gray-400 transition-colors text-center"
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       )}
@@ -453,6 +536,8 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
           onSacrifice={sacrificeForNavigation}
           onRiskyMove={riskyMove}
           onTurnBack={turnBack}
+          explorationNodeId={explorationNodeId}
+          onNavigateExploration={navigateExplorationNode}
         />
 
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
@@ -464,6 +549,9 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             />
           )}
           {messages.map((msg, index) => {
+              if (msg.type === 'narrator' && msg.character_id !== 'narrator') {
+                return <NpcMessage key={msg.id} name={msg.character_id} content={msg.content} />
+              }
               if (msg.type === 'narrator') {
                 return (
                   <div key={msg.id} className="flex flex-col items-center gap-2">

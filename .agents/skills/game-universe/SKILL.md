@@ -1,3 +1,8 @@
+---
+name: game-universe
+description: Referencia del universo del juego, stats y personajes. Leer antes de tocar characters.js, el system prompt o mecánicas de juego.
+---
+
 # Universo del juego, stats y personajes
 
 ## Universo

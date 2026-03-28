@@ -1,3 +1,8 @@
+---
+name: db-schema
+description: Referencia del esquema de base de datos del proyecto RPG Chat Game (Supabase/PostgreSQL). Leer antes de tocar la BD, escribir migraciones o modificar hooks de Supabase.
+---
+
 # Skill: db-schema
 
 Referencia del esquema de base de datos del proyecto RPG Chat Game (Supabase/PostgreSQL).

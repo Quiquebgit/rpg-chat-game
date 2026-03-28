@@ -4,6 +4,38 @@
 import { supabase } from './supabase'
 import { callDirectorModel } from './groq'
 
+// Prompt para rellenar el texto de un único nodo del árbol de exploración
+const NODE_TEXT_SYSTEM_PROMPT = `Eres el Director de Guion de un juego de rol.
+Devuelve SOLO JSON válido, sin texto adicional:
+{"description":"texto evocador del lugar en 1-2 frases","labels":["label1","label2",...]}
+- description: descripción breve y evocadora del lugar (nunca vacía, nunca "...")
+- labels: un label corto y accionable por opción ("Forzar la cerradura", "Seguir el rastro húmedo"...)
+- Nunca devuelvas strings vacíos, nunca uses "→" ni "Opción N" como label
+- Adapta todo al lore y al contexto del evento`
+
+// Genera el esqueleto fijo del árbol: 8 nodos, 3 opciones por nodo no-goal, 1 salida en el goal.
+// Ruta al objetivo: loc0 → loc2 → loc5 → loc6 → loc7
+// El resto son ramas que vuelven a loc0.
+function generateTreeSkeleton() {
+  return {
+    start_node_id: 'loc0',
+    nodes: [
+      { id: 'loc0', is_goal: false, description: '', options: [{ label: '', next_node_id: 'loc1' }, { label: '', next_node_id: 'loc2' }, { label: '', next_node_id: 'loc3' }] },
+      { id: 'loc1', is_goal: false, description: '', _hint: 'callejon', options: [{ label: '', next_node_id: 'loc0' }, { label: '', next_node_id: 'loc4' }, { label: '', next_node_id: 'loc3' }] },
+      { id: 'loc2', is_goal: false, description: '', _hint: 'ruta_correcta', options: [{ label: '', next_node_id: 'loc5' }, { label: '', next_node_id: 'loc1' }, { label: '', next_node_id: 'loc0' }] },
+      { id: 'loc3', is_goal: false, description: '', _hint: 'callejon', options: [{ label: '', next_node_id: 'loc0' }, { label: '', next_node_id: 'loc1' }, { label: '', next_node_id: 'loc4' }] },
+      { id: 'loc4', is_goal: false, description: '', _hint: 'callejon', options: [{ label: '', next_node_id: 'loc0' }, { label: '', next_node_id: 'loc3' }, { label: '', next_node_id: 'loc1' }] },
+      { id: 'loc5', is_goal: false, description: '', _hint: 'ruta_correcta', options: [{ label: '', next_node_id: 'loc6' }, { label: '', next_node_id: 'loc0' }, { label: '', next_node_id: 'loc4' }] },
+      { id: 'loc6', is_goal: false, description: '', _hint: 'ruta_correcta', options: [{ label: '', next_node_id: 'loc7' }, { label: '', next_node_id: 'loc0' }, { label: '', next_node_id: 'loc5' }] },
+      { id: 'loc7', is_goal: true,  description: '', options: [{ label: '', next_node_id: 'loc0' }] },
+    ],
+  }
+}
+
+// Prompt para generar consecuencia narrativa cuando la negociación falla
+const NEGOTIATION_FAILURE_SYSTEM_PROMPT = `Genera una consecuencia narrativa breve para el fallo de una negociación en una partida de rol.
+Devuelve SOLO JSON: {"consequence":"texto narrativo dramático de máx. 80 palabras — qué ocurre cuando el NPC rechaza definitivamente a los jugadores"}`
+
 export const DIRECTOR_SYSTEM_PROMPT = `Eres el Director de Guion de un juego de rol cooperativo ambientado en un universo inspirado en One Piece con personajes y aventuras originales.
 
 Tu rol es adaptar plantillas de eventos genéricos al lore específico de cada historia y guiar al narrador evento a evento.
@@ -84,6 +116,90 @@ export async function initializeStorySession(sessionId, storyContent, template) 
 
   console.log('[director] Historia inicializada, primer evento:', firstEvent?.type)
   return result
+}
+
+// Llama al Director para rellenar los textos de un único nodo.
+// Devuelve { description, labels } o null si falla.
+async function fillNodeText(node, loreContext) {
+  const roleHint = node.is_goal
+    ? 'Este es el descubrimiento final. Su description debe sentirse como la recompensa de la exploración.'
+    : node._hint === 'ruta_correcta'
+    ? 'Este nodo está en el camino al descubrimiento. Su description puede contener una pista sutil que lo distinga.'
+    : 'Este nodo es un callejón — un lugar interesante pero que no lleva directamente al objetivo.'
+
+  const optCount = node.options.length
+  const userPrompt = `${loreContext}${roleHint}\nGenera description y exactamente ${optCount} label${optCount !== 1 ? 's' : ''}.`
+
+  try {
+    const raw = await callDirectorModel(NODE_TEXT_SYSTEM_PROMPT, userPrompt)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+// Genera un árbol de exploración y lo fusiona en game_mode_data de la sesión.
+// El código construye la estructura; el Director rellena textos nodo a nodo en paralelo.
+export async function generateExplorationTree(sessionId, storyLore, eventBriefing) {
+  const skeleton = generateTreeSkeleton()
+  const loreContext = `${storyLore ? `Lore:\n${storyLore}\n\n` : ''}${eventBriefing ? `Evento de exploración:\n${eventBriefing}\n\n` : ''}`
+
+  // Una llamada por nodo, todas en paralelo
+  const results = await Promise.all(skeleton.nodes.map(node => fillNodeText(node, loreContext)))
+
+  // Ensamblar árbol: esqueleto como fuente de verdad + textos del Director + fallbacks
+  const FALLBACK_LABELS = ['Explorar por aquí', 'Investigar', 'Continuar', 'Avanzar', 'Examinar']
+  const finalNodes = skeleton.nodes.map((skelNode, i) => {
+    const filled = results[i]
+    const { _hint, ...nodeWithoutHint } = skelNode
+    return {
+      ...nodeWithoutHint,
+      description: filled?.description || 'Un lugar envuelto en misterio.',
+      options: skelNode.options.map((opt, j) => ({
+        ...opt,
+        label: filled?.labels?.[j] || FALLBACK_LABELS[j % FALLBACK_LABELS.length],
+      })),
+    }
+  })
+  const tree = { start_node_id: skeleton.start_node_id, nodes: finalNodes }
+
+  // Fusionar el árbol en el game_mode_data actual de la sesión
+  const { data: sessionData } = await supabase.from('sessions').select('game_mode_data').eq('id', sessionId).single()
+  const mergedData = { ...(sessionData?.game_mode_data || {}), exploration_tree: tree }
+  await supabase.from('sessions').update({ game_mode_data: mergedData }).eq('id', sessionId)
+  // Log del árbol completo para verificar alcanzabilidad del nodo goal
+  console.log('[director] Árbol de exploración generado:', tree.nodes.length, 'nodos')
+  console.log('[director] start_node_id:', tree.start_node_id)
+  for (const node of tree.nodes) {
+    const opts = node.options.map(o => `${o.label || '?'} → ${o.next_node_id}`).join(' | ')
+    console.log(`[director]   ${node.id}${node.is_goal ? ' [GOAL]' : ''}: ${opts || '(sin opciones)'}`)
+  }
+  return tree
+}
+
+// Genera una consecuencia narrativa por fallo en negociación y la inserta como mensaje del narrador.
+export async function generateNegotiationConsequence(session, npcName) {
+  const userPrompt = `${session.story_lore ? `Lore:\n${session.story_lore}\n\n` : ''}${session.current_event_briefing ? `Contexto del evento:\n${session.current_event_briefing}\n\n` : ''}El NPC "${npcName || 'el interlocutor'}" ha rechazado definitivamente a los jugadores. Su convicción llegó a cero.`
+
+  let result
+  try {
+    const raw = await callDirectorModel(NEGOTIATION_FAILURE_SYSTEM_PROMPT, userPrompt)
+    if (!raw) return null
+    result = JSON.parse(raw)
+  } catch (err) {
+    console.error('[director] Error generando consecuencia de negociación:', err)
+    return null
+  }
+
+  const consequence = result.consequence || null
+  if (consequence) {
+    await supabase.from('messages').insert({
+      session_id: session.id, character_id: 'narrator',
+      content: consequence, type: 'narrator',
+    })
+  }
+  return consequence
 }
 
 // Llama al Director cuando el evento actual se completa.

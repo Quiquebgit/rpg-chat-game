@@ -1,4 +1,4 @@
-# CLAUDE.md — RPG Chat Game (One Piece Universe)
+# AGENTS.md — RPG Chat Game (One Piece Universe)
 
 ## Descripción del proyecto
 App web de rol multijugador cooperativo con chat en tiempo real, ambientada en un universo inspirado en One Piece pero con personajes y aventuras completamente originales. Un modelo de IA actúa como narrador/máster. Orientada a ser PWA.
@@ -71,6 +71,10 @@ Sin login. Personajes predefinidos. Foco en que la dinámica funcione.
   - Componentes UI extraídos de `GameRoom.jsx` a ficheros propios en `src/components/`
 - [x] Fix presencia: jugador local presente de inmediato al entrar a la sala (sin esperar a Supabase Presence)
   - `usePresence` inicializa `presentIds` con el ID del jugador local; Presence añade los remotos al sincronizar
+- [x] Segunda fruta del diablo — muerte instantánea fiel al lore:
+  - Si el personaje ya tiene una fruta y intenta comer otra, se muestra un segundo modal con fondo rojo
+  - Al confirmar, se llama `killCharacter` (nueva función en `useMessages`) que pone `hp_current: 0, is_dead: true`
+  - La fruta no se consume — la muerte ocurre antes
 
 ### Pendiente
 
@@ -82,11 +86,11 @@ Sin login. Personajes predefinidos. Foco en que la dinámica funcione.
 - Cambios incrementales, no refactors grandes de golpe
 - Comentarios en español, nombres de variables y funciones en inglés
 - Antes de tocar algo que afecte a la estructura general, confirmar
-- Cuando se añada una funcionalidad nueva, actualizar este CLAUDE.md
+- Cuando se añada una funcionalidad nueva, actualizar este AGENTS.md
 
 ## Skills disponibles
 
-Los skills están en `.agents/skills/{nombre}/SKILL.md`. Esta es la única ubicación — no hay copia en `.claude/skills/`.
+Los skills están en `.agents/skills/{nombre}/SKILL.md`. Esta es la única ubicación.
 
 ### De referencia — leer antes de tocar esas áreas
 | Skill | Cuándo usarla |

@@ -1,3 +1,8 @@
+---
+name: game-flow
+description: Referencia del flujo de juego — sesiones, turnos y modos. Leer antes de tocar sesiones, turnos o flujo de entrada al juego.
+---
+
 # Flujo de juego — sesiones, turnos y modos
 
 ## Inicio de partida
