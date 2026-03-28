@@ -10,11 +10,12 @@ App web de rol multijugador cooperativo con chat en tiempo real, ambientada en u
 - **Base de datos:** Supabase (PostgreSQL)
 - **IA Mecánicas:** Groq API — JSON estricto, reglas del juego. Fallback: `llama-3.1-8b-instant` → `gpt-oss-20b` → `llama-4-scout`
 - **IA Narrador:** Groq API — narrativa dramática, texto libre. Fallback: `llama-4-scout` → `llama-3.3-70b` → `kimi-k2` → ...
+- **Síntesis de voz:** Google Cloud Text-to-Speech — voz `es-ES-Neural2-B`. Fallback: Web Speech API del navegador.
 - **Deploy:** Vercel
 
 ## Variables de entorno
 Fichero `.env` en la raíz. **Nunca subir al repositorio. Nunca mostrar su contenido.**
-`VITE_SUPABASE_URL`, `VITE_SUPABASE_KEY`, `VITE_GROQ_API_KEY`. Clientes en `src/lib/`.
+`VITE_SUPABASE_URL`, `VITE_SUPABASE_KEY`, `VITE_GROQ_API_KEY`, `VITE_GOOGLE_TTS_API_KEY` (opcional — si no está definida, usa Web Speech API). Clientes en `src/lib/`.
 
 ## Estructura de carpetas
 ```
@@ -71,13 +72,15 @@ Sin login. Personajes predefinidos. Foco en que la dinámica funcione.
   - Componentes UI extraídos de `GameRoom.jsx` a ficheros propios en `src/components/`
 - [x] Fix presencia: jugador local presente de inmediato al entrar a la sala (sin esperar a Supabase Presence)
   - `usePresence` inicializa `presentIds` con el ID del jugador local; Presence añade los remotos al sincronizar
-- [x] Mecánicas reales para exploration y negotiation:
-  - Exploración: Director genera árbol de decisión al activar el modo (`generateExplorationTree`); nodos con `id, description, options[], is_goal`; árbol en `game_mode_data.exploration_tree`; cada jugador navega localmente (`explorationNodeId` en estado React); botones clickables en `GameModePanel`; nodo `is_goal` → narrator narra → modo normal → `completeCurrentEvent`
-  - Negociación: mecánico evalúa cada mensaje con `NEGOTIATION_MECHANICS_SYSTEM_PROMPT` y emite `conviction_delta`; código aplica y persiste; `conviction_max` escala por nº de jugadores; `is_violent:true` → conviction a 0; éxito → `completeCurrentEvent`; fallo → Director genera consecuencia → modo normal sin completar evento; NPC habla en primera persona (tipo `npc` en BD, estilo teal en chat)
 - [x] Segunda fruta del diablo — muerte instantánea fiel al lore:
   - Si el personaje ya tiene una fruta y intenta comer otra, se muestra un segundo modal con fondo rojo
   - Al confirmar, se llama `killCharacter` (nueva función en `useMessages`) que pone `hp_current: 0, is_dead: true`
   - La fruta no se consume — la muerte ocurre antes
+- [x] Narración por voz con Google Cloud TTS (`useNarration`):
+  - Si `VITE_GOOGLE_TTS_API_KEY` está definida, usa Google TTS (voz `es-ES-Neural2-B`, `speakingRate: 1.15`, `pitch: -4.0`, `volumeGainDb: 2.0`)
+  - Si no, cae al Web Speech API del navegador
+  - Limpieza de texto antes de sintetizar: emojis, markdown, asteriscos
+  - Cancela el audio en curso antes de reproducir uno nuevo
 
 ### Pendiente
 
