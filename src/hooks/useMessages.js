@@ -350,19 +350,39 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
     // 3. Narrar el turno ANTES de escribir en Supabase (para que sea inmediato)
     await deliverCombatNarrative(combatResult, nextTurnId, newGameModeData ?? currentGameModeData)
 
+    // Pre-calcular pending_stat_upgrades para incluirlos en el mismo write que cambia el modo,
+    // evitando la race condition de dos writes separados con Realtime.
+    let finalGameModeData = newGameModeData
+    if (newMode === 'normal' && defeatedEnemies?.length) {
+      const xpGain = calculateXpReward(defeatedEnemies)
+      const levelingPlayers = presentIdsRef.current.filter(id => {
+        const state = characterStatesRef.current.find(s => s.character_id === id)
+        if (!state) return false
+        const prevXp = state.xp ?? 0
+        const newXp = prevXp + xpGain
+        return Math.floor(newXp / XP_CONFIG.THRESHOLD) > Math.floor(prevXp / XP_CONFIG.THRESHOLD)
+      })
+      if (levelingPlayers.length > 0) {
+        finalGameModeData = { pending_stat_upgrades: levelingPlayers }
+        console.log('[stat-up] jugadores que suben de nivel:', levelingPlayers)
+      }
+    }
+
     // 4. Escribir todos los cambios en Supabase (dos llamadas)
     await supabase.from('sessions')
       .update({
         game_mode: newMode,
-        game_mode_data: newGameModeData,
+        game_mode_data: finalGameModeData,
         current_turn_character_id: nextTurnId,
       })
       .eq('id', session.id)
 
     // Actualizar estado local del modo inmediatamente (sin esperar Realtime)
     setGameMode(newMode)
-    setGameModeData(newGameModeData)
+    setGameModeData(finalGameModeData)
     gameModeRef.current = newMode
+    // Sincronizar ref inmediatamente (sin esperar useEffect) para que applyRewards vea el pending correcto
+    gameModeDataRef.current = finalGameModeData
 
     // Actualizar estado del jugador activo (daño, stun, first_attack_done, combat_ability_used)
     if (playerUpdates.length > 0) {
@@ -1589,6 +1609,64 @@ Personajes presentes: ${activeIds.join(', ')}.`
     console.log(`[stat-up] ${characterId} subió ${stat} → ${newUpgrades[stat]}`)
   }
 
+  // Inicia un combate GM desde cero: genera enemigos, resetea contadores y avisa al narrador.
+  async function startGmCombat() {
+    if (gameModeRef.current === 'combat') return
+    setSending(true)
+    setNarratorTyping(true)
+
+    const playerCount = presentIdsRef.current.length
+    const gmDifficulty = playerCount >= 3 ? 'medium' : 'easy'
+    const gmCount = playerCount >= 3 ? 2 : playerCount >= 2 ? 2 : 1
+    const enemies = await getEnemies({ difficulty: gmDifficulty, count: gmCount, type: 'humano' })
+    const combatData = {
+      enemies: (enemies || []).map(e => {
+        const maxHp = (e.hp_max > 0 ? e.hp_max : null) ?? (e.hp > 0 ? e.hp : 5)
+        return { ...e, hp: maxHp, hp_max: maxHp, defeated: false, ability_used: false }
+      }),
+      boosts: {},
+      fruit_specials_used: {},
+    }
+
+    for (const id of presentIdsRef.current) {
+      await supabase.from('session_character_state')
+        .update({ combat_ability_used: false, first_attack_done: false, stunned: false })
+        .eq('session_id', session.id).eq('character_id', id)
+    }
+    setCharacterStates(prev =>
+      prev.map(s => presentIdsRef.current.includes(s.character_id)
+        ? { ...s, combat_ability_used: false, first_attack_done: false, stunned: false }
+        : s
+      )
+    )
+
+    await supabase.from('sessions')
+      .update({ game_mode: 'combat', game_mode_data: combatData })
+      .eq('id', session.id)
+    setGameMode('combat')
+    setGameModeData(combatData)
+    gameModeRef.current = 'combat'
+
+    const enemyNames = (enemies || []).map(e => e.name).join(' y ') || 'enemigos desconocidos'
+    const chatHistory = messagesRef.current.slice(-5).map(m => {
+      if (m.character_id === 'narrator') return `Narrador: ${m.content.slice(0, 150)}`
+      return `${allCharacters.find(c => c.id === m.character_id)?.name || m.character_id}: ${m.content}`
+    }).join('\n')
+    try {
+      const narrative = await callNarratorModel(NARRATOR_SYSTEM_PROMPT,
+        `${buildStoryContext()}## Personajes en sesión\n${buildCharacterContext()}\n## Historial reciente\n${chatHistory}\n\n## ¡Combate iniciado!\nEnemigos que aparecen: ${enemyNames}.\n${buildBeatContext()}\nNarra la aparición de los enemigos de forma dramática y épica. Pide a los jugadores que tiren iniciativa.`)
+      if (narrative) {
+        await supabase.from('messages').insert({
+          session_id: session.id, character_id: 'narrator', content: narrative, type: 'narrator',
+        })
+        await advanceBeatIfNeeded()
+      }
+    } catch { /* silencioso */ }
+
+    setSending(false)
+    setNarratorTyping(false)
+  }
+
   return {
     messages, sending, narratorTyping,
     sendMessage, sendChat, sendAction, sendGmMessage,
@@ -1599,11 +1677,14 @@ Personajes presentes: ${activeIds.join(', ')}.`
     useItem, giftItem, killCharacter,
     explorationNodeId, navigateExplorationNode,
     applyStatUpgrade,
-    setGameModeDirect: (mode) => applyGameMode({
-      game_mode: mode,
-      game_mode_data: mode === 'normal' ? null
-        : mode === 'negotiation' ? { npc_name: 'NPC', npc_attitude: 'neutral', conviction: 0, conviction_max: 10 }
-        : {},
-    }, gameMode),
+    setGameModeDirect: (mode) => {
+      if (mode === 'combat') return startGmCombat()
+      return applyGameMode({
+        game_mode: mode,
+        game_mode_data: mode === 'normal' ? null
+          : mode === 'negotiation' ? { npc_name: 'NPC', npc_attitude: 'neutral', conviction: 0, conviction_max: 10 }
+          : {},
+      }, gameMode)
+    },
   }
 }

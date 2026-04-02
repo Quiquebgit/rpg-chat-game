@@ -99,7 +99,12 @@ export function useNarration() {
     } catch (err) {
       console.warn('[narración] Google TTS error:', err)
       setIsNarrating(false)
-      setError('Error al conectar con Google TTS para la narración.')
+      // Fallback a Web Speech API si Google TTS falla (ej. restricción de referrer en localhost)
+      if ('speechSynthesis' in window) {
+        speakWeb(text)
+      } else {
+        setError('Error al conectar con Google TTS para la narración.')
+      }
     }
   }
 

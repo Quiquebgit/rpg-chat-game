@@ -365,7 +365,8 @@ export function resolveCombatTurn({
   }
 
   // ── Acción no ofensiva (huir, hablar…) ───────────────────────────────────
-  if (mechanics.player_intent === 'other' || mechanics.is_action === false) {
+  const OFFENSIVE_INTENTS = ['attack', 'dodge', 'aoe_attack']
+  if (mechanics.player_intent === 'other' || (!OFFENSIVE_INTENTS.includes(mechanics.player_intent) && mechanics.is_action === false)) {
     const nextTurnId = computeNextTurn(presentIds, characterStates, gameModeData, currentTurnId, activeCharacter.id, false)
     return {
       combatResult: {

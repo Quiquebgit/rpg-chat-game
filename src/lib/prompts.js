@@ -181,7 +181,9 @@ ${stunned.length ? `Aturdidos (pierden turno): ${stunned.join(', ')}\n` : ''}nex
   // Prompt del modelo mecánico fuera de combate
   function buildMechanicsPrompt(playerAction, currentGameModeData, currentGameMode) {
     const leastActive = getLeastActive()
+    const playerCount = presentIdsRef.current.length
     return `Activo:${activeCharacter.id}(ATK${activeCharacter.attack} DEF${activeCharacter.defense} NAV${activeCharacter.navigation} DES${activeCharacter.dexterity ?? 0} CAR${activeCharacter.charisma ?? 0})
+Jugadores activos: ${playerCount}
 Acción: ${playerAction}
 Personajes: ${buildMinimalCharContext()}
 ${buildActiveInventoryContext()}${buildRecentNarratorContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}next:${leastActive} no_rep:${activeCharacter.id}`
@@ -189,7 +191,9 @@ ${buildActiveInventoryContext()}${buildRecentNarratorContext()}${buildGameModeCo
 
   function buildGmMechanicsPrompt(instruction, currentGameModeData, currentGameMode) {
     const leastActive = getLeastActive()
+    const playerCount = presentIdsRef.current.length
     return `GM(${activeCharacter.id}): ${instruction}
+Jugadores activos: ${playerCount}
 Personajes: ${buildMinimalCharContext()}
 ${buildActiveInventoryContext()}${buildRecentNarratorContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}REGLA: si la instrucción implica combate, llama getEnemies() y pon game_mode:"combat" ahora mismo.
 next:${leastActive}
