@@ -2,6 +2,17 @@
 // No lee ni escribe nada en Supabase — eso lo hace useMessages.js.
 // Recibe el estado actual y devuelve el resultado + las escrituras pendientes.
 
+import { XP_CONFIG, MONEY_CONFIG } from '../data/constants.js'
+
+// Calcula el grado de éxito de una tirada respecto a un DC.
+// ±4 puntos de margen definen éxito/fallo crítico.
+export function checkDegree(total, dc) {
+  if (total >= dc + 4) return 'critical_success'
+  if (total >= dc) return 'success'
+  if (total <= dc - 4) return 'critical_failure'
+  return 'failure'
+}
+
 // Normalización para buscar enemigos por nombre (fuzzy match)
 const norm = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
 
@@ -87,13 +98,17 @@ function equipmentBonus(characterId, stat, characterStates) {
     .reduce((sum, ef) => sum + (ef.modifier || ef.value || 0), 0)
 }
 
-// Stats efectivos: base + equipo + boosts del gameModeData.
+// Stats efectivos: base + equipo + boosts del gameModeData + upgrades permanentes por XP.
 function effectiveStats(character, characterStates, gameModeData) {
   const boosts = gameModeData?.boosts?.[character.id] || {}
+  const state = characterStates.find(s => s.character_id === character.id)
+  const upgrades = state?.stat_upgrades || {}
   return {
-    attack:     character.attack     + equipmentBonus(character.id, 'attack', characterStates)     + (boosts.attack     || 0),
-    defense:    character.defense    + equipmentBonus(character.id, 'defense', characterStates)    + (boosts.defense    || 0),
-    navigation: character.navigation + equipmentBonus(character.id, 'navigation', characterStates) + (boosts.navigation || 0),
+    attack:     character.attack     + equipmentBonus(character.id, 'attack', characterStates)     + (boosts.attack     || 0) + (upgrades.attack     || 0),
+    defense:    character.defense    + equipmentBonus(character.id, 'defense', characterStates)    + (boosts.defense    || 0) + (upgrades.defense    || 0),
+    navigation: character.navigation + equipmentBonus(character.id, 'navigation', characterStates) + (boosts.navigation || 0) + (upgrades.navigation || 0),
+    dexterity:  (character.dexterity  || 0) + equipmentBonus(character.id, 'dexterity', characterStates)  + (boosts.dexterity  || 0) + (upgrades.dexterity  || 0),
+    charisma:   (character.charisma   || 0) + equipmentBonus(character.id, 'charisma', characterStates)   + (boosts.charisma   || 0) + (upgrades.charisma   || 0),
   }
 }
 
@@ -279,7 +294,7 @@ export function resolveCombatTurn({
     let boostApplied = null
 
     if (!alreadyUsed && ability?.type === 'stat_boost') {
-      const stat   = ability.effect?.stat  ?? 'attack'
+      const stat   = mechanics.selected_stat || ability.effect?.stat || 'attack'
       const value  = ability.effect?.value ?? 2
       const prevBoosts = gameModeData?.boosts?.[targetId] || {}
       boostApplied = { target: targetId, stat, value }
@@ -644,6 +659,32 @@ export function resolveCombatTurn({
 // HELPERS
 // ─────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────
+// RECOMPENSAS — XP y DINERO
+// ─────────────────────────────────────────────────────────
+
+// Clasifica un enemigo por rareza en función de su HP máximo.
+function enemyTier(enemy) {
+  const hp = enemy.hp_max ?? enemy.hp ?? 0
+  if (hp >= 8) return 'ENEMY_UNIQUE'
+  if (hp >= 5) return 'ENEMY_RARE'
+  return 'ENEMY_COMMON'
+}
+
+// XP total por todos los enemigos derrotados en el combate.
+export function calculateXpReward(defeatedEnemies = []) {
+  return defeatedEnemies.reduce((sum, e) => sum + XP_CONFIG[enemyTier(e)], 0)
+}
+
+// Berries totales (para repartir entre jugadores) por enemigos derrotados.
+export function calculateMoneyReward(defeatedEnemies = []) {
+  return defeatedEnemies.reduce((sum, e) => {
+    const { min, max } = MONEY_CONFIG[enemyTier(e)]
+    return sum + Math.floor(Math.random() * (max - min + 1)) + min
+  }, 0)
+}
+
+// ─────────────────────────────────────────────────────────
 // Calcula el siguiente personaje en el orden de combate.
 // Filtra muertos y respeta combat_turn_order.
 function computeNextTurn(presentIds, characterStates, gameModeData, currentTurnId, activeId, activeJustDied) {
@@ -652,8 +693,14 @@ function computeNextTurn(presentIds, characterStates, gameModeData, currentTurnI
     return !characterStates.find(cs => cs.character_id === id)?.is_dead
   })
 
-  const order = (gameModeData?.combat_turn_order || presentIds).filter(id => aliveIds.includes(id))
-  if (!order.length) return aliveIds[0] || null
+  // Solo incluir en rotación a quienes tiraron iniciativa (si ya hay orden fijado)
+  const initiative = gameModeData?.initiative
+  const validIds = (initiative && Object.keys(initiative).length > 0)
+    ? aliveIds.filter(id => initiative[id] !== undefined)
+    : aliveIds
+
+  const order = (gameModeData?.combat_turn_order || presentIds).filter(id => validIds.includes(id))
+  if (!order.length) return validIds[0] || null
 
   const currentIdx = order.indexOf(currentTurnId)
   return order[(currentIdx + 1) % order.length]

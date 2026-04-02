@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { callMechanicsModel, callNarratorModel, ModelsBusyError } from '../lib/groq'
 import { getRandomItem, GET_RANDOM_ITEM_TOOL } from '../lib/items'
 import { getEnemies, GET_ENEMIES_TOOL } from '../lib/enemies'
-import { resolveCombatTurn } from '../lib/combat'
+import { resolveCombatTurn, checkDegree, calculateXpReward, calculateMoneyReward } from '../lib/combat'
 import {
   COMBAT_MECHANICS_SYSTEM_PROMPT,
   MECHANICS_SYSTEM_PROMPT,
@@ -14,6 +14,7 @@ import {
 } from '../lib/narrator'
 import { generateExplorationTree, generateNegotiationConsequence } from '../lib/director'
 import { characters as allCharacters } from '../data/characters'
+import { XP_CONFIG } from '../data/constants'
 import { createPromptBuilders } from '../lib/prompts'
 
 const SUMMARY_EVERY_N_MESSAGES = 10
@@ -45,6 +46,10 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
   const gameModeRef = useRef(session?.game_mode || 'normal')
   const pendingMechanicsRef = useRef(null)
   const currentEventSetupRef = useRef(currentEventSetup)
+  // Bonus acumulado de support_roll — se aplica y resetea en la próxima tirada
+  const supportBonusRef = useRef(0)
+  // Ref de gameModeData para acceso sin stale closure en rollDice / rollSustainedChallenge
+  const gameModeDataRef = useRef(session?.game_mode_data ?? null)
 
   useEffect(() => { messagesRef.current = messages }, [messages])
   useEffect(() => { narrativeSummaryRef.current = narrativeSummary }, [narrativeSummary])
@@ -52,6 +57,7 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
   useEffect(() => { presentIdsRef.current = presentIds }, [presentIds])
   useEffect(() => { sessionRef.current = session }, [session])
   useEffect(() => { currentEventSetupRef.current = currentEventSetup }, [currentEventSetup])
+  useEffect(() => { gameModeDataRef.current = gameModeData }, [gameModeData])
   // Sincronizar modo de juego desde sesión remota (otro jugador vía Realtime)
   useEffect(() => {
     setGameMode(session?.game_mode || 'normal')
@@ -213,6 +219,38 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
     }
   }
 
+  // Aplica XP y berries a una lista de jugadores y marca pending_stat_upgrade si se alcanza umbral.
+  async function applyRewards(playerIds, xpGain, moneyGain) {
+    if (!xpGain && !moneyGain) return
+    for (const id of playerIds) {
+      const state = characterStatesRef.current.find(s => s.character_id === id)
+      if (!state) continue
+      const prevXp = state.xp ?? 0
+      const newXp = prevXp + xpGain
+      const newMoney = (state.money ?? 0) + moneyGain
+      await supabase.from('session_character_state')
+        .update({ xp: newXp, money: newMoney })
+        .eq('session_id', session.id).eq('character_id', id)
+      setCharacterStates(prev =>
+        prev.map(s => s.character_id === id ? { ...s, xp: newXp, money: newMoney } : s)
+      )
+      // Verificar si se superó un umbral de stat-up
+      const prevLevel = Math.floor(prevXp / XP_CONFIG.THRESHOLD)
+      const newLevel = Math.floor(newXp / XP_CONFIG.THRESHOLD)
+      if (newLevel > prevLevel) {
+        const currentGmd = gameModeDataRef.current ?? {}
+        const pendingUpgrades = currentGmd.pending_stat_upgrades ?? []
+        if (!pendingUpgrades.includes(id)) {
+          const updatedGmd = { ...currentGmd, pending_stat_upgrades: [...pendingUpgrades, id] }
+          await supabase.from('sessions').update({ game_mode_data: updatedGmd }).eq('id', session.id)
+          setGameModeData(updatedGmd)
+          gameModeDataRef.current = updatedGmd
+        }
+      }
+    }
+    console.log(`[rewards] XP+${xpGain} Berries+${moneyGain} para ${playerIds.join(', ')}`)
+  }
+
   async function checkAndMarkDeaths(affectedIds) {
     for (const character_id of affectedIds) {
       const state = characterStatesRef.current.find(s => s.character_id === character_id)
@@ -254,6 +292,45 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
       console.log('[combat] intención del modelo:', JSON.stringify(mechanics))
     } catch (err) {
       console.warn('[combat] modelo de intenciones falló, usando defaults:', err?.message)
+    }
+
+    // 2a. Pausa para skill_check: pedir tirada antes de resolver el turno
+    if (mechanics.player_intent === 'skill_check') {
+      pendingMechanicsRef.current = {
+        mechanics,
+        playerAction,
+        combatSkillCheck: true,
+        combatData: currentGameModeData,
+      }
+      setDiceRequest({ required: true, count: 1, stat: mechanics.skill_stat, dc: mechanics.skill_dc })
+      setNarratorTyping(false)
+      return
+    }
+
+    // 2b. Support roll: guardar bonus y narrar sin resolver turno de combate completo
+    if (mechanics.player_intent === 'support_roll') {
+      supportBonusRef.current = 3
+      const nextTurnId = mechanics.next_character_id
+      const supportResult = {
+        attacker: activeCharacter.name, attacker_id: activeCharacter.id,
+        skipped_turn: false, stunned_exposed: false,
+        target: null, damage_dealt: 0,
+        enemy_hp_before: null, enemy_hp_after: null, enemy_dead: false,
+        all_enemies_dead: false,
+        counterattack_damage: 0, counterattack_enemy: null,
+        attacker_hp_before: null, attacker_hp_after: null,
+        attacker_dead: false, attacker_stunned: false,
+        aoe_targets: [], enemy_ability_triggered: null,
+        support_applied: { by: activeCharacter.id, target: mechanics.target_ally_id, bonus: 3 },
+        next_character: nextTurnId,
+        remaining_enemies: (currentGameModeData?.enemies || []).filter(e => !e.defeated).map(e => e.name),
+      }
+      await deliverCombatNarrative(supportResult, nextTurnId, currentGameModeData)
+      await supabase.from('sessions')
+        .update({ current_turn_character_id: nextTurnId })
+        .eq('id', session.id)
+      setNarratorTyping(false)
+      return
     }
 
     // 2. Resolver el turno en código (función pura)
@@ -373,8 +450,8 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
     await advanceBeatIfNeeded()
   }
 
-  // Distribuye loot al final del combate usando las loot_tables de los enemigos derrotados
-  async function distributeLoot(defeatedEnemies) {
+  // Distribuye loot, XP y berries al final del combate.
+  async function distributeLoot(defeatedEnemies, overrideMoneyReward = null) {
     if (!defeatedEnemies?.length) return
 
     // Usar la tabla del enemigo más difícil (el que tiene mayor chance de raro/único)
@@ -415,6 +492,13 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
       await applyInventoryUpdates(lootUpdates)
       console.log('[loot] distribuido:', lootUpdates.map(u => `${u.character_id}: ${u.item?.name}`).join(', '))
     }
+
+    // XP y berries para todos los jugadores activos
+    const activePlayers = presentIdsRef.current
+    const xpGain = calculateXpReward(defeatedEnemies)
+    const totalMoney = overrideMoneyReward ?? calculateMoneyReward(defeatedEnemies)
+    const moneyPerPlayer = activePlayers.length > 0 ? Math.floor(totalMoney / activePlayers.length) : 0
+    await applyRewards(activePlayers, xpGain, moneyPerPlayer)
   }
 
   // ─── Exploración — navegación local del árbol de decisión ────────────────
@@ -629,6 +713,21 @@ Narra el descubrimiento de forma dramática y evocadora (máx. 120 palabras). Te
       }
     }
 
+    // Acción trivial o imposible: sin tirada, narrar resultado automático
+    if (mechanics.action_result === 'trivial' || mechanics.action_result === 'impossible') {
+      await deliverNarrative(playerAction, mechanics, null, { gmInstruction, currentGameModeData, currentGameMode })
+      setNarratorTyping(false)
+      return
+    }
+
+    // support_roll fuera de combate: guardar bonus sin pedir tirada
+    if (mechanics.support_roll) {
+      supportBonusRef.current = 3
+      await deliverNarrative(playerAction, mechanics, null, { gmInstruction, currentGameModeData, currentGameMode })
+      setNarratorTyping(false)
+      return
+    }
+
     if (mechanics.dice_required) {
       const diceCount = mechanics.dice_count || 1
       if (isGm) {
@@ -643,6 +742,27 @@ Narra el descubrimiento de forma dramática y evocadora (máx. 120 palabras). Te
         setNarratorTyping(false)
         return
       }
+      // Desafío sostenido: varias tiradas necesarias
+      if (mechanics.dice_sustained_target > 1) {
+        const challenge = {
+          goal: playerAction,
+          stat: mechanics.dice_stat,
+          dc: mechanics.dice_threshold || 6,
+          successes_needed: mechanics.dice_sustained_target,
+          failures_max: Math.ceil(mechanics.dice_sustained_target / 2),
+          successes: 0,
+          failures: 0,
+        }
+        const newGmd = { ...(currentGameModeData || {}), sustained_challenge: challenge }
+        await supabase.from('sessions').update({ game_mode_data: newGmd }).eq('id', session.id)
+        setGameModeData(newGmd)
+        gameModeDataRef.current = newGmd
+        pendingMechanicsRef.current = { mechanics, playerAction, gmInstruction, sustained: true }
+        setDiceRequest({ required: true, count: diceCount, dc: mechanics.dice_threshold, stat: mechanics.dice_stat })
+        setNarratorTyping(false)
+        return
+      }
+
       pendingMechanicsRef.current = { mechanics, playerAction, gmInstruction }
       setDiceRequest({ required: true, count: diceCount })
       setNarratorTyping(false)
@@ -698,6 +818,12 @@ Narra el descubrimiento de forma dramática y evocadora (máx. 120 palabras). Te
     // Inventory solo fuera de combate
     if (currentGameMode !== 'combat' && mechanics.inventory_updates?.length > 0) {
       await applyInventoryUpdates(mechanics.inventory_updates)
+    }
+    // Recompensa de berries especificada por el modelo (hallazgo de tesoro, misión, etc.)
+    if (mechanics.money_reward > 0) {
+      const players = presentIdsRef.current
+      const moneyPerPlayer = Math.floor(mechanics.money_reward / (players.length || 1))
+      await applyRewards(players, 0, moneyPerPlayer)
     }
     if (mechanics.game_mode) {
       await applyGameMode(mechanics, currentGameMode)
@@ -861,10 +987,30 @@ Narra el descubrimiento de forma dramática y evocadora (máx. 120 palabras). Te
 
   async function rollDice() {
     if (sending) return
-    const { count } = diceRequest
+    const { count, dc: pendingDc, stat: pendingStat } = diceRequest
     const rolls = Array.from({ length: count }, () => Math.ceil(Math.random() * 6))
-    const total = rolls.reduce((a, b) => a + b, 0)
-    const content = count === 1 ? `🎲 ${rolls[0]} = ${total}` : `🎲 ${rolls.join(' + ')} = ${total}`
+    const bonus = supportBonusRef.current
+    supportBonusRef.current = 0
+    const rawTotal = rolls.reduce((a, b) => a + b, 0)
+    const total = rawTotal + bonus
+
+    const pending = pendingMechanicsRef.current
+    pendingMechanicsRef.current = null
+
+    // Formato de contenido del dado: incluye DC y grado si es skill_check
+    let content
+    const dc = pendingDc || pending?.mechanics?.dice_threshold || null
+    if (dc) {
+      const degree = checkDegree(total, dc)
+      const stat = pendingStat || pending?.mechanics?.dice_stat || null
+      const statTag = stat ? ` · ${stat}` : ''
+      const bonusTag = bonus > 0 ? ` (+${bonus} apoyo)` : ''
+      const rollStr = count === 1 ? `${rolls[0]}` : rolls.join(' + ')
+      content = `🎲 ${rollStr}${bonusTag} = ${total} · DC:${dc}${statTag} · ${degree}`
+    } else {
+      const bonusTag = bonus > 0 ? ` (+${bonus})` : ''
+      content = count === 1 ? `🎲 ${rolls[0]} = ${total}${bonusTag}` : `🎲 ${rolls.join(' + ')} = ${total}${bonusTag}`
+    }
 
     setDiceRequest({ required: false, count: 1 })
     setSending(true)
@@ -874,9 +1020,126 @@ Narra el descubrimiento de forma dramática y evocadora (máx. 120 palabras). Te
       content, type: 'dice',
     })
 
-    const pending = pendingMechanicsRef.current
-    pendingMechanicsRef.current = null
+    // Caso: skill_check en combate → narrar con combatResult que incluye el grado
+    if (pending?.combatSkillCheck) {
+      const dc2 = pending.mechanics.skill_dc || 6
+      const skillStat = pending.mechanics.skill_stat || 'attack'
+      const degree = checkDegree(total, dc2)
+      const currentPlayerHp = characterStatesRef.current.find(s => s.character_id === activeCharacter.id)?.hp_current ?? activeCharacter.hp
 
+      // Consecuencias mecánicas por grado
+      let degreeUpdates = []
+      let degreeBoostApplied = null
+      let degreeNewGameModeData = pending.combatData
+
+      if (degree === 'critical_success') {
+        // Éxito crítico: +1 al stat usado durante el combate
+        const prevBoosts = pending.combatData?.boosts?.[activeCharacter.id] || {}
+        degreeBoostApplied = { target: activeCharacter.id, stat: skillStat, value: 1 }
+        degreeNewGameModeData = {
+          ...pending.combatData,
+          boosts: {
+            ...(pending.combatData?.boosts || {}),
+            [activeCharacter.id]: { ...prevBoosts, [skillStat]: (prevBoosts[skillStat] || 0) + 1 },
+          },
+        }
+      } else if (degree === 'critical_failure') {
+        // Fallo crítico: 1 punto de daño al jugador activo
+        const newHp = Math.max(0, currentPlayerHp - 1)
+        degreeUpdates = [{ character_id: activeCharacter.id, hp_current: newHp, is_dead: newHp <= 0 }]
+      }
+
+      const skillResult = {
+        attacker: activeCharacter.name, attacker_id: activeCharacter.id,
+        skipped_turn: false, stunned_exposed: false,
+        target: null, damage_dealt: 0,
+        enemy_hp_before: null, enemy_hp_after: null, enemy_dead: false,
+        all_enemies_dead: false,
+        counterattack_damage: 0, counterattack_enemy: null,
+        attacker_hp_before: currentPlayerHp,
+        attacker_hp_after: degreeUpdates[0]?.hp_current ?? currentPlayerHp,
+        attacker_dead: degreeUpdates[0]?.is_dead ?? false,
+        attacker_stunned: false,
+        aoe_targets: [], enemy_ability_triggered: null,
+        skill_check_result: { stat: skillStat, dc: dc2, total, degree },
+        degree_boost: degreeBoostApplied,
+        next_character: pending.mechanics.next_character_id,
+        remaining_enemies: (pending.combatData?.enemies || []).filter(e => !e.defeated).map(e => e.name),
+      }
+
+      setNarratorTyping(true)
+      await deliverCombatNarrative(skillResult, pending.mechanics.next_character_id, degreeNewGameModeData)
+
+      // Escribir consecuencias + avanzar turno
+      const sessionUpdate = { current_turn_character_id: pending.mechanics.next_character_id }
+      if (degreeBoostApplied) sessionUpdate.game_mode_data = degreeNewGameModeData
+      await supabase.from('sessions').update(sessionUpdate).eq('id', session.id)
+      if (degreeBoostApplied) {
+        setGameModeData(degreeNewGameModeData)
+        gameModeRef.current = 'combat'
+      }
+      for (const upd of degreeUpdates) {
+        await supabase.from('session_character_state')
+          .update({ hp_current: upd.hp_current, ...(upd.is_dead ? { is_dead: true } : {}) })
+          .eq('session_id', session.id).eq('character_id', upd.character_id)
+        setCharacterStates(prev =>
+          prev.map(s => s.character_id === upd.character_id ? { ...s, hp_current: upd.hp_current, ...(upd.is_dead ? { is_dead: true } : {}) } : s)
+        )
+      }
+
+      setNarratorTyping(false)
+      setSending(false)
+      return
+    }
+
+    // Caso: desafío sostenido — actualizar progreso y continuar o resolver
+    if (pending?.sustained) {
+      const gmd = gameModeDataRef.current || {}
+      const challenge = gmd.sustained_challenge
+      if (challenge) {
+        const dcS = challenge.dc || 6
+        const success = total >= dcS
+        const newSuccesses = challenge.successes + (success ? 1 : 0)
+        const newFailures = challenge.failures + (success ? 0 : 1)
+        const resolved = newSuccesses >= challenge.successes_needed || newFailures > challenge.failures_max
+        const won = newSuccesses >= challenge.successes_needed
+
+        const updatedChallenge = resolved ? null : { ...challenge, successes: newSuccesses, failures: newFailures }
+        const newGmd = { ...gmd }
+        if (updatedChallenge) {
+          newGmd.sustained_challenge = updatedChallenge
+        } else {
+          delete newGmd.sustained_challenge
+        }
+
+        await supabase.from('sessions').update({ game_mode_data: newGmd }).eq('id', session.id)
+        setGameModeData(newGmd)
+        gameModeDataRef.current = newGmd
+
+        // Construir resultado para el narrador
+        const progressStr = resolved
+          ? (won ? `✅ Desafío superado (${newSuccesses}/${challenge.successes_needed} éxitos)` : `❌ Desafío fallado (${newFailures} fallos)`)
+          : `Progreso: ${newSuccesses}/${challenge.successes_needed} éxitos · ${newFailures}/${challenge.failures_max + 1} fallos`
+        const sustainedResult = `[Desafío sostenido: "${challenge.goal}" | Tirada: ${total} vs DC${dcS} → ${success ? 'Éxito' : 'Fallo'} | ${progressStr}]`
+
+        const mechanics = pending.mechanics || getDefaultMechanics()
+        setNarratorTyping(true)
+        await deliverNarrative(pending.playerAction || sustainedResult, mechanics, content + ` (${progressStr})`, { gmInstruction: pending.gmInstruction })
+
+        // Si no resuelto, preparar la siguiente tirada automáticamente
+        if (!resolved) {
+          const diceCount = mechanics.dice_count || 1
+          pendingMechanicsRef.current = { mechanics, playerAction: challenge.goal, sustained: true }
+          setDiceRequest({ required: true, count: diceCount, dc: challenge.dc, stat: challenge.stat })
+        }
+
+        setNarratorTyping(false)
+        setSending(false)
+        return
+      }
+    }
+
+    // Caso normal (fuera de combate): narrar con grado incluido en el string de dados
     const mechanics = pending?.mechanics || getDefaultMechanics()
     const playerAction = pending?.playerAction || `[Tirada de dados: ${content}]`
     const gmInstruction = pending?.gmInstruction || null
@@ -1304,6 +1567,28 @@ Personajes presentes: ${activeIds.join(', ')}.`
     )
   }
 
+  // Aplica la elección de stat-up del jugador: guarda en stat_upgrades y limpia pending.
+  async function applyStatUpgrade(characterId, stat) {
+    const state = characterStatesRef.current.find(s => s.character_id === characterId)
+    if (!state) return
+    const prevUpgrades = state.stat_upgrades || {}
+    const newUpgrades = { ...prevUpgrades, [stat]: (prevUpgrades[stat] || 0) + 1 }
+    await supabase.from('session_character_state')
+      .update({ stat_upgrades: newUpgrades })
+      .eq('session_id', session.id).eq('character_id', characterId)
+    setCharacterStates(prev =>
+      prev.map(s => s.character_id === characterId ? { ...s, stat_upgrades: newUpgrades } : s)
+    )
+    // Limpiar del pending
+    const currentGmd = gameModeDataRef.current ?? {}
+    const pendingUpgrades = (currentGmd.pending_stat_upgrades ?? []).filter(id => id !== characterId)
+    const updatedGmd = { ...currentGmd, pending_stat_upgrades: pendingUpgrades }
+    await supabase.from('sessions').update({ game_mode_data: updatedGmd }).eq('id', session.id)
+    setGameModeData(updatedGmd)
+    gameModeDataRef.current = updatedGmd
+    console.log(`[stat-up] ${characterId} subió ${stat} → ${newUpgrades[stat]}`)
+  }
+
   return {
     messages, sending, narratorTyping,
     sendMessage, sendChat, sendAction, sendGmMessage,
@@ -1313,6 +1598,7 @@ Personajes presentes: ${activeIds.join(', ')}.`
     startGame, announceEntry, debugAddItem,
     useItem, giftItem, killCharacter,
     explorationNodeId, navigateExplorationNode,
+    applyStatUpgrade,
     setGameModeDirect: (mode) => applyGameMode({
       game_mode: mode,
       game_mode_data: mode === 'normal' ? null

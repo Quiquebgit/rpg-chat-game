@@ -21,7 +21,7 @@ export function createPromptBuilders({ activeCharacter, presentIdsRef, character
         const inventory = state?.inventory?.length
           ? state.inventory.map(i => i.name).join(', ')
           : 'sin objetos'
-        return `- ${c.name}(${c.role}) HP${hp}/${c.hp} ATK${c.attack} DEF${c.defense} NAV${c.navigation} [${c.ability.name}] ${inventory}`
+        return `- ${c.name}(${c.role}) HP${hp}/${c.hp} ATK${c.attack} DEF${c.defense} NAV${c.navigation} DES${c.dexterity ?? 0} CAR${c.charisma ?? 0} [${c.ability.name}] ${inventory}`
       }).join('\n')
   }
 
@@ -32,7 +32,7 @@ export function createPromptBuilders({ activeCharacter, presentIdsRef, character
         const state = characterStatesRef.current.find(s => s.character_id === c.id)
         const hp = state?.hp_current ?? c.hp
         const dead = state?.is_dead ? '☠' : ''
-        return `${c.id}:HP${hp}/${c.hp} ATK${c.attack} DEF${c.defense} NAV${c.navigation}${dead}`
+        return `${c.id}:HP${hp}/${c.hp} ATK${c.attack} DEF${c.defense} NAV${c.navigation} DES${c.dexterity ?? 0} CAR${c.charisma ?? 0}${dead}`
       }).join(' | ')
   }
 
@@ -181,7 +181,7 @@ ${stunned.length ? `Aturdidos (pierden turno): ${stunned.join(', ')}\n` : ''}nex
   // Prompt del modelo mecánico fuera de combate
   function buildMechanicsPrompt(playerAction, currentGameModeData, currentGameMode) {
     const leastActive = getLeastActive()
-    return `Activo:${activeCharacter.id}(ATK${activeCharacter.attack} DEF${activeCharacter.defense} NAV${activeCharacter.navigation})
+    return `Activo:${activeCharacter.id}(ATK${activeCharacter.attack} DEF${activeCharacter.defense} NAV${activeCharacter.navigation} DES${activeCharacter.dexterity ?? 0} CAR${activeCharacter.charisma ?? 0})
 Acción: ${playerAction}
 Personajes: ${buildMinimalCharContext()}
 ${buildActiveInventoryContext()}${buildRecentNarratorContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}next:${leastActive} no_rep:${activeCharacter.id}`
@@ -260,6 +260,7 @@ Termina interpelando a: ${nextChar?.name || nextId}`
     return `NPC: ${npc_name || 'desconocido'} (actitud: ${npc_attitude || 'neutral'})
 Convicción: ${conviction ?? 0}/${conviction_max ?? 10}
 Personajes: ${buildMinimalCharContext()}
+Activo: ${activeCharacter.id} (CAR${activeCharacter.charisma ?? 0}) — Carisma alto aumenta la eficacia persuasiva
 Acción de ${activeCharacter.id}: ${playerAction}
 next:${getLeastActive()} no_rep:${activeCharacter.id}`
   }
