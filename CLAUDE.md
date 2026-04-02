@@ -73,6 +73,7 @@ src/
 - **IA y daño:** el daño en combate SIEMPRE se calcula en código (`combat.js`), nunca lo decide el modelo
 - Al añadir funcionalidad nueva, actualizar este CLAUDE.md y el skill relevante
 - **ROADMAP obligatorio:** al terminar cualquier sprint, bug o tarea, marcar las tareas completadas en [ROADMAP.md](ROADMAP.md) con `[x]`. Esto es crítico para que futuros agentes sepan exactamente qué está hecho y qué queda pendiente.
+- **Commits y push obligatorios:** al terminar cualquier tarea o subtarea, hacer commit de los cambios con `/commit` y push inmediatamente. Agrupar por funcionalidad (no un commit por fichero). Incluir siempre los ficheros de documentación afectados (CLAUDE.md, ROADMAP.md, skills).
 
 ## Convenciones de commits
 ```
@@ -82,6 +83,7 @@ refactor: refactorización sin cambio de comportamiento
 style:    cambios visuales / CSS
 content:  nuevas historias, personajes, datos de lore
 chore:    configuración, dependencias, scripts
+docs:     solo documentación (CLAUDE.md, ROADMAP.md, skills)
 ```
 
 ---
