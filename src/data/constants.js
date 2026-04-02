@@ -27,7 +27,28 @@ export const ITEM_RARITY_STYLES = {
 }
 
 // Etiquetas legibles de stats
-export const STAT_LABELS = { attack: 'Ataque', defense: 'Defensa', navigation: 'Navegación', hp: 'Vida', ability: 'Habilidad' }
+export const STAT_LABELS = { attack: 'Ataque', defense: 'Defensa', navigation: 'Navegación', dexterity: 'Destreza', charisma: 'Carisma', hp: 'Vida', ability: 'Habilidad' }
+
+// Configuración de XP y progresión
+export const XP_CONFIG = {
+  THRESHOLD: 100,        // XP necesario para ganar 1 punto de stat
+  CRITICAL_SUCCESS: 25,  // XP por éxito crítico en skill check
+  SUCCESS: 10,           // XP por éxito en skill check
+  INTERESTING_FAILURE: 5,// XP por fallo interesante
+  ENEMY_COMMON: 20,      // XP por enemigo común (hp ≤ 4)
+  ENEMY_RARE: 50,        // XP por enemigo raro (hp 5-7)
+  ENEMY_UNIQUE: 100,     // XP por enemigo único (hp ≥ 8)
+}
+
+// Rangos de recompensa en berries por tipo de enemigo
+export const MONEY_CONFIG = {
+  ENEMY_COMMON: { min: 20,  max: 50  },
+  ENEMY_RARE:   { min: 100, max: 200 },
+  ENEMY_UNIQUE: { min: 300, max: 600 },
+}
+
+// Stats que un jugador puede subir con XP
+export const UPGRADABLE_STATS = ['attack', 'defense', 'navigation', 'dexterity', 'charisma']
 
 // Estilos de actitud de NPC en modo negociación
 export const ATTITUDE_STYLES = {

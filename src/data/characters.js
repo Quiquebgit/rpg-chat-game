@@ -8,11 +8,14 @@ export const characters = [
     attack: 3,
     defense: 3,
     navigation: 3,
+    dexterity: 2,
+    charisma: 4,
+    bounty: 50000000,
     ability: {
       name: 'Liderazgo',
       description: 'Da +2 ataque o +2 defensa a un aliado durante un combate',
       type: 'stat_boost',
-      effect: { stat: 'attack', value: 2, target: 'ally', uses_per_combat: 1 },
+      effect: { stat: 'attack', value: 2, target: 'ally', uses_per_combat: 1, stat_choices: ['attack', 'defense'] },
     }
   },
   {
@@ -24,6 +27,9 @@ export const characters = [
     attack: 5,
     defense: 1,
     navigation: 2,
+    dexterity: 4,
+    charisma: 1,
+    bounty: 35000000,
     ability: {
       name: 'Onda de presión',
       description: 'Ataque a distancia sin acercarse, ignora 1 de defensa enemiga',
@@ -40,6 +46,9 @@ export const characters = [
     attack: 2,
     defense: 2,
     navigation: 2,
+    dexterity: 2,
+    charisma: 3,
+    bounty: 10000000,
     ability: {
       name: 'Tratamiento',
       description: 'Cura 2 de vida en combate, o 4 fuera de combate',
@@ -56,6 +65,9 @@ export const characters = [
     attack: 5,
     defense: 1,
     navigation: 3,
+    dexterity: 4,
+    charisma: 1,
+    bounty: 40000000,
     ability: {
       name: 'Emboscada',
       description: 'Si actúa antes de ser detectado, dobla su ataque ese turno',
@@ -72,6 +84,9 @@ export const characters = [
     attack: 3,
     defense: 2,
     navigation: 5,
+    dexterity: 3,
+    charisma: 2,
+    bounty: 15000000,
     ability: {
       name: 'Lectura del mar',
       description: 'Puede evitar un encuentro peligroso en viaje una vez por sesión',
@@ -88,6 +103,9 @@ export const characters = [
     attack: 4,
     defense: 2,
     navigation: 1,
+    dexterity: 2,
+    charisma: 4,
+    bounty: 20000000,
     ability: {
       name: 'Festín',
       description: 'Fuera de combate, cocina para restaurar 1 de vida a toda la tripulación',

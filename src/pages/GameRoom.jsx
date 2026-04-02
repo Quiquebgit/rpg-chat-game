@@ -4,7 +4,7 @@ import { usePresence } from '../hooks/usePresence'
 import { useNarration } from '../hooks/useNarration'
 import { useDirector } from '../hooks/useDirector'
 import { characters as allCharacters } from '../data/characters'
-import { MODE_SHADOW } from '../data/constants'
+import { MODE_SHADOW, XP_CONFIG, UPGRADABLE_STATS, STAT_LABELS } from '../data/constants'
 import GameModePanel from '../components/GameModePanel'
 import { NarratorMessage, NarratorTyping, NpcMessage } from '../components/NarratorMessage'
 import { ActionMessage, OocMessage, GmMessage, PlayerMessage } from '../components/ChatMessages'
@@ -13,7 +13,7 @@ import { PreGameScreen } from '../components/PreGameScreen'
 import { InventoryPanel, DebugInventoryButton } from '../components/InventoryPanel'
 import { CollapsibleAbility } from '../components/CollapsibleAbility'
 import { StatRow } from '../components/StatRow'
-import { StatBoostPanel } from '../components/StatBoostPanel'
+import { StatBoostPanel, HealPanel } from '../components/StatBoostPanel'
 
 function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const [input, setInput] = useState('')
@@ -28,7 +28,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
 
   const { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant } = usePresence(session, character)
   const { completeCurrentEvent, currentEventSetup } = useDirector(session)
-  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, rollNavigation, sacrificeForNavigation, riskyMove, turnBack, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem, useItem, giftItem, killCharacter, explorationNodeId, navigateExplorationNode, setGameModeDirect } = useMessages(session, character, presentIds, completeCurrentEvent, currentEventSetup)
+  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, rollNavigation, sacrificeForNavigation, riskyMove, turnBack, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem, useItem, giftItem, killCharacter, explorationNodeId, navigateExplorationNode, applyStatUpgrade, setGameModeDirect } = useMessages(session, character, presentIds, completeCurrentEvent, currentEventSetup)
   const { speak, stop, isNarrating, isEnabled: narrationEnabled, toggle: toggleNarration, error: narrationError, supported: narrationSupported } = useNarration()
 
   // Narrar automáticamente los mensajes nuevos del narrador
@@ -67,11 +67,22 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const equippedFruit = inventory.find(i => i.is_fruit || (i.type === 'fruta' && i.equipped))
   const isDead = activeCharacterState?.is_dead ?? false
 
+  // Economía y XP del personaje activo
+  const currentMoney = activeCharacterState?.money ?? 0
+  const currentXp = activeCharacterState?.xp ?? 0
+  const statUpgrades = activeCharacterState?.stat_upgrades ?? {}
+  const xpProgress = currentXp % XP_CONFIG.THRESHOLD
+  const pendingStatUpgrades = gameModeData?.pending_stat_upgrades ?? []
+  const myStatUpPending = pendingStatUpgrades.includes(character.id)
+
   // Bonificaciones de items equipados + frutas activas (suma por stat)
   const equipmentBonuses = inventory
     .filter(i => i.equipped || i.is_fruit)
     .flatMap(i => i.effects || [])
     .reduce((acc, e) => ({ ...acc, [e.stat]: (acc[e.stat] || 0) + (e.modifier || e.value || 0) }), {})
+
+  // Boost de combate activo (Liderazgo, éxito crítico…) — solo durante el combate
+  const combatBoosts = gameMode === 'combat' ? (gameModeData?.boosts?.[character.id] || {}) : {}
 
   // Stats efectivos (base + equipo + frutas) para mostrar en botones y labels
   const effectiveAtk = character.attack + (equipmentBonuses.attack || 0)
@@ -110,9 +121,14 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
     && needsNavigationRoll
     && !(characterStates.find(s => s.character_id === character.id)?.ability_used ?? false)
 
-  // Iniciativa pendiente: en combate y este jugador aún no ha tirado
+  // Desafío sostenido activo (fuera de combate)
+  const sustainedChallenge = gameMode !== 'combat' ? gameModeData?.sustained_challenge : null
+  const needsSustainedRoll = !!sustainedChallenge && isMyTurn && !diceRequest.required
+
+  // Iniciativa pendiente: en combate, el orden no está fijado aún, y este jugador no ha tirado
   const needsInitiativeRoll = gameMode === 'combat'
     && gameModeData
+    && !gameModeData.combat_turn_order
     && !gameModeData.initiative?.[character.id]
     && !isSpectator
     && !isDead
@@ -287,9 +303,45 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
         <div>
           <p className="text-xs uppercase tracking-widest text-gray-500 mb-3">Stats</p>
           <div className="flex flex-col gap-3">
-            <StatRow icon="⚔️" label="Ataque" value={character.attack} bonus={equipmentBonuses.attack || 0} color="bg-amber-400" />
-            <StatRow icon="🛡️" label="Defensa" value={character.defense} bonus={equipmentBonuses.defense || 0} color="bg-blue-400" />
-            <StatRow icon="🧭" label="Navegación" value={character.navigation} bonus={equipmentBonuses.navigation || 0} color="bg-green-400" />
+            <StatRow icon="⚔️" label="Ataque" value={character.attack} bonus={(equipmentBonuses.attack || 0) + (combatBoosts.attack || 0)} color="bg-amber-400" />
+            <StatRow icon="🛡️" label="Defensa" value={character.defense} bonus={(equipmentBonuses.defense || 0) + (combatBoosts.defense || 0)} color="bg-blue-400" />
+            <StatRow icon="🧭" label="Navegación" value={character.navigation} bonus={(equipmentBonuses.navigation || 0) + (combatBoosts.navigation || 0)} color="bg-green-400" />
+          </div>
+        </div>
+
+        {/* Destreza y Carisma */}
+        <div>
+          <p className="text-xs uppercase tracking-widest text-gray-500 mb-3">Destreza / Carisma</p>
+          <div className="flex flex-col gap-3">
+            <StatRow icon="🤸" label="Destreza" value={character.dexterity ?? 0} bonus={(equipmentBonuses.dexterity || 0) + (combatBoosts.dexterity || 0) + (statUpgrades.dexterity || 0)} color="bg-orange-400" />
+            <StatRow icon="💬" label="Carisma"  value={character.charisma  ?? 0} bonus={(equipmentBonuses.charisma  || 0) + (combatBoosts.charisma  || 0) + (statUpgrades.charisma  || 0)} color="bg-pink-400" />
+          </div>
+        </div>
+
+        {/* Economía: berries, bounty y XP */}
+        <div className="border border-amber-400/20 rounded-lg p-3 bg-amber-400/5">
+          <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">Economía</p>
+          <div className="flex flex-col gap-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400">💰 Berries</span>
+              <span className="text-amber-300 font-semibold">{currentMoney.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400">☠️ Recompensa</span>
+              <span className="text-red-300 font-semibold">{character.bounty?.toLocaleString() ?? 0} B</span>
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+              <span>⭐ XP</span>
+              <span>{currentXp} (+{xpProgress}/{XP_CONFIG.THRESHOLD})</span>
+            </div>
+            <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-yellow-400 rounded-full transition-all duration-500"
+                style={{ width: `${(xpProgress / XP_CONFIG.THRESHOLD) * 100}%` }}
+              />
+            </div>
           </div>
         </div>
 
@@ -332,6 +384,30 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
         </div>
 
       </aside>
+
+      {/* Modal de stat-up por XP */}
+      {myStatUpPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="mx-4 max-w-sm w-full rounded-2xl border border-yellow-400/40 bg-gray-950 p-6 flex flex-col gap-4 shadow-2xl shadow-yellow-900/30">
+            <div className="text-center">
+              <p className="text-4xl mb-3">⭐</p>
+              <h3 className="text-xl font-bold text-yellow-300">¡Has subido de nivel!</h3>
+              <p className="text-sm text-gray-400 mt-2">Elige un stat para mejorar en +1:</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {UPGRADABLE_STATS.map(stat => (
+                <button
+                  key={stat}
+                  onClick={() => applyStatUpgrade(character.id, stat)}
+                  className="rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-sm font-medium text-yellow-300 hover:bg-yellow-400/20 transition-colors"
+                >
+                  {STAT_LABELS[stat] ?? stat}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal confirmación fruta del diablo */}
       {fruitConfirmItem && (
@@ -698,6 +774,11 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                 Tirar iniciativa (1d6 + {effectiveAtk} ATK)
               </button>
             </div>
+          ) : gameMode === 'combat' && gameModeData?.combat_turn_order && !gameModeData.initiative?.[character.id] && !isSpectator && !isDead ? (
+            <div className="flex flex-col items-center gap-2 py-2">
+              <p className="text-xs text-red-400/50 uppercase tracking-widest">⚔️ El combate ya ha comenzado</p>
+              <p className="text-xs text-gray-600 text-center">No puedes unirte a este combate. Espera al siguiente encuentro.</p>
+            </div>
           ) : diceRequest.required && isMyTurn ? (
             <div className="flex flex-col items-center gap-2">
               <p className="text-xs text-amber-400/70 uppercase tracking-widest">El narrador pide una tirada</p>
@@ -710,6 +791,21 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                 {diceRequest.count === 2 ? 'Tirar los dados' : 'Tirar el dado'}
               </button>
             </div>
+          ) : needsSustainedRoll ? (
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-xs text-emerald-400/70 uppercase tracking-widest">🎯 Desafío sostenido en curso</p>
+              <p className="text-xs text-gray-500 text-center">
+                {sustainedChallenge.successes}/{sustainedChallenge.successes_needed} éxitos · {sustainedChallenge.failures}/{sustainedChallenge.failures_max + 1} fallos máx
+              </p>
+              <button
+                onClick={rollDice}
+                disabled={sending}
+                className="flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <span className="text-2xl">🎲</span>
+                Tirar (1d6 + DC {sustainedChallenge.dc})
+              </button>
+            </div>
           ) : (
             <>
             {isMyTurn && gameMode === 'combat' && character.ability?.type === 'stat_boost' && !activeCharacterState?.combat_ability_used && (
@@ -717,6 +813,15 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                 <StatBoostPanel
                   ability={character.ability}
                   allies={presentedCharacters.filter(c => c.id !== character.id)}
+                  onActivate={(ally, stat) => sendAction(`Uso ${character.ability.name}${stat ? ` (+${stat === 'attack' ? 'ATK' : 'DEF'})` : ''} en ${ally.name}`)}
+                />
+              </div>
+            )}
+            {isMyTurn && gameMode === 'combat' && character.ability?.type === 'heal' && (
+              <div className="mb-2">
+                <HealPanel
+                  ability={character.ability}
+                  allies={presentedCharacters}
                   onActivate={ally => sendAction(`Uso ${character.ability.name} en ${ally.name}`)}
                 />
               </div>

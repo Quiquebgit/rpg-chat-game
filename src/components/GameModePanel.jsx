@@ -34,6 +34,9 @@ function EnemyCard({ enemy }) {
           </span>
         )}
       </div>
+      {enemy.bounty > 0 && (
+        <div className="text-xs text-yellow-500/80">☠️ {enemy.bounty.toLocaleString()} B</div>
+      )}
 
       {/* Barra de HP */}
       <div className="h-1.5 w-full rounded-full bg-gray-800 overflow-hidden">
