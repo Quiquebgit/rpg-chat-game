@@ -109,6 +109,9 @@ AS $$ ... $$;
 - `is_active` boolean
 - `is_dead` boolean
 - `stunned` boolean
+- `money` int DEFAULT 0 — berries acumuladas en la sesión
+- `xp` int DEFAULT 0 — puntos de experiencia acumulados
+- `stat_upgrades` jsonb DEFAULT `{}` — boosts permanentes por XP gastado: `{"attack": 1, "dexterity": 0, ...}`
 
 ### `items`
 - `id` uuid PK
@@ -132,6 +135,7 @@ AS $$ ... $$;
 - `loot_table` jsonb
 - `loot_type` text — `cualquiera | arma | equipo | consumible`
 - `ability` jsonb
+- `bounty` int DEFAULT 0 — recompensa visible en GameModePanel al entrar en combate
 
 ### `difficulty_templates`
 - `id` uuid PK

@@ -15,14 +15,25 @@ Inspirado en One Piece, personajes y lugares 100% originales.
 ## Sistema de stats
 Números bajos, al estilo del juego de mesa del Señor de los Anillos. Cada punto importa.
 
-| Stat | Descripción |
-|---|---|
-| **Vida** | Puntos que pierdes al recibir daño |
-| **Ataque** | Daño que haces en combate |
-| **Defensa** | Reduce el daño recibido (ataque − defensa = vida perdida, mínimo 1) |
-| **Navegación** | Baja navegación + ruta peligrosa = penalización o encuentro no deseado |
+| Stat | Clave | Descripción |
+|---|---|---|
+| **Vida** | `hp` | Puntos que pierdes al recibir daño |
+| **Ataque** | `attack` | Daño que haces en combate con armas o golpes |
+| **Defensa** | `defense` | Reduce el daño recibido (ataque − defensa = vida perdida, mínimo 0) |
+| **Navegación** | `navigation` | Manejo del barco, orientación, sortear peligros marítimos |
+| **Destreza** | `dexterity` | Agilidad personal, sigilo, precisión, acrobacias, engañar con el cuerpo |
+| **Carisma** | `charisma` | Persuasión, intimidación, liderazgo social, detección de mentiras |
 
 Cada personaje tiene una **habilidad especial única** (no numérica).
+
+### Cuándo usar Destreza vs Ataque
+- **Ataque** → dañar en combate
+- **Destreza** → moverse de forma hábil, sigilo, tirada de apoyo acrobática antes de atacar, escapar, pickpocket
+
+### Cuándo usar Carisma vs otras acciones
+- **Carisma** → convencer, intimidar, engañar verbalmente, leer intenciones de un NPC
+- En modo Negotiation, Carisma es el stat principal para avanzar conviction
+- En modo Exploration, Carisma sirve para obtener información de NPCs locales
 
 ## Dados
 Se usan dados de 6 caras (d6). El narrador decide cuántos según la dificultad:
@@ -62,11 +73,14 @@ Usada para huir, perseguir, sortear tormentas, evitar monstruos y eventos marino
 ## Cuándo se usan los dados
 | Situación | Stat relevante |
 |---|---|
-| Combate | Ataque / Defensa |
-| Huir / Perseguir | Navegación total del barco |
-| Tormenta / Monstruo marino | Navegación total del barco |
-| Habilidad especial | Según el personaje |
-| Acción arriesgada | El narrador decide |
+| Combate — atacar | Ataque |
+| Combate — resistir/aguantar | Defensa |
+| Huir / Perseguir / Tormenta | Navegación total del barco |
+| Acrobacia, sigilo, precisión | Destreza |
+| Convencer, intimidar, engañar | Carisma |
+| Negociación (conviction) | Carisma |
+| Habilidad especial del personaje | Según el personaje |
+| Acción arriesgada genérica | El narrador / modelo mecánico decide |
 
 ## Inventario
 Estructura JSONB en `session_character_state.inventory`:
@@ -87,7 +101,7 @@ Estructura JSONB en `session_character_state.inventory`:
 
 ## Personajes
 Definidos en `src/data/characters.js`. 6 personajes fijos en el MVP.
-Campos: `id, name, role, combatStyle, hp, attack, defense, navigation, ability`.
+Campos: `id, name, role, combatStyle, hp, attack, defense, navigation, dexterity, charisma, ability`.
 
 Estructura de `ability`:
 ```js
