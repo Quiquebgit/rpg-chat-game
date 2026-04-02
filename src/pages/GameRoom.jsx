@@ -10,14 +10,11 @@ import { NarratorMessage, NarratorTyping, NpcMessage } from '../components/Narra
 import { ActionMessage, OocMessage, GmMessage, PlayerMessage } from '../components/ChatMessages'
 import { DiceMessage } from '../components/DiceMessage'
 import { PreGameScreen } from '../components/PreGameScreen'
-import { InventoryPanel, DebugInventoryButton } from '../components/InventoryPanel'
-import { CollapsibleAbility } from '../components/CollapsibleAbility'
-import { StatRow } from '../components/StatRow'
 import { StatBoostPanel, HealPanel } from '../components/StatBoostPanel'
+import { CharacterPanel } from '../components/CharacterPanel'
 
 function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const [input, setInput] = useState('')
-  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [playersOpen, setPlayersOpen] = useState(false)
   const [actionMode, setActionMode] = useState(true)
@@ -105,6 +102,23 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
     prevHasFruit.current = hasFruit
   }, [hasFruit])
 
+  // Flash de color al cambiar de modo de juego
+  const [modeFlashColor, setModeFlashColor] = useState(null)
+  const prevGameModeRef = useRef(gameMode)
+  useEffect(() => {
+    if (prevGameModeRef.current !== gameMode && gameMode !== 'normal') {
+      const colors = {
+        combat:      'rgba(220, 38, 38, 0.3)',
+        navigation:  'rgba(37, 99, 235, 0.25)',
+        exploration: 'rgba(22, 163, 74, 0.25)',
+        negotiation: 'rgba(217, 119, 6, 0.25)',
+      }
+      setModeFlashColor(colors[gameMode] || null)
+      setTimeout(() => setModeFlashColor(null), 700)
+    }
+    prevGameModeRef.current = gameMode
+  }, [gameMode])
+
   // ¿Es el turno de este jugador?
   const currentTurnName = allCharacters.find(c => c.id === session?.current_turn_character_id)?.name
   const isMyTurn = session?.current_turn_character_id === character.id && !isDead
@@ -181,11 +195,11 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
       style={gameMode !== 'normal' ? { boxShadow: MODE_SHADOW[gameMode] } : undefined}
     >
 
-      {/* Overlay sidebar izquierda */}
-      {sidebarOpen && (
+      {/* Flash de transición entre modos de juego */}
+      {modeFlashColor && (
         <div
-          className="fixed inset-0 bg-black/50 z-10 md:hidden"
-          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 pointer-events-none z-30"
+          style={{ background: modeFlashColor, animation: 'mode-flash 0.7s ease-out forwards' }}
         />
       )}
 
@@ -238,152 +252,27 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
         </button>
       </nav>
 
-      {/* Lengüeta lateral */}
-      {!sidebarOpen && (
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="md:hidden fixed left-0 top-0 h-full z-30 w-7 bg-gray-900/80 backdrop-blur border-r border-amber-400/20 flex items-center justify-center"
-          aria-label="Abrir panel de personaje"
-        >
-          <span className="text-amber-400 text-2xl font-light leading-none">›</span>
-        </button>
-      )}
-
-      {/* Panel lateral */}
-      <aside className={`
-        fixed md:relative z-20 h-full
-        w-[23rem] shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col pr-7 pl-5 py-5 gap-4
-        overflow-y-auto
-        transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
-
-        <button
-          onClick={() => setSidebarOpen(false)}
-          className="md:hidden absolute right-0 top-0 h-full w-7 bg-gray-900/80 backdrop-blur flex items-center justify-center"
-          aria-label="Cerrar panel"
-        >
-          <span className="text-amber-400 text-2xl font-light leading-none">‹</span>
-        </button>
-
-        <div className={`relative rounded-lg p-3 transition-all duration-300 ${isDead ? 'opacity-60' : ''} ${fruitFlash ? 'ring-2 ring-purple-400 bg-purple-400/10 animate-pulse' : hasFruit ? 'ring-1 ring-purple-500/40' : ''}`}>
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Jugando como</p>
-          <div className="flex items-center gap-2">
-            <h2 className={`text-2xl font-bold ${isDead ? 'line-through text-gray-500' : 'text-amber-300'}`}>
-              {character.name}
-            </h2>
-            {isDead && <span title="Fuera de combate" className="text-xl leading-none">☠️</span>}
-            {!isDead && hasFruit && (
-              <span title="Portador de fruta del diablo" className="text-lg leading-none">🍎</span>
-            )}
-          </div>
-          <p className={`text-sm uppercase tracking-widest ${isDead ? 'text-gray-600' : 'text-gray-400'}`}>{character.role}</p>
-          <p className="text-xs text-gray-600 italic mt-1">{character.combatStyle}</p>
-          {isDead && (
-            <p className="text-xs text-red-400/70 mt-1 font-semibold">— Fuera de combate —</p>
-          )}
-        </div>
-
-        <div>
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">Vida</p>
-          <div className="flex items-center gap-3">
-            <div className="flex gap-1 flex-wrap">
-              {Array.from({ length: character.hp }).map((_, i) => (
-                <div
-                  key={i}
-                  className={`h-4 w-3 shrink-0 rotate-45 ${i < hpCurrent ? 'bg-red-500' : 'bg-gray-700'}`}
-                  style={{ clipPath: 'polygon(50% 0%, 100% 30%, 100% 70%, 50% 100%, 0% 70%, 0% 30%)' }}
-                />
-              ))}
-            </div>
-            <span className="text-sm font-bold text-red-400">{hpCurrent}/{character.hp}</span>
-          </div>
-        </div>
-
-        <div>
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-3">Stats</p>
-          <div className="flex flex-col gap-3">
-            <StatRow icon="⚔️" label="Ataque" value={character.attack} bonus={(equipmentBonuses.attack || 0) + (combatBoosts.attack || 0)} color="bg-amber-400" />
-            <StatRow icon="🛡️" label="Defensa" value={character.defense} bonus={(equipmentBonuses.defense || 0) + (combatBoosts.defense || 0)} color="bg-blue-400" />
-            <StatRow icon="🧭" label="Navegación" value={character.navigation} bonus={(equipmentBonuses.navigation || 0) + (combatBoosts.navigation || 0)} color="bg-green-400" />
-          </div>
-        </div>
-
-        {/* Destreza y Carisma */}
-        <div>
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-3">Destreza / Carisma</p>
-          <div className="flex flex-col gap-3">
-            <StatRow icon="🤸" label="Destreza" value={character.dexterity ?? 0} bonus={(equipmentBonuses.dexterity || 0) + (combatBoosts.dexterity || 0) + (statUpgrades.dexterity || 0)} color="bg-orange-400" />
-            <StatRow icon="💬" label="Carisma"  value={character.charisma  ?? 0} bonus={(equipmentBonuses.charisma  || 0) + (combatBoosts.charisma  || 0) + (statUpgrades.charisma  || 0)} color="bg-pink-400" />
-          </div>
-        </div>
-
-        {/* Economía: berries, bounty y XP */}
-        <div className="border border-amber-400/20 rounded-lg p-3 bg-amber-400/5">
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">Economía</p>
-          <div className="flex flex-col gap-2 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-400">💰 Berries</span>
-              <span className="text-amber-300 font-semibold">{currentMoney.toLocaleString()}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-400">☠️ Recompensa</span>
-              <span className="text-red-300 font-semibold">{character.bounty?.toLocaleString() ?? 0} B</span>
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-              <span>⭐ XP</span>
-              <span>{currentXp} (+{xpProgress}/{XP_CONFIG.THRESHOLD})</span>
-            </div>
-            <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-yellow-400 rounded-full transition-all duration-500"
-                style={{ width: `${(xpProgress / XP_CONFIG.THRESHOLD) * 100}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        <CollapsibleAbility
-          label="Habilidad especial"
-          name={character.ability.name}
-          description={character.ability.description}
-          borderColor="border-amber-400/40"
-          bgColor="bg-amber-400/5"
-          labelColor="text-amber-500/70"
-          nameColor="text-amber-300"
-        />
-        {equippedFruit?.special_ability && (
-          <CollapsibleAbility
-            label="🍎 Poder de fruta"
-            name={equippedFruit.name}
-            description={equippedFruit.special_ability}
-            effects={equippedFruit.effects}
-            borderColor="border-purple-400/40"
-            bgColor="bg-purple-400/5"
-            labelColor="text-purple-500/70"
-            nameColor="text-purple-300"
-          />
-        )}
-
-        <div className="flex flex-col">
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">Inventario</p>
-          <div>
-            <InventoryPanel
-              inventory={inventory}
-              isMyTurn={isMyTurn}
-              allies={presentedCharacters.filter(c => c.id !== character.id)}
-              onUse={(item, i) => item.type === 'fruta' && !item.equipped ? setFruitConfirmItem({ item, i }) : useItem(item, i)}
-              onGift={giftItem}
-            />
-          </div>
-          {import.meta.env.DEV && (
-            <DebugInventoryButton onAdd={debugAddItem} />
-          )}
-        </div>
-
-      </aside>
+      <CharacterPanel
+        character={character}
+        isDead={isDead}
+        hasFruit={hasFruit}
+        fruitFlash={fruitFlash}
+        equippedFruit={equippedFruit}
+        hpCurrent={hpCurrent}
+        equipmentBonuses={equipmentBonuses}
+        combatBoosts={combatBoosts}
+        statUpgrades={statUpgrades}
+        currentMoney={currentMoney}
+        currentXp={currentXp}
+        xpProgress={xpProgress}
+        gameMode={gameMode}
+        inventory={inventory}
+        isMyTurn={isMyTurn}
+        presentedCharacters={presentedCharacters}
+        onUseItem={(item, i) => item.type === 'fruta' && !item.equipped ? setFruitConfirmItem({ item, i }) : useItem(item, i)}
+        onGiftItem={giftItem}
+        onDebugAddItem={import.meta.env.DEV ? debugAddItem : null}
+      />
 
       {/* Modal de stat-up por XP */}
       {myStatUpPending && (
@@ -392,7 +281,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             <div className="text-center">
               <p className="text-4xl mb-3">⭐</p>
               <h3 className="text-xl font-bold text-yellow-300">¡Has subido de nivel!</h3>
-              <p className="text-sm text-gray-400 mt-2">Elige un stat para mejorar en +1:</p>
+              <p className="text-sm text-gray-400 mt-2">Elige una estadística para mejorar en +1:</p>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {UPGRADABLE_STATS.map(stat => (
@@ -515,7 +404,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
       )}
 
       {/* Área principal de chat */}
-      <main className="flex flex-col flex-1 min-w-0 md:ml-0 ml-7">
+      <main className="flex flex-col flex-1 min-w-0">
 
         <header className="border-b border-gray-800 px-6 py-4 shrink-0 flex items-center justify-between">
           <div>

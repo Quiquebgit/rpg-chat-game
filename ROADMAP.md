@@ -146,25 +146,25 @@ OLA 6  ─── Sprint 8 (PWA y Lanzamiento)
 #### 🔴 Prioritario: Panel de personaje — reorganización sin perder contenido
 El panel acumula: stats base, stats nuevos (DES/CAR), habilidad especial, habilidad de fruta, equipamiento e inventario. Todo tiene su razón de estar, pero en móvil resulta incómodo. La solución no es eliminar nada sino reorganizar cómo se accede a ello.
 
-- [ ] **Sistema de pestañas dentro del panel lateral** — tres pestañas compactas:
-  - `Personaje` → stats (HP, ATK, DEF, NAV, DES, CAR) + habilidad especial
-  - `Poderes` → habilidad de fruta del diablo (solo si tiene) + efectos activos
-  - `Mochila` → equipamiento equipado + inventario completo + dinero (berries)
-- [ ] **En móvil: panel como bottom sheet deslizable** — oculto por defecto, sube con swipe o botón flotante
-- [ ] **En desktop: panel lateral fijo** con las mismas pestañas pero siempre visible
-- [ ] Stats visuales compactos: barra de HP + valores numéricos con icono para el resto
-- [ ] La pestaña activa recuerda su estado entre renders
+- [x] **Sistema de pestañas dentro del panel lateral** — tres pestañas compactas:
+  - `Personaje` → stats (HP, ATK, DEF, NAV, DES, CAR) + economía
+  - `Poderes` → habilidad especial + habilidad de fruta del diablo + boosts activos
+  - `Mochila` → equipamiento + inventario completo + berries
+- [x] **En móvil: panel como bottom sheet deslizable** — botón flotante `⚔️`, sube con transición
+- [x] **En desktop: panel lateral fijo** con las mismas pestañas siempre visible
+- [x] Stats visuales compactos: barra de HP progress bar + valores numéricos con icono
+- [x] La pestaña activa recuerda su estado entre renders
 
 #### Resto de UI/UX
-- [ ] Animación de dado: CSS keyframes al tirar (rotación, rebote, número final grande)
-- [ ] Visual de grado de éxito: color + icono + texto dramático (éxito crítico = dorado; fallo crítico = rojo oscuro)
-- [ ] Retocar paleta de colores: más contraste, tipografía más impactante, estética pirata/aventura
-- [ ] Pantalla de inicio del lobby rediseñada: arte de fondo, título con personalidad
-- [ ] Tarjetas de personaje en selección: stats visuales con barras, rol e icono de combate
-- [ ] Indicador de turno claro: quién tiene el turno, con animación sutil
-- [ ] Panel de modo de juego mejorado: enemigos con barras de HP animadas, bounty visible
-- [ ] Transiciones entre modos (combat → normal) con efecto de fade/flash
-- [ ] Typing indicator del narrador más llamativo
+- [x] Animación de dado: CSS keyframes `dice-roll` al tirar (rotación 0.6s) + `scale-in` para el total
+- [x] Visual de grado de éxito: texto dramático grande con DEGREE_LABELS (⚡ ¡CRÍTICO! / 💀 ¡CATÁSTROFE!)
+- [x] Tipografía épica: fuente Cinzel para títulos (Grand Line, nombres de personaje, CharacterSelect)
+- [x] Pantalla de inicio del lobby rediseñada: gradiente oscuro épico purple/blue, título con Cinzel + glow
+- [x] Tarjetas de personaje en selección: barras de 5 stats (ATK/DEF/NAV/DES/CAR), hover impactante
+- [x] Indicador de turno claro: nombre del jugador activo con `glow-pulse` animation en amber
+- [x] Panel de modo de juego mejorado: bounty como badge prominente, enemigo derrotado con grayscale, HP transition 700ms
+- [x] Transiciones entre modos (combat → normal) con efecto flash de color
+- [x] Typing indicator del narrador: 3 puntos con `dot-bounce` escalonado
 
 ### Archivos afectados
 `src/components/*.jsx` · `src/pages/Lobby.jsx` · `src/pages/CharacterSelect.jsx` · `src/data/constants.js` · CSS/Tailwind

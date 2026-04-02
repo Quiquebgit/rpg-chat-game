@@ -104,5 +104,6 @@ Ver [ROADMAP.md](ROADMAP.md) para el plan completo de sprints.
 - Bugs B1+B2 corregidos al 100%: Liderazgo (selector ATK/DEF) + Tratamiento (HealPanel) + boost visible en stats + iniciativa consistente
 - Sprint 1 completado al 100%: `checkDegree`, `skill_check`, `support_roll`, consecuencias mecánicas por grado, desafíos sostenidos, acciones triviales/imposibles, DiceMessage con grado visual
 - Sprint 2 completado al 100%: dexterity+charisma en personajes y prompts, economía de berries (money/XP en BD), bounty de jugadores y enemigos, progresión por XP con modal de stat-up, calculateXpReward/calculateMoneyReward en combat.js
+- Sprint 3 completado al 100%: CharacterPanel con tabs (Personaje/Poderes/Mochila) + bottom sheet mobile, fuente Cinzel, @keyframes dice-roll/scale-in/dot-bounce/glow-pulse/mode-flash, DiceMessage animado, typing indicator 3 puntos, GameModePanel mejorado (bounty badge, grayscale derrotados, glow-pulse turno), CharacterSelect con barras de stats, Lobby con gradiente épico
 
-**Próximo sprint:** Sprint 3 (UI/UX) o Sprint 4 (Contenido) — ambos paralelizables
+**Próximo sprint:** Sprint 4 (Contenido y Gestión de Historias)

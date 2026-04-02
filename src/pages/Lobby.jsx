@@ -189,7 +189,9 @@ function Lobby({ onSessionSelect }) {
   // Pantalla de inicialización del Director
   if (view === 'initializing') {
     return (
-      <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center gap-6 px-6">
+      <div className="min-h-screen text-white flex flex-col items-center justify-center gap-6 px-6"
+        style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(30,10,60,0.95), transparent 60%), #030712' }}
+      >
         <div className="text-5xl animate-pulse">🎬</div>
         <h2 className="text-xl font-bold text-amber-300">El Director está preparando la aventura…</h2>
         <p className="text-sm text-gray-500 text-center max-w-sm">
@@ -203,7 +205,9 @@ function Lobby({ onSessionSelect }) {
   if (view === 'difficulty-picker' && selectedStory) {
     const DIFF_ICONS = { fácil: '🌊', normal: '⚔️', difícil: '💀' }
     return (
-      <div className="min-h-screen bg-gray-950 text-white px-6 py-10">
+      <div className="min-h-screen text-white px-6 py-10"
+        style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(30,10,60,0.95), transparent 60%), #030712' }}
+      >
         <div className="max-w-2xl mx-auto">
           <button onClick={() => setView('story-picker')} className="text-xs text-gray-600 hover:text-gray-400 mb-8 flex items-center gap-1">
             ← Volver a historias
@@ -236,14 +240,16 @@ function Lobby({ onSessionSelect }) {
   // Selector de historia
   if (view === 'story-picker') {
     return (
-      <div className="min-h-screen bg-gray-950 text-white px-6 py-10">
+      <div className="min-h-screen text-white px-6 py-10"
+        style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(30,10,60,0.95), transparent 60%), #030712' }}
+      >
         <div className="max-w-2xl mx-auto">
           <button onClick={() => setView('sessions')} className="text-xs text-gray-600 hover:text-gray-400 mb-8 flex items-center gap-1">
             ← Volver al lobby
           </button>
           <div className="text-center mb-8">
             <p className="text-xs uppercase tracking-widest text-amber-500/60 mb-2">Nueva aventura</p>
-            <h2 className="text-2xl font-bold text-amber-300">Elige una historia</h2>
+            <h2 className="text-2xl font-bold text-amber-300" style={{ fontFamily: 'var(--font-display)' }}>Elige una historia</h2>
           </div>
           <div className="flex flex-col gap-4">
             {STORIES.map(story => (
@@ -271,17 +277,27 @@ function Lobby({ onSessionSelect }) {
 
   // Vista principal: lista de sesiones
   return (
-    <div className="min-h-screen bg-gray-950 text-white px-6 py-10">
+    <div
+      className="min-h-screen text-white px-6 py-10"
+      style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(30,10,60,0.95), transparent 60%), radial-gradient(ellipse at 80% 90%, rgba(0,20,80,0.5), transparent 50%), #030712' }}
+    >
       <div className="max-w-2xl mx-auto">
 
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-amber-300 tracking-wide">⚓ Grand Line</h1>
-          <p className="text-gray-500 mt-2 text-sm">Elige una aventura o empieza una nueva</p>
+        <div className="text-center mb-12">
+          <div className="inline-block border-b border-amber-400/20 pb-6 mb-2 w-full">
+            <h1
+              className="text-5xl font-bold text-amber-300 tracking-widest mb-3"
+              style={{ fontFamily: 'var(--font-display)', textShadow: '0 0 40px rgba(251,191,36,0.2)' }}
+            >
+              ⚓ Grand Line
+            </h1>
+            <p className="text-gray-500 text-sm italic">Elige una aventura o empieza una nueva</p>
+          </div>
         </div>
 
         <button
           onClick={() => setView('story-picker')}
-          className="w-full mb-8 py-4 rounded-xl font-bold text-lg bg-amber-400 text-gray-900 hover:bg-amber-300 transition-colors shadow-lg shadow-amber-400/20"
+          className="w-full mb-8 py-4 rounded-xl font-bold text-lg bg-amber-400 text-gray-900 hover:bg-amber-300 hover:scale-[1.02] transition-all shadow-lg shadow-amber-400/20"
         >
           + Nueva aventura
         </button>

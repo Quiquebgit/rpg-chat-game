@@ -15,7 +15,7 @@ function EnemyCard({ enemy }) {
   const ability = enemy.ability
 
   return (
-    <div className={`relative flex flex-col gap-2 rounded-lg border px-3 py-2.5 min-w-[160px] max-w-[220px] bg-red-950/30 border-red-500/30 ${enemy.defeated ? 'opacity-40' : ''}`}>
+    <div className={`relative flex flex-col gap-2 rounded-lg border px-3 py-2.5 min-w-[160px] max-w-[220px] bg-red-950/30 border-red-500/30 transition-all duration-500 ${enemy.defeated ? 'opacity-40 grayscale' : ''}`}>
       {enemy.defeated && (
         <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/60">
           <span className="text-3xl">✕</span>
@@ -35,13 +35,15 @@ function EnemyCard({ enemy }) {
         )}
       </div>
       {enemy.bounty > 0 && (
-        <div className="text-xs text-yellow-500/80">☠️ {enemy.bounty.toLocaleString()} B</div>
+        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400/15 border border-amber-400/30 text-xs font-semibold text-amber-300 w-fit">
+          ☠️ {enemy.bounty.toLocaleString()} B
+        </div>
       )}
 
       {/* Barra de HP */}
       <div className="h-1.5 w-full rounded-full bg-gray-800 overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-500 ${hpBarColor}`}
+          className={`h-full rounded-full transition-all duration-700 ${hpBarColor}`}
           style={{ width: `${hpPct * 100}%` }}
         />
       </div>
@@ -74,7 +76,14 @@ function CombatPanel({ data, currentTurnName }) {
       <div className="flex items-center gap-2">
         <span className="text-xs font-black uppercase tracking-widest text-red-400">⚔️ Combate en curso</span>
         {currentTurnName && (
-          <span className="text-xs text-gray-500">— turno de <span className="text-gray-300 font-semibold">{currentTurnName}</span></span>
+          <span className="text-xs text-gray-500">— turno de{' '}
+            <span
+              className="text-amber-300 font-semibold"
+              style={{ animation: 'glow-pulse 2s ease-in-out infinite' }}
+            >
+              {currentTurnName}
+            </span>
+          </span>
         )}
       </div>
       <div className="flex gap-2 flex-wrap">

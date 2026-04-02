@@ -29,6 +29,33 @@ export const ITEM_RARITY_STYLES = {
 // Etiquetas legibles de stats
 export const STAT_LABELS = { attack: 'Ataque', defense: 'Defensa', navigation: 'Navegación', dexterity: 'Destreza', charisma: 'Carisma', hp: 'Vida', ability: 'Habilidad' }
 
+// Iconos de stats para el panel de personaje
+export const STAT_ICONS = {
+  hp:         '❤️',
+  attack:     '⚔️',
+  defense:    '🛡️',
+  navigation: '⚓',
+  dexterity:  '🎯',
+  charisma:   '💬',
+}
+
+// Colores de stats (clase Tailwind bg-*)
+export const STAT_COLORS = {
+  attack:     'bg-amber-400',
+  defense:    'bg-blue-400',
+  navigation: 'bg-green-400',
+  dexterity:  'bg-orange-400',
+  charisma:   'bg-pink-400',
+}
+
+// Textos de grado de éxito en tiradas
+export const DEGREE_LABELS = {
+  critical_success: { label: '⚡ ¡CRÍTICO!',     className: 'text-yellow-300 text-2xl font-black' },
+  success:          { label: '✓ Éxito',           className: 'text-emerald-300 text-xl font-bold' },
+  failure:          { label: '✗ Fallo',            className: 'text-red-400 text-xl font-bold' },
+  critical_failure: { label: '💀 ¡CATÁSTROFE!',   className: 'text-red-600 text-2xl font-black' },
+}
+
 // Configuración de XP y progresión
 export const XP_CONFIG = {
   THRESHOLD: 100,        // XP necesario para ganar 1 punto de stat

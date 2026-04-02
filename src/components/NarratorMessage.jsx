@@ -25,8 +25,17 @@ export function NarratorTyping() {
   return (
     <div className="flex flex-col items-center gap-1 px-4">
       <span className="text-xs uppercase tracking-widest text-amber-500/60">Narrador</span>
-      <div className="bg-gray-900 border border-amber-400/20 rounded-xl px-5 py-3">
-        <span className="text-amber-400/60 animate-pulse text-sm italic">Narrando…</span>
+      <div className="bg-gray-900 border border-amber-400/20 rounded-xl px-5 py-3 flex items-center gap-3">
+        <span className="text-xs uppercase tracking-widest text-amber-600/70">Narrando</span>
+        <div className="flex gap-1 items-center">
+          {[0, 0.2, 0.4].map((delay, i) => (
+            <div
+              key={i}
+              className="w-1.5 h-1.5 rounded-full bg-amber-400"
+              style={{ animation: `dot-bounce 1.2s ease-in-out ${delay}s infinite` }}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )

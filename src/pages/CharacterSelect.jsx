@@ -80,7 +80,12 @@ function CharacterSelect({ session, playerId, onConfirm, onBack }) {
   return (
     <div className="min-h-screen bg-gray-950 text-white px-6 pt-10 pb-28">
       <div className="text-center mb-10">
-        <h1 className="text-4xl font-bold text-amber-300 tracking-wide">⚓ Elige tu personaje</h1>
+        <h1
+          className="text-4xl font-bold text-amber-300 tracking-widest"
+          style={{ fontFamily: 'var(--font-display)' }}
+        >
+          ⚓ Elige tu personaje
+        </h1>
         <p className="text-gray-500 mt-2 text-sm">
           Selecciona a quién encarnarás en esta aventura. Cada elección importa.
         </p>
@@ -93,11 +98,11 @@ function CharacterSelect({ session, playerId, onConfirm, onBack }) {
             <div key={character.id} className="relative">
               {/* Overlay para personajes ocupados por otro jugador */}
               {status === 'taken' && (
-                <div className="absolute inset-0 z-10 rounded-xl bg-gray-950/70 flex flex-col items-center justify-center gap-2">
-                  <p className="text-xs font-bold uppercase tracking-widest text-gray-500">En juego</p>
+                <div className="absolute inset-0 z-10 rounded-xl backdrop-blur-sm bg-gray-950/75 flex flex-col items-center justify-center gap-2">
+                  <p className="text-sm font-bold uppercase tracking-widest text-gray-400">⚔️ En juego</p>
                   <button
                     onClick={() => forceRelease(character.id)}
-                    className="text-xs text-red-800 hover:text-red-500 underline underline-offset-2 transition-colors"
+                    className="text-xs text-red-700 hover:text-red-400 underline underline-offset-2 transition-colors"
                   >
                     Liberar
                   </button>
