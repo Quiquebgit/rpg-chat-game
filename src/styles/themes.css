@@ -1,0 +1,326 @@
+/* ============================================================
+   SISTEMA DE TEMAS — One Piece RPG Chat Game
+   Dos modos: Grand Line Night (oscuro) y Dawn Island (claro)
+   El atributo data-theme en <html> controla el tema activo.
+   useTheme.js gestiona la detección automática y el override.
+   ============================================================ */
+
+/* ---- MODO OSCURO: Grand Line Night (carbón + oro) --------- */
+:root,
+:root[data-theme="dark"] {
+  /* Fondos */
+  --bg-base:     #0a0a0a;
+  --bg-surface:  #141414;
+  --bg-elevated: #1e1e1e;
+  --bg-overlay:  #2a2a2a;
+
+  /* Bordes */
+  --border-subtle:  #1e1e1e;
+  --border-default: #2e2e2e;
+  --border-strong:  #3d3d3d;
+
+  /* Texto */
+  --text-primary:   #f5f0e8;
+  --text-secondary: #c0b090;
+  --text-muted:     #6b5c45;
+  --text-disabled:  #3d3025;
+
+  /* Acento — Sombrero de Paja */
+  --accent-gold:        #f59e0b;
+  --accent-gold-bright: #fcd34d;
+  --accent-gold-dim:    #d97706;
+  --accent-gold-bg:     rgba(245, 158, 11, 0.10);
+  --accent-gold-border: rgba(245, 158, 11, 0.25);
+
+  /* Modo Combate — rojo */
+  --mode-combat:        #dc2626;
+  --mode-combat-light:  #f87171;
+  --mode-combat-bg:     rgba(220, 38, 38, 0.12);
+  --mode-combat-border: rgba(220, 38, 38, 0.30);
+  --mode-combat-shadow: inset 0 0 150px rgba(220, 38, 38, 0.55);
+  --mode-combat-flash:  rgba(220, 38, 38, 0.30);
+
+  /* Modo Navegación — azul */
+  --mode-navigation:        #3b82f6;
+  --mode-navigation-light:  #93c5fd;
+  --mode-navigation-bg:     rgba(59, 130, 246, 0.12);
+  --mode-navigation-border: rgba(59, 130, 246, 0.30);
+  --mode-navigation-shadow: inset 0 0 120px rgba(59, 130, 246, 0.22);
+  --mode-navigation-flash:  rgba(59, 130, 246, 0.25);
+
+  /* Modo Exploración — verde */
+  --mode-exploration:        #22c55e;
+  --mode-exploration-light:  #86efac;
+  --mode-exploration-bg:     rgba(34, 197, 94, 0.12);
+  --mode-exploration-border: rgba(34, 197, 94, 0.30);
+  --mode-exploration-shadow: inset 0 0 120px rgba(34, 197, 94, 0.22);
+  --mode-exploration-flash:  rgba(34, 197, 94, 0.25);
+
+  /* Modo Negociación — naranja */
+  --mode-negotiation:        #f97316;
+  --mode-negotiation-light:  #fdba74;
+  --mode-negotiation-bg:     rgba(249, 115, 22, 0.12);
+  --mode-negotiation-border: rgba(249, 115, 22, 0.30);
+  --mode-negotiation-shadow: inset 0 0 120px rgba(249, 115, 22, 0.22);
+  --mode-negotiation-flash:  rgba(249, 115, 22, 0.25);
+
+  /* Stats — cada uno con su color representativo */
+  --stat-attack:     #ef4444;  /* rojo    — poder */
+  --stat-defense:    #3b82f6;  /* azul    — escudo */
+  --stat-navigation: #10b981;  /* esmeralda — mar */
+  --stat-dexterity:  #f97316;  /* naranja — velocidad */
+  --stat-charisma:   #ec4899;  /* rosa    — presencia */
+
+  /* Items por tipo */
+  --item-fruta:      #a855f7;  /* violeta — fruta del diablo */
+  --item-arma:       #ef4444;  /* rojo */
+  --item-equipo:     #3b82f6;  /* azul */
+  --item-consumible: #22c55e;  /* verde */
+
+  /* Rareza */
+  --rarity-unico: #fcd34d;
+  --rarity-raro:  #a855f7;
+  --rarity-comun: #6b5c45;
+
+  /* Grados de éxito en tiradas */
+  --degree-crit-success: #fcd34d;
+  --degree-success:      #34d399;
+  --degree-failure:      #f87171;
+  --degree-crit-failure: #dc2626;
+
+  /* Barras de vida */
+  --hp-high:   #22c55e;
+  --hp-medium: #fcd34d;
+  --hp-low:    #ef4444;
+
+  /* Actitudes NPC */
+  --attitude-hostile:  #ef4444;
+  --attitude-neutral:  #8a8a8a;
+  --attitude-friendly: #22c55e;
+
+  /* Estado de sesión */
+  --session-active:    #22c55e;
+  --session-finished:  #3b82f6;
+  --session-abandoned: #6b5c45;
+
+  /* Chat */
+  --msg-narrator-bg:        #1a1510;
+  --msg-narrator-border:    rgba(245, 158, 11, 0.35);
+  --msg-narrator-bar:       #f59e0b;
+  --msg-player-bg:          #1e1e1e;
+  --msg-player-border:      #2e2e2e;
+  --msg-player-self-bg:     rgba(59, 130, 246, 0.08);
+  --msg-player-self-border: rgba(59, 130, 246, 0.25);
+
+  /* Sombras */
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.60);
+  --shadow-modal: 0 8px 40px rgba(0, 0, 0, 0.80);
+
+  /* Gradiente de fondo (Lobby) */
+  --gradient-lobby:
+    radial-gradient(ellipse at 50% 0%,  rgba(30, 10, 60, 0.90), transparent 60%),
+    radial-gradient(ellipse at 80% 90%, rgba(0,  20, 80, 0.40), transparent 50%),
+    var(--bg-base);
+}
+
+/* ---- MODO CLARO: Dawn Island (pergamino + tinta) ---------- */
+:root[data-theme="light"] {
+  /* Fondos */
+  --bg-base:     #f5e6c0;
+  --bg-surface:  #e8d09c;
+  --bg-elevated: #dcc088;
+  --bg-overlay:  #cfb070;
+
+  /* Bordes */
+  --border-subtle:  #c8a860;
+  --border-default: #b89448;
+  --border-strong:  #a08038;
+
+  /* Texto */
+  --text-primary:   #1a0f02;
+  --text-secondary: #3d2b0e;
+  --text-muted:     #7a5c30;
+  --text-disabled:  #b89870;
+
+  /* Acento — oro más oscuro para contraste WCAG AA */
+  --accent-gold:        #b45309;
+  --accent-gold-bright: #d97706;
+  --accent-gold-dim:    #92400e;
+  --accent-gold-bg:     rgba(180, 83, 9, 0.10);
+  --accent-gold-border: rgba(180, 83, 9, 0.30);
+
+  /* Modo Combate */
+  --mode-combat:        #b91c1c;
+  --mode-combat-light:  #dc2626;
+  --mode-combat-bg:     rgba(185, 28, 28, 0.10);
+  --mode-combat-border: rgba(185, 28, 28, 0.25);
+  --mode-combat-shadow: inset 0 0 150px rgba(185, 28, 28, 0.35);
+  --mode-combat-flash:  rgba(185, 28, 28, 0.20);
+
+  /* Modo Navegación */
+  --mode-navigation:        #1d4ed8;
+  --mode-navigation-light:  #2563eb;
+  --mode-navigation-bg:     rgba(29, 78, 216, 0.10);
+  --mode-navigation-border: rgba(29, 78, 216, 0.25);
+  --mode-navigation-shadow: inset 0 0 120px rgba(29, 78, 216, 0.15);
+  --mode-navigation-flash:  rgba(29, 78, 216, 0.15);
+
+  /* Modo Exploración */
+  --mode-exploration:        #15803d;
+  --mode-exploration-light:  #16a34a;
+  --mode-exploration-bg:     rgba(21, 128, 61, 0.10);
+  --mode-exploration-border: rgba(21, 128, 61, 0.25);
+  --mode-exploration-shadow: inset 0 0 120px rgba(21, 128, 61, 0.15);
+  --mode-exploration-flash:  rgba(21, 128, 61, 0.15);
+
+  /* Modo Negociación */
+  --mode-negotiation:        #c2410c;
+  --mode-negotiation-light:  #ea580c;
+  --mode-negotiation-bg:     rgba(194, 65, 12, 0.10);
+  --mode-negotiation-border: rgba(194, 65, 12, 0.25);
+  --mode-negotiation-shadow: inset 0 0 120px rgba(194, 65, 12, 0.15);
+  --mode-negotiation-flash:  rgba(194, 65, 12, 0.15);
+
+  /* Stats */
+  --stat-attack:     #b91c1c;
+  --stat-defense:    #1d4ed8;
+  --stat-navigation: #059669;
+  --stat-dexterity:  #ea580c;
+  --stat-charisma:   #db2777;
+
+  /* Items */
+  --item-fruta:      #7e22ce;
+  --item-arma:       #b91c1c;
+  --item-equipo:     #1d4ed8;
+  --item-consumible: #15803d;
+
+  /* Rareza */
+  --rarity-unico: #b45309;
+  --rarity-raro:  #7e22ce;
+  --rarity-comun: #7a5c30;
+
+  /* Grados */
+  --degree-crit-success: #b45309;
+  --degree-success:      #059669;
+  --degree-failure:      #b91c1c;
+  --degree-crit-failure: #7f1d1d;
+
+  /* HP */
+  --hp-high:   #15803d;
+  --hp-medium: #d97706;
+  --hp-low:    #b91c1c;
+
+  /* Actitudes */
+  --attitude-hostile:  #b91c1c;
+  --attitude-neutral:  #7a5c30;
+  --attitude-friendly: #15803d;
+
+  /* Sesión */
+  --session-active:    #15803d;
+  --session-finished:  #1d4ed8;
+  --session-abandoned: #7a5c30;
+
+  /* Chat */
+  --msg-narrator-bg:        #c8a858;
+  --msg-narrator-border:    rgba(92, 40, 0, 0.40);
+  --msg-narrator-bar:       #92400e;
+  --msg-player-bg:          #dcc888;
+  --msg-player-border:      #b89448;
+  --msg-player-self-bg:     rgba(29, 78, 216, 0.08);
+  --msg-player-self-border: rgba(29, 78, 216, 0.30);
+
+  /* Sombras */
+  --shadow-card: 0 4px 16px rgba(100, 60, 0, 0.18);
+  --shadow-modal: 0 8px 32px rgba(100, 60, 0, 0.28);
+
+  /* Gradiente Lobby */
+  --gradient-lobby:
+    radial-gradient(ellipse at 50% 0%,  rgba(255, 210, 80, 0.45), transparent 55%),
+    radial-gradient(ellipse at 80% 90%, rgba(180,  83,  9, 0.18), transparent 50%),
+    var(--bg-base);
+}
+
+/* ---- DETECCIÓN AUTOMÁTICA DE PREFERENCIA DEL SISTEMA ------ */
+/* Se aplica solo si el usuario no ha forzado ningún tema       */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]):not([data-theme="light"]) {
+    --bg-base:     #f5e6c0;
+    --bg-surface:  #e8d09c;
+    --bg-elevated: #dcc088;
+    --bg-overlay:  #cfb070;
+    --border-subtle:  #c8a860;
+    --border-default: #b89448;
+    --border-strong:  #a08038;
+    --text-primary:   #1a0f02;
+    --text-secondary: #3d2b0e;
+    --text-muted:     #7a5c30;
+    --text-disabled:  #b89870;
+    --accent-gold:        #b45309;
+    --accent-gold-bright: #d97706;
+    --accent-gold-dim:    #92400e;
+    --accent-gold-bg:     rgba(180, 83, 9, 0.10);
+    --accent-gold-border: rgba(180, 83, 9, 0.30);
+    --mode-combat:        #b91c1c;
+    --mode-combat-light:  #dc2626;
+    --mode-combat-bg:     rgba(185, 28, 28, 0.10);
+    --mode-combat-border: rgba(185, 28, 28, 0.25);
+    --mode-combat-shadow: inset 0 0 150px rgba(185, 28, 28, 0.35);
+    --mode-combat-flash:  rgba(185, 28, 28, 0.20);
+    --mode-navigation:        #1d4ed8;
+    --mode-navigation-light:  #2563eb;
+    --mode-navigation-bg:     rgba(29, 78, 216, 0.10);
+    --mode-navigation-border: rgba(29, 78, 216, 0.25);
+    --mode-navigation-shadow: inset 0 0 120px rgba(29, 78, 216, 0.15);
+    --mode-navigation-flash:  rgba(29, 78, 216, 0.15);
+    --mode-exploration:        #15803d;
+    --mode-exploration-light:  #16a34a;
+    --mode-exploration-bg:     rgba(21, 128, 61, 0.10);
+    --mode-exploration-border: rgba(21, 128, 61, 0.25);
+    --mode-exploration-shadow: inset 0 0 120px rgba(21, 128, 61, 0.15);
+    --mode-exploration-flash:  rgba(21, 128, 61, 0.15);
+    --mode-negotiation:        #c2410c;
+    --mode-negotiation-light:  #ea580c;
+    --mode-negotiation-bg:     rgba(194, 65, 12, 0.10);
+    --mode-negotiation-border: rgba(194, 65, 12, 0.25);
+    --mode-negotiation-shadow: inset 0 0 120px rgba(194, 65, 12, 0.15);
+    --mode-negotiation-flash:  rgba(194, 65, 12, 0.15);
+    --stat-attack:     #b91c1c;
+    --stat-defense:    #1d4ed8;
+    --stat-navigation: #059669;
+    --stat-dexterity:  #ea580c;
+    --stat-charisma:   #db2777;
+    --item-fruta:      #7e22ce;
+    --item-arma:       #b91c1c;
+    --item-equipo:     #1d4ed8;
+    --item-consumible: #15803d;
+    --rarity-unico: #b45309;
+    --rarity-raro:  #7e22ce;
+    --rarity-comun: #7a5c30;
+    --degree-crit-success: #b45309;
+    --degree-success:      #059669;
+    --degree-failure:      #b91c1c;
+    --degree-crit-failure: #7f1d1d;
+    --hp-high:   #15803d;
+    --hp-medium: #d97706;
+    --hp-low:    #b91c1c;
+    --attitude-hostile:  #b91c1c;
+    --attitude-neutral:  #7a5c30;
+    --attitude-friendly: #15803d;
+    --session-active:    #15803d;
+    --session-finished:  #1d4ed8;
+    --session-abandoned: #7a5c30;
+    --msg-narrator-bg:        #c8a858;
+    --msg-narrator-border:    rgba(92, 40, 0, 0.40);
+    --msg-narrator-bar:       #92400e;
+    --msg-player-bg:          #dcc888;
+    --msg-player-border:      #b89448;
+    --msg-player-self-bg:     rgba(29, 78, 216, 0.08);
+    --msg-player-self-border: rgba(29, 78, 216, 0.30);
+    --shadow-card: 0 4px 16px rgba(100, 60, 0, 0.18);
+    --shadow-modal: 0 8px 32px rgba(100, 60, 0, 0.28);
+    --gradient-lobby:
+      radial-gradient(ellipse at 50% 0%,  rgba(255, 210, 80, 0.45), transparent 55%),
+      radial-gradient(ellipse at 80% 90%, rgba(180,  83,  9, 0.18), transparent 50%),
+      var(--bg-base);
+  }
+}

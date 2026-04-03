@@ -12,6 +12,7 @@ import { DiceMessage } from '../components/DiceMessage'
 import { PreGameScreen } from '../components/PreGameScreen'
 import { StatBoostPanel, HealPanel } from '../components/StatBoostPanel'
 import { CharacterPanel } from '../components/CharacterPanel'
+import ThemeToggle from '../components/ThemeToggle'
 
 function GameRoom({ character, session, onLeave, onSelectCharacter }) {
   const [input, setInput] = useState('')
@@ -102,16 +103,16 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
     prevHasFruit.current = hasFruit
   }, [hasFruit])
 
-  // Flash de color al cambiar de modo de juego
+  // Flash de color al cambiar de modo de juego — usa variables CSS para soporte de tema
   const [modeFlashColor, setModeFlashColor] = useState(null)
   const prevGameModeRef = useRef(gameMode)
   useEffect(() => {
     if (prevGameModeRef.current !== gameMode && gameMode !== 'normal') {
       const colors = {
-        combat:      'rgba(220, 38, 38, 0.3)',
-        navigation:  'rgba(37, 99, 235, 0.25)',
-        exploration: 'rgba(22, 163, 74, 0.25)',
-        negotiation: 'rgba(217, 119, 6, 0.25)',
+        combat:      'var(--mode-combat-flash)',
+        navigation:  'var(--mode-navigation-flash)',
+        exploration: 'var(--mode-exploration-flash)',
+        negotiation: 'var(--mode-negotiation-flash)',
       }
       setModeFlashColor(colors[gameMode] || null)
       setTimeout(() => setModeFlashColor(null), 700)
@@ -191,7 +192,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
 
   return (
     <div
-      className="flex h-screen bg-gray-950 text-white overflow-hidden transition-shadow duration-700"
+      className="flex h-screen bg-canvas text-ink overflow-hidden transition-shadow duration-700"
       style={gameMode !== 'normal' ? { boxShadow: MODE_SHADOW[gameMode] } : undefined}
     >
 
@@ -222,15 +223,15 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
       {/* Panel menú derecho deslizante */}
       <nav className={`
         fixed right-0 top-0 z-30 h-full
-        w-64 bg-gray-900 border-l border-gray-800 flex flex-col py-6 gap-2
+        w-64 bg-panel border-l border-stroke flex flex-col py-6 gap-2
         transition-transform duration-300 ease-in-out
         ${menuOpen ? 'translate-x-0' : 'translate-x-full'}
       `}>
         <div className="flex items-center justify-between px-5 mb-4">
-          <span className="text-xs uppercase tracking-widest text-gray-500">Menú</span>
+          <span className="text-xs uppercase tracking-widest text-ink-3">Menú</span>
           <button
             onClick={() => setMenuOpen(false)}
-            className="p-1 rounded text-gray-500 hover:text-gray-300 transition-colors"
+            className="p-1 rounded text-ink-3 hover:text-ink transition-colors"
             aria-label="Cerrar menú"
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -240,13 +241,13 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
         </div>
         <button
           onClick={() => { setMenuOpen(false); onLeave() }}
-          className="w-full text-left px-5 py-3 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
+          className="w-full text-left px-5 py-3 text-sm text-ink-2 hover:bg-raised transition-colors"
         >
           Pantalla de inicio
         </button>
         <button
           onClick={() => { setMenuOpen(false); onSelectCharacter() }}
-          className="w-full text-left px-5 py-3 text-sm text-gray-300 hover:bg-gray-800 transition-colors"
+          className="w-full text-left px-5 py-3 text-sm text-ink-2 hover:bg-raised transition-colors"
         >
           Selección de personaje
         </button>
@@ -277,18 +278,18 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
       {/* Modal de stat-up por XP */}
       {myStatUpPending && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="mx-4 max-w-sm w-full rounded-2xl border border-yellow-400/40 bg-gray-950 p-6 flex flex-col gap-4 shadow-2xl shadow-yellow-900/30">
+          <div className="mx-4 max-w-sm w-full rounded-2xl border border-gold/40 bg-canvas p-6 flex flex-col gap-4 shadow-2xl shadow-gold/20">
             <div className="text-center">
               <p className="text-4xl mb-3">⭐</p>
-              <h3 className="text-xl font-bold text-yellow-300">¡Has subido de nivel!</h3>
-              <p className="text-sm text-gray-400 mt-2">Elige una estadística para mejorar en +1:</p>
+              <h3 className="text-xl font-bold text-gold-bright">¡Has subido de nivel!</h3>
+              <p className="text-sm text-ink-2 mt-2">Elige una estadística para mejorar en +1:</p>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {UPGRADABLE_STATS.map(stat => (
                 <button
                   key={stat}
                   onClick={() => applyStatUpgrade(character.id, stat)}
-                  className="rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-sm font-medium text-yellow-300 hover:bg-yellow-400/20 transition-colors"
+                  className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-sm font-medium text-gold-bright hover:bg-gold/20 transition-colors"
                 >
                   {STAT_LABELS[stat] ?? stat}
                 </button>
@@ -301,19 +302,19 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
       {/* Modal confirmación fruta del diablo */}
       {fruitConfirmItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="mx-4 max-w-sm w-full rounded-2xl border border-purple-400/40 bg-gray-950 p-6 flex flex-col gap-4 shadow-2xl shadow-purple-900/30">
+          <div className="mx-4 max-w-sm w-full rounded-2xl border border-item-fruta/40 bg-canvas p-6 flex flex-col gap-4 shadow-2xl shadow-item-fruta/20">
             <div className="text-center">
               <p className="text-4xl mb-3">🍎</p>
-              <h3 className="text-lg font-bold text-purple-300 mb-2">¿Comer la fruta del diablo?</h3>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                Ganarás poderes extraordinarios al comerla. Esta decisión es <span className="text-purple-300 font-semibold">irreversible</span>.
+              <h3 className="text-lg font-bold text-item-fruta mb-2">¿Comer la fruta del diablo?</h3>
+              <p className="text-sm text-ink-2 leading-relaxed">
+                Ganarás poderes extraordinarios al comerla. Esta decisión es <span className="text-item-fruta font-semibold">irreversible</span>.
               </p>
-              <p className="text-xs text-gray-600 mt-2 italic">"{fruitConfirmItem.item.name}"</p>
+              <p className="text-xs text-ink-off mt-2 italic">"{fruitConfirmItem.item.name}"</p>
             </div>
             <div className="flex gap-3">
               <button
                 onClick={() => setFruitConfirmItem(null)}
-                className="flex-1 py-2 rounded-lg text-sm font-semibold bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors"
+                className="flex-1 py-2 rounded-lg text-sm font-semibold bg-raised text-ink-2 hover:bg-float transition-colors"
               >
                 Cancelar
               </button>
@@ -328,7 +329,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                     setFruitConfirmItem(null)
                   }
                 }}
-                className="flex-1 py-2 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-500 transition-colors"
+                className="flex-1 py-2 rounded-lg text-sm font-bold bg-item-fruta text-canvas hover:bg-item-fruta/80 transition-colors"
               >
                 Comerla
               </button>
@@ -340,24 +341,24 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
       {/* Modal de muerte por segunda fruta del diablo */}
       {fruitDeathConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="mx-4 max-w-sm w-full rounded-2xl border border-red-500/60 bg-gray-950 p-6 flex flex-col gap-4 shadow-2xl shadow-red-900/40">
+          <div className="mx-4 max-w-sm w-full rounded-2xl border border-combat/60 bg-canvas p-6 flex flex-col gap-4 shadow-2xl shadow-combat/30">
             <div className="text-center">
               <p className="text-4xl mb-3">💀</p>
-              <h3 className="text-lg font-bold text-red-400 mb-2">Segunda fruta del diablo</h3>
-              <p className="text-sm text-gray-300 leading-relaxed">
-                Si consumes una segunda fruta del diablo, <span className="text-red-400 font-bold">morirás</span>. ¿Estás seguro?
+              <h3 className="text-lg font-bold text-combat-light mb-2">Segunda fruta del diablo</h3>
+              <p className="text-sm text-ink-2 leading-relaxed">
+                Si consumes una segunda fruta del diablo, <span className="text-combat-light font-bold">morirás</span>. ¿Estás seguro?
               </p>
             </div>
             <div className="flex gap-3">
               <button
                 onClick={() => setFruitDeathConfirm(false)}
-                className="flex-1 py-2 rounded-lg text-sm font-semibold bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors"
+                className="flex-1 py-2 rounded-lg text-sm font-semibold bg-raised text-ink-2 hover:bg-float transition-colors"
               >
                 Cancelar
               </button>
               <button
                 onClick={() => { killCharacter(character.id); setFruitDeathConfirm(false) }}
-                className="flex-1 py-2 rounded-lg text-sm font-bold bg-red-700 text-white hover:bg-red-600 transition-colors"
+                className="flex-1 py-2 rounded-lg text-sm font-bold bg-combat text-canvas hover:bg-combat-light transition-colors"
               >
                 Moriré por ella
               </button>
@@ -369,19 +370,19 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
       {/* Selector de modo GM */}
       {showGmModeSelector && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="mx-4 max-w-sm w-full rounded-2xl border border-amber-400/30 bg-gray-950 p-6 flex flex-col gap-4 shadow-2xl">
+          <div className="mx-4 max-w-sm w-full rounded-2xl border border-gold/30 bg-canvas p-6 flex flex-col gap-4 shadow-2xl">
             <div className="text-center">
-              <p className="text-xs uppercase tracking-widest text-amber-500/60 mb-1">GM</p>
-              <h3 className="text-lg font-bold text-amber-300">Cambiar modo de juego</h3>
-              <p className="text-xs text-gray-600 mt-1">Sin pasar por el modelo — efecto inmediato</p>
+              <p className="text-xs uppercase tracking-widest text-gold-dim/60 mb-1">GM</p>
+              <h3 className="text-lg font-bold text-gold-bright">Cambiar modo de juego</h3>
+              <p className="text-xs text-ink-off mt-1">Sin pasar por el modelo — efecto inmediato</p>
             </div>
             <div className="flex flex-col gap-2">
               {[
-                { mode: 'normal',      label: '⚓ Normal',       cls: 'border-gray-700 text-gray-300 hover:bg-gray-800' },
-                { mode: 'combat',      label: '⚔️ Combate',      cls: 'border-red-500/40 text-red-300 hover:bg-red-900/30' },
-                { mode: 'navigation',  label: '🌊 Navegación',   cls: 'border-blue-500/40 text-blue-300 hover:bg-blue-900/30' },
-                { mode: 'exploration', label: '🗺️ Exploración',  cls: 'border-green-500/40 text-green-300 hover:bg-green-900/30' },
-                { mode: 'negotiation', label: '💬 Negociación',  cls: 'border-amber-500/40 text-amber-300 hover:bg-amber-900/30' },
+                { mode: 'normal',      label: '⚓ Normal',       cls: 'border-stroke-3 text-ink-2 hover:bg-raised' },
+                { mode: 'combat',      label: '⚔️ Combate',      cls: 'border-combat/40 text-combat-light hover:bg-combat/10' },
+                { mode: 'navigation',  label: '🌊 Navegación',   cls: 'border-navigation/40 text-navigation-light hover:bg-navigation/10' },
+                { mode: 'exploration', label: '🗺️ Exploración',  cls: 'border-exploration/40 text-exploration-light hover:bg-exploration/10' },
+                { mode: 'negotiation', label: '💬 Negociación',  cls: 'border-negotiation/40 text-negotiation-light hover:bg-negotiation/10' },
               ].map(({ mode, label, cls }) => (
                 <button
                   key={mode}
@@ -395,7 +396,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             </div>
             <button
               onClick={() => setShowGmModeSelector(false)}
-              className="text-xs text-gray-600 hover:text-gray-400 transition-colors text-center"
+              className="text-xs text-ink-off hover:text-ink-2 transition-colors text-center"
             >
               Cancelar
             </button>
@@ -406,10 +407,10 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
       {/* Área principal de chat */}
       <main className="flex flex-col flex-1 min-w-0">
 
-        <header className="border-b border-gray-800 px-6 py-4 shrink-0 flex items-center justify-between">
+        <header className="border-b border-stroke px-6 py-4 shrink-0 flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold text-amber-300">⚓ La aventura comienza</h1>
-            <p className="text-xs text-gray-600 mt-0.5">Sesión activa</p>
+            <h1 className="text-lg font-bold text-gold-bright">⚓ La aventura comienza</h1>
+            <p className="text-xs text-ink-off mt-0.5">Sesión activa</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -417,36 +418,36 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             <div className="relative">
               <button
                 onClick={() => setPlayersOpen(v => !v)}
-                className="relative p-2 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+                className="relative p-2 rounded-lg text-ink-3 hover:text-ink hover:bg-raised transition-colors"
                 aria-label="Jugadores en sala"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                 </svg>
                 {presentedCharacters.length > 0 && (
-                  <span className="absolute -top-1 -right-1 text-xs bg-amber-400 text-gray-900 rounded-full w-4 h-4 flex items-center justify-center font-black leading-none">
+                  <span className="absolute -top-1 -right-1 text-xs bg-gold text-canvas rounded-full w-4 h-4 flex items-center justify-center font-black leading-none">
                     {presentedCharacters.length}
                   </span>
                 )}
               </button>
               {playersOpen && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-xl z-40 overflow-hidden">
-                  <div className="px-4 py-2 border-b border-gray-800">
-                    <p className="text-xs uppercase tracking-widest text-gray-600">En la sala</p>
+                <div className="absolute right-0 top-full mt-2 w-48 bg-float border border-stroke rounded-xl shadow-xl z-40 overflow-hidden">
+                  <div className="px-4 py-2 border-b border-stroke">
+                    <p className="text-xs uppercase tracking-widest text-ink-3">En la sala</p>
                   </div>
                   {presentedCharacters.length === 0 ? (
-                    <p className="px-4 py-3 text-xs text-gray-600 italic">Nadie conectado</p>
+                    <p className="px-4 py-3 text-xs text-ink-off italic">Nadie conectado</p>
                   ) : (
                     presentedCharacters.map(c => {
                       const isP = participantIds.includes(c.id)
                       return (
                         <div key={c.id} className="px-4 py-2.5 flex items-center gap-2">
-                          <span className={`text-xs ${isP ? 'text-green-400' : 'text-gray-600'}`}>
+                          <span className={`text-xs ${isP ? 'text-exploration-light' : 'text-ink-off'}`}>
                             {isP ? '●' : '👁'}
                           </span>
                           <div>
-                            <p className={`text-sm font-medium ${isP ? 'text-gray-200' : 'text-gray-500'}`}>{c.name}</p>
-                            <p className="text-xs text-gray-600">{isP ? c.role : 'espectador'}</p>
+                            <p className={`text-sm font-medium ${isP ? 'text-ink' : 'text-ink-3'}`}>{c.name}</p>
+                            <p className="text-xs text-ink-off">{isP ? c.role : 'espectador'}</p>
                           </div>
                         </div>
                       )
@@ -462,8 +463,8 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                 onClick={toggleNarration}
                 className={`p-2 rounded-lg transition-colors ${
                   narrationEnabled
-                    ? 'text-amber-400 hover:text-amber-300 hover:bg-gray-800'
-                    : 'text-gray-600 hover:text-gray-400 hover:bg-gray-800'
+                    ? 'text-gold hover:text-gold-bright hover:bg-raised'
+                    : 'text-ink-3 hover:text-ink-2 hover:bg-raised'
                 }`}
                 title={narrationEnabled ? 'Desactivar narración por voz' : 'Activar narración por voz'}
                 aria-label={narrationEnabled ? 'Desactivar narración' : 'Activar narración'}
@@ -472,10 +473,13 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
               </button>
             )}
 
+            {/* Toggle de tema */}
+            <ThemeToggle />
+
             {/* Botón hamburguesa */}
             <button
               onClick={() => setMenuOpen(v => !v)}
-              className="p-2 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+              className="p-2 rounded-lg text-ink-3 hover:text-ink hover:bg-raised transition-colors"
               aria-label="Menú"
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -486,8 +490,8 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
         </header>
 
         {narrationError && (
-          <div className="shrink-0 px-6 py-2 bg-amber-400/10 border-b border-amber-400/20 flex items-center gap-2">
-            <span className="text-xs text-amber-400/80">🔇 {narrationError}</span>
+          <div className="shrink-0 px-6 py-2 bg-gold/10 border-b border-gold/20 flex items-center gap-2">
+            <span className="text-xs text-gold/80">🔇 {narrationError}</span>
           </div>
         )}
 
@@ -577,24 +581,24 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
         {!sending && !isSpectator && currentTurnName && (
           <div className={`px-6 py-2 shrink-0 flex items-center justify-center gap-2 border-t ${
             isMyTurn
-              ? 'border-amber-400/30 bg-amber-400/10'
-              : 'border-gray-800 bg-transparent'
+              ? 'border-gold/30 bg-gold/10'
+              : 'border-stroke bg-transparent'
           }`}>
             {isMyTurn ? (
-              <p className="text-sm font-bold text-amber-300 tracking-wide">⚔️ Es tu turno, {character.name}</p>
+              <p className="text-sm font-bold text-gold-bright tracking-wide">⚔️ Es tu turno, {character.name}</p>
             ) : (
-              <p className="text-xs text-gray-500">Turno de <span className="text-gray-300 font-semibold">{currentTurnName}</span></p>
+              <p className="text-xs text-ink-3">Turno de <span className="text-ink font-semibold">{currentTurnName}</span></p>
             )}
           </div>
         )}
 
         {/* Input / Botón de dados / Espectador / Iniciativa / Muerte */}
-        <div className="border-t border-gray-800 px-6 py-4 shrink-0">
+        <div className="border-t border-stroke px-6 py-4 shrink-0">
           {isDead ? (
             <div className="flex flex-col gap-2">
-              <p className="text-xs text-center text-red-400/60 uppercase tracking-widest">☠️ Tu personaje está fuera de combate</p>
+              <p className="text-xs text-center text-combat-light/60 uppercase tracking-widest">☠️ Tu personaje está fuera de combate</p>
               <div className="flex gap-3">
-                <span className="text-gray-600 font-bold text-sm self-center shrink-0">{character.name}:</span>
+                <span className="text-ink-3 font-bold text-sm self-center shrink-0">{character.name}:</span>
                 <textarea
                   ref={inputRef}
                   value={input}
@@ -603,12 +607,12 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                   placeholder="Puedes hablar, pero no actuar..."
                   rows={2}
                   disabled={sending}
-                  className="flex-1 bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-sm text-gray-500 placeholder-gray-700 resize-none focus:outline-none"
+                  className="flex-1 bg-panel border border-stroke text-ink-3 placeholder-ink-off rounded-lg px-4 py-2 text-sm resize-none focus:outline-none"
                 />
                 <button
                   onClick={() => { sendChat(input); setInput('') }}
                   disabled={!input.trim() || sending}
-                  className="px-4 rounded-lg font-bold text-sm bg-gray-800 text-gray-500 hover:bg-gray-700 disabled:opacity-40 transition-colors shrink-0"
+                  className="px-4 rounded-lg font-bold text-sm bg-raised text-ink-3 hover:bg-float disabled:opacity-40 transition-colors shrink-0"
                 >
                   Enviar
                 </button>
@@ -616,11 +620,11 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             </div>
           ) : isSpectator ? (
             <div className="flex flex-col items-center gap-3">
-              <p className="text-xs text-gray-600 uppercase tracking-widest">Estás viendo la partida como espectador</p>
+              <p className="text-xs text-ink-off uppercase tracking-widest">Estás viendo la partida como espectador</p>
               <button
                 onClick={handleAnnounceEntry}
                 disabled={sending}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm bg-gray-800 border border-amber-400/30 text-amber-300 hover:bg-gray-700 hover:border-amber-400/60 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm bg-raised border border-gold/30 text-gold-bright hover:bg-float hover:border-gold/60 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               >
                 <span>🚪</span>
                 Unirme a la aventura
@@ -628,14 +632,14 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             </div>
           ) : needsNavigationRoll ? (
             <div className="flex flex-col items-center gap-3">
-              <p className="text-xs text-blue-400/70 uppercase tracking-widest">🌊 Navegación — tira tus dados</p>
+              <p className="text-xs text-navigation-light/70 uppercase tracking-widest">🌊 Navegación — tira tus dados</p>
               {navBonusAvailable && (
                 <button
                   onClick={() => setUseNavAbility(v => !v)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                     useNavAbility
-                      ? 'bg-cyan-400/20 border-cyan-400/50 text-cyan-300'
-                      : 'bg-gray-800 border-gray-700 text-gray-500'
+                      ? 'bg-navigation/20 border-navigation/50 text-navigation-light'
+                      : 'bg-raised border-stroke-3 text-ink-3'
                   }`}
                 >
                   <span>{useNavAbility ? '✓' : '○'}</span>
@@ -645,7 +649,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
               <button
                 onClick={() => { rollNavigation(useNavAbility); setUseNavAbility(false) }}
                 disabled={sending}
-                className="flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-lg bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-lg bg-navigation text-canvas hover:bg-navigation-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <span className="text-2xl">🎲</span>
                 Tirar navegación ({currentEventSetup?.dice_count === 2 ? '2d6' : '1d6'} + {effectiveNav} NAV{useNavAbility ? ' +3' : ''})
@@ -653,11 +657,11 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             </div>
           ) : needsInitiativeRoll ? (
             <div className="flex flex-col items-center gap-2">
-              <p className="text-xs text-red-400/70 uppercase tracking-widest">⚔️ ¡Combate! Tira tu iniciativa</p>
+              <p className="text-xs text-combat-light/70 uppercase tracking-widest">⚔️ ¡Combate! Tira tu iniciativa</p>
               <button
                 onClick={rollInitiative}
                 disabled={sending}
-                className="flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-lg bg-red-600 text-white hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-lg bg-combat text-canvas hover:bg-combat-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <span className="text-2xl">🎲</span>
                 Tirar iniciativa (1d6 + {effectiveAtk} ATK)
@@ -665,16 +669,16 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             </div>
           ) : gameMode === 'combat' && gameModeData?.combat_turn_order && !gameModeData.initiative?.[character.id] && !isSpectator && !isDead ? (
             <div className="flex flex-col items-center gap-2 py-2">
-              <p className="text-xs text-red-400/50 uppercase tracking-widest">⚔️ El combate ya ha comenzado</p>
-              <p className="text-xs text-gray-600 text-center">No puedes unirte a este combate. Espera al siguiente encuentro.</p>
+              <p className="text-xs text-combat-light/50 uppercase tracking-widest">⚔️ El combate ya ha comenzado</p>
+              <p className="text-xs text-ink-off text-center">No puedes unirte a este combate. Espera al siguiente encuentro.</p>
             </div>
           ) : diceRequest.required && isMyTurn ? (
             <div className="flex flex-col items-center gap-2">
-              <p className="text-xs text-amber-400/70 uppercase tracking-widest">El narrador pide una tirada</p>
+              <p className="text-xs text-gold/70 uppercase tracking-widest">El narrador pide una tirada</p>
               <button
                 onClick={rollDice}
                 disabled={sending}
-                className="flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-lg bg-amber-400 text-gray-900 hover:bg-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-lg bg-gold text-canvas hover:bg-gold-bright disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <span className="text-2xl">🎲</span>
                 {diceRequest.count === 2 ? 'Tirar los dados' : 'Tirar el dado'}
@@ -682,14 +686,14 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
             </div>
           ) : needsSustainedRoll ? (
             <div className="flex flex-col items-center gap-2">
-              <p className="text-xs text-emerald-400/70 uppercase tracking-widest">🎯 Desafío sostenido en curso</p>
-              <p className="text-xs text-gray-500 text-center">
+              <p className="text-xs text-exploration-light/70 uppercase tracking-widest">🎯 Desafío sostenido en curso</p>
+              <p className="text-xs text-ink-3 text-center">
                 {sustainedChallenge.successes}/{sustainedChallenge.successes_needed} éxitos · {sustainedChallenge.failures}/{sustainedChallenge.failures_max + 1} fallos máx
               </p>
               <button
                 onClick={rollDice}
                 disabled={sending}
-                className="flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-lg bg-stat-navigation text-canvas hover:bg-exploration-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <span className="text-2xl">🎲</span>
                 Tirar (1d6 + DC {sustainedChallenge.dc})
@@ -721,8 +725,8 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                   onClick={() => setActionMode(v => !v)}
                   className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
                     actionMode
-                      ? 'bg-amber-400/15 border-amber-400/40 text-amber-300'
-                      : 'bg-gray-800 border-gray-700 text-gray-500'
+                      ? 'bg-gold/15 border-gold/40 text-gold-bright'
+                      : 'bg-raised border-stroke-3 text-ink-3'
                   }`}
                 >
                   <span>{actionMode ? '⚔️' : '💬'}</span>
@@ -731,7 +735,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
               </div>
             )}
             <div className="flex gap-3">
-              <span className="text-amber-400 font-bold text-sm self-center shrink-0">{character.name}:</span>
+              <span className="text-gold font-bold text-sm self-center shrink-0">{character.name}:</span>
               <textarea
                 ref={inputRef}
                 value={input}
@@ -740,12 +744,12 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                 placeholder={isMyTurn && actionMode ? '¿Qué hace tu personaje?' : '¿Qué dice tu personaje?'}
                 rows={2}
                 disabled={sending}
-                className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-amber-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-1 bg-panel border border-stroke-3 rounded-lg px-4 py-2 text-sm text-ink placeholder-ink-3 resize-none focus:outline-none focus:border-gold disabled:opacity-40 disabled:cursor-not-allowed"
               />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || sending}
-                className="px-4 rounded-lg font-bold text-sm bg-amber-400 text-gray-900 hover:bg-amber-300 disabled:bg-gray-800 disabled:text-gray-600 transition-colors shrink-0"
+                className="px-4 rounded-lg font-bold text-sm bg-gold text-canvas hover:bg-gold-bright disabled:bg-raised disabled:text-ink-off transition-colors shrink-0"
               >
                 Enviar
               </button>

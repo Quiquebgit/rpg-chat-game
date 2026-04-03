@@ -1,48 +1,71 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;600;700&display=swap');
 
-:root {
-  --font-display: 'Cinzel', serif;
-  --font-body: 'Inter', system-ui, sans-serif;
-}
+/* Estilos del proyecto */
+@import "./styles/themes.css";
+@import "./styles/animations.css";
+@import "./styles/typography.css";
+@import "./styles/utilities.css";
 
-/* Animación de dado: rotación y rebote antes de mostrar resultado */
-@keyframes dice-roll {
-  0%   { transform: rotate(0deg) scale(1); }
-  20%  { transform: rotate(-20deg) scale(1.3); }
-  40%  { transform: rotate(15deg) scale(1.1); }
-  60%  { transform: rotate(-10deg) scale(1.2); }
-  80%  { transform: rotate(5deg) scale(1.05); }
-  100% { transform: rotate(0deg) scale(1); }
-}
+/* ============================================================
+   TAILWIND v4 — Registro de tokens como utilidades CSS
+   Genera clases como bg-gold, text-combat, border-stat-attack…
+   ============================================================ */
+@theme {
+  /* ---- Fondos ---- */
+  --color-canvas:  var(--bg-base);      /* bg-canvas  — fondo de página */
+  --color-panel:   var(--bg-surface);   /* bg-panel   — tarjetas */
+  --color-raised:  var(--bg-elevated);  /* bg-raised  — elementos elevados */
+  --color-float:   var(--bg-overlay);   /* bg-float   — overlays, dropdowns */
 
-/* Aparición del total con scale */
-@keyframes scale-in {
-  from { transform: scale(0.4); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
-}
+  /* ---- Texto ---- */
+  --color-ink:     var(--text-primary);   /* text-ink   — texto principal */
+  --color-ink-2:   var(--text-secondary); /* text-ink-2 — texto secundario */
+  --color-ink-3:   var(--text-muted);     /* text-ink-3 — texto atenuado */
+  --color-ink-off: var(--text-disabled);  /* text-ink-off — deshabilitado */
 
-/* Puntos de typing indicator escalonados */
-@keyframes dot-bounce {
-  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-  40%           { transform: translateY(-5px); opacity: 1; }
-}
+  /* ---- Bordes ---- */
+  --color-stroke:   var(--border-default); /* border-stroke */
+  --color-stroke-2: var(--border-subtle);  /* border-stroke-2 */
+  --color-stroke-3: var(--border-strong);  /* border-stroke-3 */
 
-/* Flash al cambiar modo de juego */
-@keyframes mode-flash {
-  0%   { opacity: 0; }
-  30%  { opacity: 1; }
-  100% { opacity: 0; }
-}
+  /* ---- Acento — Sombrero de Paja ---- */
+  --color-gold:        var(--accent-gold);
+  --color-gold-bright: var(--accent-gold-bright);
+  --color-gold-dim:    var(--accent-gold-dim);
 
-/* Pulso de brillo para indicador de turno */
-@keyframes glow-pulse {
-  0%, 100% { opacity: 1; filter: brightness(1); }
-  50%       { opacity: 0.7; filter: brightness(1.4); }
-}
+  /* ---- Modos de juego ---- */
+  --color-combat:      var(--mode-combat);
+  --color-navigation:  var(--mode-navigation);
+  --color-exploration: var(--mode-exploration);
+  --color-negotiation: var(--mode-negotiation);
 
-/* Slide desde abajo (bottom sheet) */
-@keyframes slide-up {
-  from { transform: translateY(100%); }
-  to   { transform: translateY(0); }
+  /* Tonos claros de modo (para texto sobre fondo oscuro o claro) */
+  --color-combat-light:      var(--mode-combat-light);
+  --color-navigation-light:  var(--mode-navigation-light);
+  --color-exploration-light: var(--mode-exploration-light);
+  --color-negotiation-light: var(--mode-negotiation-light);
+
+  /* ---- Stats ---- */
+  --color-stat-attack:     var(--stat-attack);
+  --color-stat-defense:    var(--stat-defense);
+  --color-stat-navigation: var(--stat-navigation);
+  --color-stat-dexterity:  var(--stat-dexterity);
+  --color-stat-charisma:   var(--stat-charisma);
+
+  /* ---- Items ---- */
+  --color-item-fruta:      var(--item-fruta);
+  --color-item-arma:       var(--item-arma);
+  --color-item-equipo:     var(--item-equipo);
+  --color-item-consumible: var(--item-consumible);
+
+  /* ---- HP ---- */
+  --color-hp-high:   var(--hp-high);
+  --color-hp-medium: var(--hp-medium);
+  --color-hp-low:    var(--hp-low);
+
+  /* ---- Grados de tirada ---- */
+  --color-degree-crit-success: var(--degree-crit-success);
+  --color-degree-success:      var(--degree-success);
+  --color-degree-failure:      var(--degree-failure);
+  --color-degree-crit-failure: var(--degree-crit-failure);
 }

@@ -3,8 +3,8 @@ import { getRandomItem } from '../lib/items'
 import { ITEM_TYPE_STYLES, ITEM_RARITY_STYLES, STAT_LABELS } from '../data/constants'
 
 function ItemCard({ item, i, isMyTurn, allies, expanded, setExpanded, onUse, onGift, giftTarget, setGiftTarget }) {
-  const style = ITEM_TYPE_STYLES[item.type] || { bg: 'bg-gray-800', border: 'border-gray-700', text: 'text-gray-400', icon: '📦' }
-  const rarityClass = ITEM_RARITY_STYLES[item.rarity] || 'text-gray-600'
+  const style = ITEM_TYPE_STYLES[item.type] || { bg: 'bg-raised', border: 'border-stroke-3', text: 'text-ink-3', icon: '📦' }
+  const rarityClass = ITEM_RARITY_STYLES[item.rarity] || 'text-ink-off'
   const isOpen = expanded === i
   const isEquipped = item.equipped === true
   const description = item.effect || item.description
@@ -24,7 +24,7 @@ function ItemCard({ item, i, isMyTurn, allies, expanded, setExpanded, onUse, onG
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             {item.effects?.map((e, j) => (
-              <span key={j} className={`text-xs font-bold ${e.modifier > 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <span key={j} className={`text-xs font-bold ${e.modifier > 0 ? 'text-exploration-light' : 'text-combat-light'}`}>
                 {e.modifier > 0 ? '+' : ''}{e.modifier} {STAT_LABELS[e.stat] || e.stat}
               </span>
             ))}
@@ -35,9 +35,9 @@ function ItemCard({ item, i, isMyTurn, allies, expanded, setExpanded, onUse, onG
 
       {isOpen && hasDetails && (
         <div className="mt-1.5 border-t border-white/10 pt-1.5 flex flex-col gap-1">
-          {description && <p className="text-xs text-gray-400 leading-relaxed">{description}</p>}
-          {item.special_ability && <p className="text-xs text-amber-300/80 leading-relaxed">✦ {item.special_ability}</p>}
-          {item.cure_description && <p className="text-xs text-teal-400/80 leading-relaxed">💊 {item.cure_description}</p>}
+          {description && <p className="text-xs text-ink-2 leading-relaxed">{description}</p>}
+          {item.special_ability && <p className="text-xs text-gold-bright/80 leading-relaxed">✦ {item.special_ability}</p>}
+          {item.cure_description && <p className="text-xs text-stat-navigation/80 leading-relaxed">💊 {item.cure_description}</p>}
         </div>
       )}
 
@@ -46,7 +46,7 @@ function ItemCard({ item, i, isMyTurn, allies, expanded, setExpanded, onUse, onG
           {isMyTurn && !isEquipped && (
             <button
               onClick={e => { e.stopPropagation(); onUse(item, i) }}
-              className="flex-1 text-xs py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold transition-colors"
+              className="flex-1 text-xs py-1 rounded bg-raised hover:bg-float text-ink-2 font-semibold transition-colors"
             >
               {item.equippable ? 'Equipar' : 'Usar'}
             </button>
@@ -55,17 +55,17 @@ function ItemCard({ item, i, isMyTurn, allies, expanded, setExpanded, onUse, onG
             <div className="relative">
               <button
                 onClick={e => { e.stopPropagation(); setGiftTarget(giftTarget === i ? null : i) }}
-                className="text-xs px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold transition-colors"
+                className="text-xs px-2 py-1 rounded bg-raised hover:bg-float text-ink-2 font-semibold transition-colors"
               >
                 Regalar
               </button>
               {giftTarget === i && (
-                <div className="absolute bottom-full right-0 mb-1 w-36 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-10 overflow-hidden">
+                <div className="absolute bottom-full right-0 mb-1 w-36 bg-float border border-stroke-3 rounded-lg shadow-xl z-10 overflow-hidden">
                   {allies.map(ally => (
                     <button
                       key={ally.id}
                       onClick={e => { e.stopPropagation(); setGiftTarget(null); onGift(item, i, ally.id) }}
-                      className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors"
+                      className="w-full text-left px-3 py-2 text-xs text-ink-2 hover:bg-raised transition-colors"
                     >
                       {ally.name}
                     </button>
@@ -87,7 +87,7 @@ export function InventoryPanel({ inventory, isMyTurn, allies = [], onUse, onGift
   const isEquippedFruit = item => item.is_fruit || (item.type === 'fruta' && item.equipped)
   const equipped = inventory.map((item, i) => ({ item, i })).filter(({ item }) => item.equippable && item.equipped && !isEquippedFruit(item))
   const backpack = inventory.map((item, i) => ({ item, i })).filter(({ item }) => !isEquippedFruit(item) && !(item.equippable && item.equipped))
-  if (!equipped.length && !backpack.length) return <p className="text-xs text-gray-600 italic">Sin objetos</p>
+  if (!equipped.length && !backpack.length) return <p className="text-xs text-ink-off italic">Sin objetos</p>
 
   const cardProps = { isMyTurn, allies, expanded, setExpanded, onUse, onGift, giftTarget, setGiftTarget }
 
@@ -95,7 +95,7 @@ export function InventoryPanel({ inventory, isMyTurn, allies = [], onUse, onGift
     <div className="flex flex-col gap-3">
       {equipped.length > 0 && (
         <div>
-          <p className="text-xs text-amber-400/60 uppercase tracking-wider mb-1.5">⚔️ Equipado</p>
+          <p className="text-xs text-gold/60 uppercase tracking-wider mb-1.5">⚔️ Equipado</p>
           <div className="flex flex-col gap-1.5">
             {equipped.map(({ item, i }) => <ItemCard key={i} item={item} i={i} {...cardProps} />)}
           </div>
@@ -103,7 +103,7 @@ export function InventoryPanel({ inventory, isMyTurn, allies = [], onUse, onGift
       )}
       {backpack.length > 0 && (
         <div>
-          <p className="text-xs text-gray-500/60 uppercase tracking-wider mb-1.5">🎒 Mochila</p>
+          <p className="text-xs text-ink-3/60 uppercase tracking-wider mb-1.5">🎒 Mochila</p>
           <div className="flex flex-col gap-1.5">
             {backpack.map(({ item, i }) => <ItemCard key={i} item={item} i={i} {...cardProps} />)}
           </div>
@@ -129,7 +129,7 @@ export function DebugInventoryButton({ onAdd }) {
     <button
       onClick={handleAdd}
       disabled={loading}
-      className="mt-2 w-full text-xs text-gray-600 border border-dashed border-gray-800 rounded-lg py-1.5 hover:text-gray-400 hover:border-gray-700 disabled:opacity-40 transition-colors"
+      className="mt-2 w-full text-xs text-ink-off border border-dashed border-stroke rounded-lg py-1.5 hover:text-ink-3 hover:border-stroke-3 disabled:opacity-40 transition-colors"
     >
       {loading ? 'cargando…' : '+ debug: añadir item'}
     </button>

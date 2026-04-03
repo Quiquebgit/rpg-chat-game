@@ -1,29 +1,29 @@
 // Constantes compartidas entre componentes de UI
 
-// Vignette de fondo según modo de juego (box-shadow inset)
+// Vignette de fondo según modo de juego (box-shadow inset) — usa tokens CSS para soporte de tema
 export const MODE_SHADOW = {
-  combat:      'inset 0 0 150px rgba(220, 38, 38, 0.55)',
-  navigation:  'inset 0 0 120px rgba(37, 99, 235, 0.22)',
-  exploration: 'inset 0 0 120px rgba(22, 163, 74, 0.22)',
-  negotiation: 'inset 0 0 120px rgba(217, 119, 6, 0.22)',
+  combat:      'var(--mode-combat-shadow)',
+  navigation:  'var(--mode-navigation-shadow)',
+  exploration: 'var(--mode-exploration-shadow)',
+  negotiation: 'var(--mode-negotiation-shadow)',
 }
 
 // Emojis de dado para DiceMessage
 export const DICE_EMOJI = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅']
 
-// Estilos de items por tipo
+// Estilos de items por tipo — usa tokens de tema
 export const ITEM_TYPE_STYLES = {
-  fruta:      { bg: 'bg-purple-400/10', border: 'border-purple-400/30', text: 'text-purple-300', icon: '🍎' },
-  arma:       { bg: 'bg-red-400/10',    border: 'border-red-400/30',    text: 'text-red-300',    icon: '⚔️' },
-  equipo:     { bg: 'bg-blue-400/10',   border: 'border-blue-400/30',   text: 'text-blue-300',   icon: '🎒' },
-  consumible: { bg: 'bg-green-400/10',  border: 'border-green-400/30',  text: 'text-green-300',  icon: '🧪' },
+  fruta:      { bg: 'bg-item-fruta/10',      border: 'border-item-fruta/30',      text: 'text-item-fruta',      icon: '🍎' },
+  arma:       { bg: 'bg-item-arma/10',       border: 'border-item-arma/30',       text: 'text-item-arma',       icon: '⚔️' },
+  equipo:     { bg: 'bg-item-equipo/10',     border: 'border-item-equipo/30',     text: 'text-item-equipo',     icon: '🎒' },
+  consumible: { bg: 'bg-item-consumible/10', border: 'border-item-consumible/30', text: 'text-item-consumible', icon: '🧪' },
 }
 
 // Clases de color por rareza de item
 export const ITEM_RARITY_STYLES = {
-  único:  'text-amber-400',
-  raro:   'text-purple-400',
-  común:  'text-gray-600',
+  único:  'text-gold-bright',
+  raro:   'text-item-fruta',
+  común:  'text-ink-3',
 }
 
 // Etiquetas legibles de stats
@@ -39,21 +39,21 @@ export const STAT_ICONS = {
   charisma:   '💬',
 }
 
-// Colores de stats (clase Tailwind bg-*)
+// Colores de stats (clase Tailwind bg-*) — usa tokens de tema
 export const STAT_COLORS = {
-  attack:     'bg-amber-400',
-  defense:    'bg-blue-400',
-  navigation: 'bg-green-400',
-  dexterity:  'bg-orange-400',
-  charisma:   'bg-pink-400',
+  attack:     'bg-stat-attack',
+  defense:    'bg-stat-defense',
+  navigation: 'bg-stat-navigation',
+  dexterity:  'bg-stat-dexterity',
+  charisma:   'bg-stat-charisma',
 }
 
-// Textos de grado de éxito en tiradas
+// Textos de grado de éxito en tiradas — usa tokens de tema
 export const DEGREE_LABELS = {
-  critical_success: { label: '⚡ ¡CRÍTICO!',     className: 'text-yellow-300 text-2xl font-black' },
-  success:          { label: '✓ Éxito',           className: 'text-emerald-300 text-xl font-bold' },
-  failure:          { label: '✗ Fallo',            className: 'text-red-400 text-xl font-bold' },
-  critical_failure: { label: '💀 ¡CATÁSTROFE!',   className: 'text-red-600 text-2xl font-black' },
+  critical_success: { label: '⚡ ¡CRÍTICO!',    className: 'text-degree-crit-success text-2xl font-black' },
+  success:          { label: '✓ Éxito',          className: 'text-degree-success text-xl font-bold' },
+  failure:          { label: '✗ Fallo',           className: 'text-degree-failure text-xl font-bold' },
+  critical_failure: { label: '💀 ¡CATÁSTROFE!',  className: 'text-degree-crit-failure text-2xl font-black' },
 }
 
 // Configuración de XP y progresión
@@ -79,9 +79,9 @@ export const UPGRADABLE_STATS = ['attack', 'defense', 'navigation', 'dexterity',
 
 // Estilos de actitud de NPC en modo negociación
 export const ATTITUDE_STYLES = {
-  hostile:  { label: 'Hostil',    color: 'text-red-400',    bg: 'bg-red-400/10',    border: 'border-red-400/30' },
-  neutral:  { label: 'Neutral',   color: 'text-gray-300',   bg: 'bg-gray-800',      border: 'border-gray-700' },
-  friendly: { label: 'Amistoso',  color: 'text-green-400',  bg: 'bg-green-400/10',  border: 'border-green-400/30' },
+  hostile:  { label: 'Hostil',    color: 'text-combat-light',      bg: 'bg-combat/10',      border: 'border-combat/30' },
+  neutral:  { label: 'Neutral',   color: 'text-ink-2',             bg: 'bg-raised',          border: 'border-stroke-3' },
+  friendly: { label: 'Amistoso',  color: 'text-exploration-light', bg: 'bg-exploration/10', border: 'border-exploration/30' },
 }
 
 // Etiquetas de triggers de habilidades de enemigos
@@ -103,7 +103,7 @@ export const ABILITY_EFFECT_LABELS = {
 
 // Estilos y etiquetas de estado de sesión (Lobby)
 export const SESSION_STATUS = {
-  active:    { label: 'Activa',    style: 'text-green-400 bg-green-400/10 border-green-400/30' },
-  finished:  { label: 'Terminada', style: 'text-blue-400 bg-blue-400/10 border-blue-400/30' },
-  abandoned: { label: 'Archivada', style: 'text-gray-500 bg-gray-500/10 border-gray-500/30' },
+  active:    { label: 'Activa',    style: 'text-exploration-light bg-exploration/10 border-exploration/30' },
+  finished:  { label: 'Terminada', style: 'text-navigation-light  bg-navigation/10  border-navigation/30' },
+  abandoned: { label: 'Archivada', style: 'text-ink-3             bg-raised          border-stroke' },
 }

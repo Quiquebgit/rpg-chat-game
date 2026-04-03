@@ -30,7 +30,7 @@ export function StatBoostPanel({ ability, allies, onActivate }) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="w-full py-1.5 rounded-lg text-xs font-semibold border border-amber-400/30 bg-amber-400/5 text-amber-300 hover:bg-amber-400/10 transition-colors"
+        className="w-full py-1.5 rounded-lg text-xs font-semibold border border-gold/30 bg-gold/5 text-gold-bright hover:bg-gold/10 transition-colors"
       >
         ⚡ {ability.name} — dar +{value} {statLabel(defaultStat)} a un aliado
       </button>
@@ -38,23 +38,23 @@ export function StatBoostPanel({ ability, allies, onActivate }) {
   }
 
   return (
-    <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-2 flex flex-col gap-2">
+    <div className="rounded-lg border border-gold/30 bg-gold/5 p-2 flex flex-col gap-2">
       {/* Paso 1: elegir stat (solo si hay elección) */}
       {statChoices && !selectedStat && (
         <>
-          <p className="text-xs text-amber-400/80 text-center">⚡ {ability.name}: elige qué subir (+{value})</p>
+          <p className="text-xs text-gold/80 text-center">⚡ {ability.name}: elige qué subir (+{value})</p>
           <div className="flex gap-2 justify-center">
             {statChoices.map(s => (
               <button
                 key={s}
                 onClick={() => setSelectedStat(s)}
-                className="px-4 py-1.5 rounded-full text-xs font-bold bg-amber-400/20 border border-amber-400/50 text-amber-300 hover:bg-amber-400 hover:text-gray-900 transition-colors"
+                className="px-4 py-1.5 rounded-full text-xs font-bold bg-gold/20 border border-gold/50 text-gold-bright hover:bg-gold hover:text-canvas transition-colors"
               >
                 +{value} {statLabel(s)}
               </button>
             ))}
           </div>
-          <button onClick={handleCancel} className="text-xs text-gray-600 hover:text-gray-400 transition-colors">
+          <button onClick={handleCancel} className="text-xs text-ink-off hover:text-ink-3 transition-colors">
             Cancelar
           </button>
         </>
@@ -62,7 +62,7 @@ export function StatBoostPanel({ ability, allies, onActivate }) {
       {/* Paso 2 (o único paso): elegir aliado */}
       {(!statChoices || selectedStat) && (
         <>
-          <p className="text-xs text-amber-400/80 text-center">
+          <p className="text-xs text-gold/80 text-center">
             ⚡ {ability.name}: elige a quién dar +{value} {statLabel(activeStat)}
           </p>
           <div className="flex gap-1.5 flex-wrap justify-center">
@@ -70,13 +70,13 @@ export function StatBoostPanel({ ability, allies, onActivate }) {
               <button
                 key={ally.id}
                 onClick={() => handleActivate(ally)}
-                className="px-3 py-1 rounded-full text-xs font-bold bg-amber-400 text-gray-900 hover:bg-amber-300 transition-colors"
+                className="px-3 py-1 rounded-full text-xs font-bold bg-gold text-canvas hover:bg-gold-bright transition-colors"
               >
                 {ally.name}
               </button>
             ))}
           </div>
-          <button onClick={handleCancel} className="text-xs text-gray-600 hover:text-gray-400 transition-colors">
+          <button onClick={handleCancel} className="text-xs text-ink-off hover:text-ink-3 transition-colors">
             Cancelar
           </button>
         </>
@@ -94,7 +94,7 @@ export function HealPanel({ ability, allies, onActivate }) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="w-full py-1.5 rounded-lg text-xs font-semibold border border-emerald-400/30 bg-emerald-400/5 text-emerald-300 hover:bg-emerald-400/10 transition-colors"
+        className="w-full py-1.5 rounded-lg text-xs font-semibold border border-stat-navigation/30 bg-stat-navigation/5 text-stat-navigation hover:bg-stat-navigation/10 transition-colors"
       >
         💚 {ability.name} — curar {value}HP a un aliado
       </button>
@@ -102,20 +102,20 @@ export function HealPanel({ ability, allies, onActivate }) {
   }
 
   return (
-    <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/5 p-2 flex flex-col gap-2">
-      <p className="text-xs text-emerald-400/80 text-center">💚 {ability.name}: elige a quién curar (+{value}HP)</p>
+    <div className="rounded-lg border border-stat-navigation/30 bg-stat-navigation/5 p-2 flex flex-col gap-2">
+      <p className="text-xs text-stat-navigation/80 text-center">💚 {ability.name}: elige a quién curar (+{value}HP)</p>
       <div className="flex gap-1.5 flex-wrap justify-center">
         {allies.map(ally => (
           <button
             key={ally.id}
             onClick={() => { onActivate(ally); setOpen(false) }}
-            className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-400 text-gray-900 hover:bg-emerald-300 transition-colors"
+            className="px-3 py-1 rounded-full text-xs font-bold bg-stat-navigation text-canvas hover:bg-exploration-light transition-colors"
           >
             {ally.name}
           </button>
         ))}
       </div>
-      <button onClick={() => setOpen(false)} className="text-xs text-gray-600 hover:text-gray-400 transition-colors">
+      <button onClick={() => setOpen(false)} className="text-xs text-ink-off hover:text-ink-3 transition-colors">
         Cancelar
       </button>
     </div>

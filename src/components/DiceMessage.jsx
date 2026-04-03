@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react'
 import { DICE_EMOJI, DEGREE_LABELS } from '../data/constants'
 
 const DEGREE_STYLES = {
-  critical_success: { color: 'text-yellow-300', border: 'border-yellow-400/50', glow: 'rgba(250,204,21,0.35)' },
-  success:          { color: 'text-emerald-300', border: 'border-emerald-400/40', glow: 'rgba(52,211,153,0.2)' },
-  failure:          { color: 'text-red-400',     border: 'border-red-500/40',     glow: 'rgba(239,68,68,0.15)' },
-  critical_failure: { color: 'text-red-600',     border: 'border-red-700/50',     glow: 'rgba(185,28,28,0.3)' },
+  critical_success: { color: 'text-degree-crit-success', border: 'border-degree-crit-success/50', glow: 'var(--degree-crit-success)' },
+  success:          { color: 'text-degree-success',       border: 'border-degree-success/40',       glow: 'var(--degree-success)' },
+  failure:          { color: 'text-degree-failure',       border: 'border-degree-failure/40',       glow: 'var(--degree-failure)' },
+  critical_failure: { color: 'text-degree-crit-failure',  border: 'border-degree-crit-failure/50',  glow: 'var(--degree-crit-failure)' },
 }
 
 const STAT_LABELS = { attack: 'ATK', defense: 'DEF', navigation: 'NAV', ability: 'HAB' }
@@ -43,17 +43,20 @@ export function DiceMessage({ name, content }) {
 
   const degreeStyle = degree ? DEGREE_STYLES[degree] : null
   const degreeLabel = degree ? DEGREE_LABELS[degree] : null
-  const borderClass = degreeStyle ? degreeStyle.border : 'border-amber-400/30'
-  const glowColor = degreeStyle ? degreeStyle.glow : 'rgba(251,191,36,0.2)'
+  const borderClass = degreeStyle ? degreeStyle.border : 'border-gold/30'
+  // Glow usando color-mix para aplicar opacidad sobre la variable CSS
+  const glowColor = degreeStyle
+    ? `color-mix(in srgb, ${degreeStyle.glow} 35%, transparent)`
+    : 'color-mix(in srgb, var(--accent-gold) 20%, transparent)'
 
   // Formato no estándar (iniciativa, etc.) — tarjeta simplificada
   if (!dice) {
     return (
       <div className="flex flex-col items-center gap-2 w-full px-4">
-        <span className="text-xs uppercase tracking-widest text-amber-500/50">{name} · Tirada</span>
-        <div className="bg-gray-900 border border-amber-400/30 rounded-2xl px-8 py-4 flex items-center gap-3">
+        <span className="text-xs uppercase tracking-widest text-gold-dim/50">{name} · Tirada</span>
+        <div className="bg-panel border border-gold/30 rounded-2xl px-8 py-4 flex items-center gap-3">
           <span className="text-3xl">🎲</span>
-          <span className="text-lg font-bold text-amber-400">{raw}</span>
+          <span className="text-lg font-bold text-gold">{raw}</span>
         </div>
       </div>
     )
@@ -61,9 +64,9 @@ export function DiceMessage({ name, content }) {
 
   return (
     <div className="flex flex-col items-center gap-2 w-full px-4">
-      <span className="text-xs uppercase tracking-widest text-amber-500/50">{name} · Tirada de dados</span>
+      <span className="text-xs uppercase tracking-widest text-gold-dim/50">{name} · Tirada de dados</span>
       <div
-        className={`bg-gray-900 border ${borderClass} rounded-2xl px-10 py-6 flex flex-col items-center gap-4 w-fit`}
+        className={`bg-panel border ${borderClass} rounded-2xl px-10 py-6 flex flex-col items-center gap-4 w-fit`}
         style={{ boxShadow: `0 0 24px ${glowColor}` }}
       >
         {/* Dados con animación de lanzamiento */}
@@ -79,11 +82,11 @@ export function DiceMessage({ name, content }) {
               >
                 {DICE_EMOJI[val] || '🎲'}
               </span>
-              <span className="text-xs font-bold text-amber-400/60">{val}</span>
+              <span className="text-xs font-bold text-gold/60">{val}</span>
             </div>
           ))}
           {dice.length > 1 && (
-            <span className="text-2xl text-gray-600 font-light mb-4">=</span>
+            <span className="text-2xl text-ink-3 font-light mb-4">=</span>
           )}
         </div>
 
@@ -92,18 +95,18 @@ export function DiceMessage({ name, content }) {
           className="flex flex-col items-center gap-1"
           style={{ animation: revealed ? 'scale-in 0.3s ease-out' : 'none', opacity: revealed ? 1 : 0 }}
         >
-          <span className="text-xs uppercase tracking-widest text-gray-600">Total</span>
-          <span className={`text-6xl font-black leading-none ${degreeStyle ? degreeStyle.color : 'text-amber-400'}`}>
+          <span className="text-xs uppercase tracking-widest text-ink-3">Total</span>
+          <span className={`text-6xl font-black leading-none ${degreeStyle ? degreeStyle.color : 'text-gold'}`}>
             {total}
           </span>
         </div>
 
         {/* Info de skill_check: DC, stat y grado */}
         {dc && revealed && (
-          <div className="flex flex-col items-center gap-1.5 border-t border-gray-800 pt-3 w-full"
+          <div className="flex flex-col items-center gap-1.5 border-t border-stroke pt-3 w-full"
             style={{ animation: 'scale-in 0.25s ease-out' }}
           >
-            <div className="flex items-center gap-3 text-xs text-gray-500">
+            <div className="flex items-center gap-3 text-xs text-ink-3">
               {stat && <span>{STAT_LABELS[stat] || stat}</span>}
               <span>vs DC {dc}</span>
             </div>

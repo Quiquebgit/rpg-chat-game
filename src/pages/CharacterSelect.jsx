@@ -78,15 +78,15 @@ function CharacterSelect({ session, playerId, onConfirm, onBack }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white px-6 pt-10 pb-28">
+    <div className="min-h-screen bg-canvas text-ink px-6 pt-10 pb-28">
       <div className="text-center mb-10">
         <h1
-          className="text-4xl font-bold text-amber-300 tracking-widest"
+          className="text-4xl font-bold text-gold-bright tracking-widest"
           style={{ fontFamily: 'var(--font-display)' }}
         >
           ⚓ Elige tu personaje
         </h1>
-        <p className="text-gray-500 mt-2 text-sm">
+        <p className="text-ink-3 mt-2 text-sm">
           Selecciona a quién encarnarás en esta aventura. Cada elección importa.
         </p>
       </div>
@@ -98,11 +98,11 @@ function CharacterSelect({ session, playerId, onConfirm, onBack }) {
             <div key={character.id} className="relative">
               {/* Overlay para personajes ocupados por otro jugador */}
               {status === 'taken' && (
-                <div className="absolute inset-0 z-10 rounded-xl backdrop-blur-sm bg-gray-950/75 flex flex-col items-center justify-center gap-2">
-                  <p className="text-sm font-bold uppercase tracking-widest text-gray-400">⚔️ En juego</p>
+                <div className="absolute inset-0 z-10 rounded-xl backdrop-blur-sm bg-canvas/75 flex flex-col items-center justify-center gap-2">
+                  <p className="text-sm font-bold uppercase tracking-widest text-ink-2">⚔️ En juego</p>
                   <button
                     onClick={() => forceRelease(character.id)}
-                    className="text-xs text-red-700 hover:text-red-400 underline underline-offset-2 transition-colors"
+                    className="text-xs text-degree-failure/70 hover:text-degree-failure underline underline-offset-2 transition-colors"
                   >
                     Liberar
                   </button>
@@ -120,10 +120,10 @@ function CharacterSelect({ session, playerId, onConfirm, onBack }) {
       </div>
 
       {/* Barra de acción fija en la parte inferior */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 bg-gray-950/90 backdrop-blur border-t border-gray-800 px-6 py-4 flex items-center justify-center gap-6">
+      <div className="fixed bottom-0 left-0 right-0 z-20 bg-canvas/90 backdrop-blur border-t border-stroke px-6 py-4 flex items-center justify-center gap-6">
         <button
           onClick={onBack}
-          className="text-sm text-gray-600 hover:text-gray-400 transition-colors"
+          className="text-sm text-ink-off hover:text-ink-2 transition-colors"
         >
           ← Volver
         </button>
@@ -133,8 +133,8 @@ function CharacterSelect({ session, playerId, onConfirm, onBack }) {
           className={`
             px-8 py-3 rounded-xl font-bold text-lg tracking-wide transition-all duration-200
             ${selected
-              ? 'bg-amber-400 text-gray-900 hover:bg-amber-300 shadow-lg shadow-amber-400/30'
-              : 'bg-gray-800 text-gray-600 cursor-not-allowed'
+              ? 'bg-gold text-canvas hover:bg-gold-bright shadow-lg shadow-gold/30'
+              : 'bg-raised text-ink-off cursor-not-allowed'
             }
           `}
         >

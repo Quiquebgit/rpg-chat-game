@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import { useTheme } from './hooks/useTheme'
 import Lobby from './pages/Lobby'
 import CharacterSelect from './pages/CharacterSelect'
 import GameRoom from './pages/GameRoom'
@@ -17,6 +18,9 @@ function getPlayerId() {
 const playerId = getPlayerId()
 
 function App() {
+  // Inicializa el tema desde localStorage o preferencia del sistema
+  useTheme()
+
   const [page, setPage] = useState('lobby')
   const [session, setSession] = useState(null)
   const [character, setCharacter] = useState(null)

@@ -41,15 +41,15 @@ export function CharacterPanel({
 
   function renderTabBar() {
     return (
-      <div className="flex border-b border-gray-800 shrink-0">
+      <div className="flex border-b border-stroke shrink-0">
         {TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
               activeTab === tab.id
-                ? 'text-amber-300 border-b-2 border-amber-400'
-                : 'text-gray-600 hover:text-gray-400'
+                ? 'text-gold-bright border-b-2 border-gold'
+                : 'text-ink-3 hover:text-ink-2'
             }`}
           >
             <span className="mr-1">{tab.icon}</span>
@@ -64,10 +64,10 @@ export function CharacterPanel({
     return (
       <div className="flex flex-col gap-4 p-5 overflow-y-auto flex-1">
         {/* Nombre y rol */}
-        <div className={`relative rounded-lg p-3 transition-all duration-300 ${isDead ? 'opacity-60' : ''} ${fruitFlash ? 'ring-2 ring-purple-400 bg-purple-400/10 animate-pulse' : hasFruit ? 'ring-1 ring-purple-500/40' : ''}`}>
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Jugando como</p>
+        <div className={`relative rounded-lg p-3 transition-all duration-300 ${isDead ? 'opacity-60' : ''} ${fruitFlash ? 'ring-2 ring-item-fruta bg-item-fruta/10 animate-pulse' : hasFruit ? 'ring-1 ring-item-fruta/40' : ''}`}>
+          <p className="text-xs uppercase tracking-widest text-ink-3 mb-1">Jugando como</p>
           <div className="flex items-center gap-2">
-            <h2 className={`text-2xl font-bold ${isDead ? 'line-through text-gray-500' : 'text-amber-300'}`}
+            <h2 className={`text-2xl font-bold ${isDead ? 'line-through text-ink-3' : 'text-gold-bright'}`}
               style={{ fontFamily: 'var(--font-display)' }}
             >
               {character.name}
@@ -77,26 +77,26 @@ export function CharacterPanel({
               <span title="Portador de fruta del diablo" className="text-lg leading-none">🍎</span>
             )}
           </div>
-          <p className={`text-sm uppercase tracking-widest ${isDead ? 'text-gray-600' : 'text-gray-400'}`}>{character.role}</p>
-          <p className="text-xs text-gray-600 italic mt-1">{character.combatStyle}</p>
+          <p className={`text-sm uppercase tracking-widest ${isDead ? 'text-ink-off' : 'text-ink-2'}`}>{character.role}</p>
+          <p className="text-xs text-ink-off italic mt-1">{character.combatStyle}</p>
           {isDead && (
-            <p className="text-xs text-red-400/70 mt-1 font-semibold">— Fuera de combate —</p>
+            <p className="text-xs text-combat-light/70 mt-1 font-semibold">— Fuera de combate —</p>
           )}
         </div>
 
         {/* HP barra */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <p className="text-xs uppercase tracking-widest text-gray-500">❤️ Vida</p>
-            <span className={`text-sm font-bold ${hpCurrent <= 1 ? 'text-red-400' : hpCurrent <= character.hp / 2 ? 'text-yellow-400' : 'text-green-400'}`}>
+            <p className="text-xs uppercase tracking-widest text-ink-3">❤️ Vida</p>
+            <span className={`text-sm font-bold ${hpCurrent <= 1 ? 'text-hp-low' : hpCurrent <= character.hp / 2 ? 'text-hp-medium' : 'text-hp-high'}`}>
               {hpCurrent}/{character.hp}
             </span>
           </div>
-          <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
+          <div className="w-full bg-raised rounded-full h-3 overflow-hidden">
             <div
               className={`h-3 rounded-full transition-all duration-500 ${
-                hpPercent > 50 ? 'bg-green-500' :
-                hpPercent > 25 ? 'bg-yellow-500' : 'bg-red-500'
+                hpPercent > 50 ? 'bg-hp-high' :
+                hpPercent > 25 ? 'bg-hp-medium' : 'bg-hp-low'
               }`}
               style={{ width: `${Math.max(hpPercent, 0)}%` }}
             />
@@ -105,37 +105,37 @@ export function CharacterPanel({
 
         {/* Stats */}
         <div>
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-3">Stats</p>
+          <p className="text-xs uppercase tracking-widest text-ink-3 mb-3">Stats</p>
           <div className="flex flex-col gap-3">
-            <StatRow icon="⚔️" label="Ataque"     value={character.attack}     bonus={(equipmentBonuses.attack     || 0) + (combatBoosts.attack     || 0)} color="bg-amber-400" />
-            <StatRow icon="🛡️" label="Defensa"    value={character.defense}    bonus={(equipmentBonuses.defense    || 0) + (combatBoosts.defense    || 0)} color="bg-blue-400" />
-            <StatRow icon="⚓" label="Navegación" value={character.navigation} bonus={(equipmentBonuses.navigation || 0) + (combatBoosts.navigation || 0)} color="bg-green-400" />
-            <StatRow icon="🎯" label="Destreza"   value={character.dexterity ?? 0} bonus={(equipmentBonuses.dexterity || 0) + (combatBoosts.dexterity || 0) + (statUpgrades.dexterity || 0)} color="bg-orange-400" />
-            <StatRow icon="💬" label="Carisma"    value={character.charisma   ?? 0} bonus={(equipmentBonuses.charisma  || 0) + (combatBoosts.charisma  || 0) + (statUpgrades.charisma  || 0)} color="bg-pink-400" />
+            <StatRow icon="⚔️" label="Ataque"     value={character.attack}     bonus={(equipmentBonuses.attack     || 0) + (combatBoosts.attack     || 0)} color="bg-stat-attack" />
+            <StatRow icon="🛡️" label="Defensa"    value={character.defense}    bonus={(equipmentBonuses.defense    || 0) + (combatBoosts.defense    || 0)} color="bg-stat-defense" />
+            <StatRow icon="⚓" label="Navegación" value={character.navigation} bonus={(equipmentBonuses.navigation || 0) + (combatBoosts.navigation || 0)} color="bg-stat-navigation" />
+            <StatRow icon="🎯" label="Destreza"   value={character.dexterity ?? 0} bonus={(equipmentBonuses.dexterity || 0) + (combatBoosts.dexterity || 0) + (statUpgrades.dexterity || 0)} color="bg-stat-dexterity" />
+            <StatRow icon="💬" label="Carisma"    value={character.charisma   ?? 0} bonus={(equipmentBonuses.charisma  || 0) + (combatBoosts.charisma  || 0) + (statUpgrades.charisma  || 0)} color="bg-stat-charisma" />
           </div>
         </div>
 
         {/* Economía */}
-        <div className="border border-amber-400/20 rounded-lg p-3 bg-amber-400/5">
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">Economía</p>
+        <div className="border border-gold/20 rounded-lg p-3 bg-gold/5">
+          <p className="text-xs uppercase tracking-widest text-ink-3 mb-2">Economía</p>
           <div className="flex flex-col gap-2 text-sm">
             <div className="flex items-center justify-between">
-              <span className="text-gray-400">💰 Berries</span>
-              <span className="text-amber-300 font-semibold">{currentMoney.toLocaleString()}</span>
+              <span className="text-ink-2">💰 Berries</span>
+              <span className="text-gold-bright font-semibold">{currentMoney.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-gray-400">☠️ Recompensa</span>
-              <span className="text-red-300 font-semibold">{character.bounty?.toLocaleString() ?? 0} B</span>
+              <span className="text-ink-2">☠️ Recompensa</span>
+              <span className="text-combat-light font-semibold">{character.bounty?.toLocaleString() ?? 0} B</span>
             </div>
           </div>
           <div className="mt-3">
-            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+            <div className="flex items-center justify-between text-xs text-ink-3 mb-1">
               <span>⭐ XP</span>
               <span>{currentXp} (+{xpProgress}/{XP_CONFIG.THRESHOLD})</span>
             </div>
-            <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-raised rounded-full overflow-hidden">
               <div
-                className="h-full bg-yellow-400 rounded-full transition-all duration-500"
+                className="h-full bg-gold rounded-full transition-all duration-500"
                 style={{ width: `${(xpProgress / XP_CONFIG.THRESHOLD) * 100}%` }}
               />
             </div>
@@ -152,10 +152,10 @@ export function CharacterPanel({
           label="Habilidad especial"
           name={character.ability.name}
           description={character.ability.description}
-          borderColor="border-amber-400/40"
-          bgColor="bg-amber-400/5"
-          labelColor="text-amber-500/70"
-          nameColor="text-amber-300"
+          borderColor="border-gold/40"
+          bgColor="bg-gold/5"
+          labelColor="text-gold-dim/70"
+          nameColor="text-gold-bright"
         />
         {equippedFruit?.special_ability && (
           <CollapsibleAbility
@@ -163,21 +163,21 @@ export function CharacterPanel({
             name={equippedFruit.name}
             description={equippedFruit.special_ability}
             effects={equippedFruit.effects}
-            borderColor="border-purple-400/40"
-            bgColor="bg-purple-400/5"
-            labelColor="text-purple-500/70"
-            nameColor="text-purple-300"
+            borderColor="border-item-fruta/40"
+            bgColor="bg-item-fruta/5"
+            labelColor="text-item-fruta/70"
+            nameColor="text-item-fruta"
           />
         )}
 
         {activeCombatBoosts.length > 0 && (
-          <div className="rounded-lg border border-green-400/30 bg-green-400/5 p-3">
-            <p className="text-xs uppercase tracking-widest text-green-500/70 mb-2">Boosts activos</p>
+          <div className="rounded-lg border border-stat-navigation/30 bg-stat-navigation/5 p-3">
+            <p className="text-xs uppercase tracking-widest text-stat-navigation/70 mb-2">Boosts activos</p>
             <div className="flex flex-col gap-1.5">
               {activeCombatBoosts.map(([stat, val]) => (
                 <div key={stat} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">{STAT_LABELS[stat] ?? stat}</span>
-                  <span className={`font-bold ${val > 0 ? 'text-green-300' : 'text-red-400'}`}>
+                  <span className="text-ink-2">{STAT_LABELS[stat] ?? stat}</span>
+                  <span className={`font-bold ${val > 0 ? 'text-exploration-light' : 'text-degree-failure'}`}>
                     {val > 0 ? `+${val}` : val}
                   </span>
                 </div>
@@ -187,7 +187,7 @@ export function CharacterPanel({
         )}
 
         {activeCombatBoosts.length === 0 && !equippedFruit?.special_ability && (
-          <p className="text-xs text-gray-600 italic text-center mt-4">Sin poderes activos</p>
+          <p className="text-xs text-ink-off italic text-center mt-4">Sin poderes activos</p>
         )}
       </div>
     )
@@ -196,7 +196,7 @@ export function CharacterPanel({
   function renderMochila() {
     return (
       <div className="flex flex-col gap-2 p-5 overflow-y-auto flex-1">
-        <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Inventario</p>
+        <p className="text-xs uppercase tracking-widest text-ink-3 mb-1">Inventario</p>
         <InventoryPanel
           inventory={inventory}
           isMyTurn={isMyTurn}
@@ -223,7 +223,7 @@ export function CharacterPanel({
   return (
     <>
       {/* Desktop: sidebar fijo siempre visible */}
-      <aside className="hidden md:flex flex-col w-[22rem] shrink-0 bg-gray-900 border-r border-gray-800 h-full overflow-hidden">
+      <aside className="hidden md:flex flex-col w-[22rem] shrink-0 bg-panel border-r border-stroke h-full overflow-hidden">
         {panelContent}
       </aside>
 
@@ -240,7 +240,7 @@ export function CharacterPanel({
         {/* Botón flotante para abrir */}
         <button
           onClick={() => setSheetOpen(v => !v)}
-          className="fixed bottom-20 left-4 z-40 bg-gray-800 border border-amber-400/30 rounded-full p-3 shadow-lg shadow-black/50 transition-colors hover:bg-gray-700"
+          className="fixed bottom-20 left-4 z-40 bg-raised border border-gold/30 rounded-full p-3 shadow-lg shadow-black/50 transition-colors hover:bg-float"
           aria-label="Abrir panel de personaje"
         >
           <span className="text-lg leading-none">⚔️</span>
@@ -248,14 +248,14 @@ export function CharacterPanel({
 
         {/* Bottom sheet */}
         <div
-          className={`fixed bottom-0 left-0 right-0 z-40 bg-gray-900 border-t border-gray-700 rounded-t-2xl
+          className={`fixed bottom-0 left-0 right-0 z-40 bg-panel border-t border-stroke-3 rounded-t-2xl
             transition-transform duration-300 ease-in-out
             ${sheetOpen ? 'translate-y-0' : 'translate-y-full'}`}
           style={{ height: '75vh' }}
         >
           {/* Handle decorativo */}
           <div className="flex justify-center pt-3 pb-1">
-            <div className="w-10 h-1 rounded-full bg-gray-600" />
+            <div className="w-10 h-1 rounded-full bg-stroke-3" />
           </div>
           <div className="h-[calc(100%-20px)] overflow-hidden flex flex-col">
             {panelContent}

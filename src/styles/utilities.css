@@ -1,0 +1,9 @@
+/* ============================================================
+   UTILIDADES PERSONALIZADAS — One Piece RPG Chat Game
+   ============================================================ */
+
+/* Transición suave al cambiar tema — solo en elementos raíz */
+html[data-theme] body,
+html[data-theme] .bg-theme-transition {
+  transition: background-color 200ms ease, color 200ms ease;
+}

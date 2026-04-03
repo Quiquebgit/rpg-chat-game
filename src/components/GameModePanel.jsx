@@ -8,14 +8,14 @@ function EnemyCard({ enemy }) {
   const hpPct = enemy.hp_max > 0 ? Math.max(0, enemy.hp / enemy.hp_max) : 0
   const isCritical = !enemy.defeated && hpPct <= 0.25
   const isWounded  = !enemy.defeated && !isCritical && hpPct <= 0.5
-  const hpBarColor = enemy.defeated ? 'bg-gray-600'
-    : isCritical ? 'bg-red-500'
-    : isWounded  ? 'bg-yellow-500'
-    : 'bg-green-500'
+  const hpBarColor = enemy.defeated ? 'bg-stroke-3'
+    : isCritical ? 'bg-hp-low'
+    : isWounded  ? 'bg-hp-medium'
+    : 'bg-hp-high'
   const ability = enemy.ability
 
   return (
-    <div className={`relative flex flex-col gap-2 rounded-lg border px-3 py-2.5 min-w-[160px] max-w-[220px] bg-red-950/30 border-red-500/30 transition-all duration-500 ${enemy.defeated ? 'opacity-40 grayscale' : ''}`}>
+    <div className={`relative flex flex-col gap-2 rounded-lg border px-3 py-2.5 min-w-[160px] max-w-[220px] bg-combat/10 border-combat/30 transition-all duration-500 ${enemy.defeated ? 'opacity-40 grayscale' : ''}`}>
       {enemy.defeated && (
         <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/60">
           <span className="text-3xl">✕</span>
@@ -26,22 +26,22 @@ function EnemyCard({ enemy }) {
       <div className="flex items-center justify-between gap-1.5">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-lg leading-none">{enemy.icon || '👾'}</span>
-          <span className="text-xs font-bold text-red-200 truncate">{enemy.name}</span>
+          <span className="text-xs font-bold text-combat-light truncate">{enemy.name}</span>
         </div>
         {!enemy.defeated && (
-          <span className={`text-xs font-semibold shrink-0 ${isCritical ? 'text-red-400' : isWounded ? 'text-yellow-400' : 'text-green-400'}`}>
+          <span className={`text-xs font-semibold shrink-0 ${isCritical ? 'text-hp-low' : isWounded ? 'text-hp-medium' : 'text-hp-high'}`}>
             {isCritical ? '💀' : isWounded ? '🩸' : '●'}
           </span>
         )}
       </div>
       {enemy.bounty > 0 && (
-        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400/15 border border-amber-400/30 text-xs font-semibold text-amber-300 w-fit">
+        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gold/15 border border-gold/30 text-xs font-semibold text-gold-bright w-fit">
           ☠️ {enemy.bounty.toLocaleString()} B
         </div>
       )}
 
       {/* Barra de HP */}
-      <div className="h-1.5 w-full rounded-full bg-gray-800 overflow-hidden">
+      <div className="h-1.5 w-full rounded-full bg-raised overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-700 ${hpBarColor}`}
           style={{ width: `${hpPct * 100}%` }}
@@ -49,16 +49,16 @@ function EnemyCard({ enemy }) {
       </div>
 
       {/* Stats */}
-      <div className="flex justify-between text-xs text-gray-400">
+      <div className="flex justify-between text-xs text-ink-2">
         <span>❤️ {Math.max(0, enemy.hp)}/{enemy.hp_max}</span>
         <span>⚔️ {enemy.attack} &nbsp;🛡️ {enemy.defense}</span>
       </div>
 
       {/* Habilidad especial */}
       {ability && (
-        <div className="rounded border border-amber-400/20 bg-amber-400/5 px-2 py-1.5">
-          <p className="text-xs font-semibold text-amber-300 mb-0.5">✦ {ability.name}</p>
-          <p className="text-xs text-gray-500 leading-tight">
+        <div className="rounded border border-gold/20 bg-gold/5 px-2 py-1.5">
+          <p className="text-xs font-semibold text-gold-bright mb-0.5">✦ {ability.name}</p>
+          <p className="text-xs text-ink-3 leading-tight">
             {ABILITY_TRIGGER_LABELS[ability.trigger] || ability.trigger}
             {' · '}
             {ABILITY_EFFECT_LABELS[ability.effect] || ability.effect}
@@ -74,11 +74,11 @@ function CombatPanel({ data, currentTurnName }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <span className="text-xs font-black uppercase tracking-widest text-red-400">⚔️ Combate en curso</span>
+        <span className="text-xs font-black uppercase tracking-widest text-combat-light">⚔️ Combate en curso</span>
         {currentTurnName && (
-          <span className="text-xs text-gray-500">— turno de{' '}
+          <span className="text-xs text-ink-3">— turno de{' '}
             <span
-              className="text-amber-300 font-semibold"
+              className="text-gold-bright font-semibold"
               style={{ animation: 'glow-pulse 2s ease-in-out infinite' }}
             >
               {currentTurnName}
@@ -100,33 +100,33 @@ function NavigationPanel({ data, totalPlayers = 0, canActInNav, sending, onSacri
     navigation_rolls = [], options_visible = false, risky_move_used = false,
   } = data || {}
   const pct = Math.min(1, navigation_accumulated / danger_threshold)
-  const barColor = pct >= 1 ? 'bg-green-500' : pct >= 0.5 ? 'bg-yellow-500' : 'bg-red-500'
-  const labelColor = pct >= 1 ? 'text-green-400' : pct >= 0.5 ? 'text-yellow-300' : 'text-red-400'
+  const barColor = pct >= 1 ? 'bg-hp-high' : pct >= 0.5 ? 'bg-hp-medium' : 'bg-hp-low'
+  const labelColor = pct >= 1 ? 'text-exploration-light' : pct >= 0.5 ? 'text-hp-medium' : 'text-hp-low'
   const rolledCount = navigation_rolls.length
 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-3">
-        <span className="text-xs font-black uppercase tracking-widest text-blue-400">🌊 Navegación en curso</span>
+        <span className="text-xs font-black uppercase tracking-widest text-navigation-light">🌊 Navegación en curso</span>
         {totalPlayers > 0 && (
-          <span className="text-xs text-gray-500">
-            Tiradas: <span className={rolledCount >= totalPlayers ? 'text-green-400 font-semibold' : 'text-blue-300 font-semibold'}>{rolledCount}/{totalPlayers}</span>
+          <span className="text-xs text-ink-3">
+            Tiradas: <span className={rolledCount >= totalPlayers ? 'text-exploration-light font-semibold' : 'text-navigation-light font-semibold'}>{rolledCount}/{totalPlayers}</span>
           </span>
         )}
       </div>
       {danger_name && (
         <div className="flex flex-col gap-1.5">
           <div className="flex justify-between text-xs">
-            <span className="text-gray-300 font-semibold">{danger_name}</span>
+            <span className="text-ink font-semibold">{danger_name}</span>
             <span className={`font-semibold ${labelColor}`}>{navigation_accumulated} / {danger_threshold}</span>
           </div>
-          <div className="h-2 w-full rounded-full bg-gray-800 overflow-hidden">
+          <div className="h-2 w-full rounded-full bg-raised overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${barColor}`}
               style={{ width: `${pct * 100}%` }}
             />
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-ink-3">
             {navigation_accumulated >= danger_threshold
               ? '✅ Navegación superada'
               : `Faltan ${danger_threshold - navigation_accumulated} punto${danger_threshold - navigation_accumulated !== 1 ? 's' : ''} para superar el peligro`}
@@ -136,11 +136,11 @@ function NavigationPanel({ data, totalPlayers = 0, canActInNav, sending, onSacri
 
       {/* Opciones de fallo — disponibles para todos los jugadores simultáneamente */}
       {options_visible && canActInNav && (
-        <div className="flex flex-wrap gap-2 mt-1 border-t border-gray-800 pt-2">
+        <div className="flex flex-wrap gap-2 mt-1 border-t border-stroke pt-2">
           <button
             onClick={onSacrifice}
             disabled={sending}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-900/40 border border-red-500/30 text-red-300 hover:bg-red-900/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-combat/10 border border-combat/30 text-combat-light hover:bg-combat/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             ❤️ Sacrificar 1 vida (+1 nav)
           </button>
@@ -148,7 +148,7 @@ function NavigationPanel({ data, totalPlayers = 0, canActInNav, sending, onSacri
             <button
               onClick={onRiskyMove}
               disabled={sending}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-900/40 border border-amber-500/30 text-amber-300 hover:bg-amber-900/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gold/10 border border-gold/30 text-gold-bright hover:bg-gold/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               ⚡ Arriesgarse (todos −1 HP, umbral −{totalPlayers || '?'})
             </button>
@@ -156,7 +156,7 @@ function NavigationPanel({ data, totalPlayers = 0, canActInNav, sending, onSacri
           <button
             onClick={onTurnBack}
             disabled={sending}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-800 border border-gray-700 text-gray-400 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-raised border border-stroke-3 text-ink-2 hover:bg-float disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             🔙 Dar la vuelta
           </button>
@@ -174,21 +174,21 @@ function ExplorationPanel({ data, explorationNodeId, onNavigate }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-xs font-black uppercase tracking-widest text-green-400">🗺️ Explorando</span>
+      <span className="text-xs font-black uppercase tracking-widest text-exploration-light">🗺️ Explorando</span>
       {!tree ? (
-        <p className="text-xs text-gray-600 italic animate-pulse">Generando mapa de exploración…</p>
+        <p className="text-xs text-ink-off italic animate-pulse">Generando mapa de exploración…</p>
       ) : !currentNode ? (
-        <p className="text-xs text-gray-600 italic">Preparando la exploración…</p>
+        <p className="text-xs text-ink-off italic">Preparando la exploración…</p>
       ) : (
         <div className="flex flex-col gap-2">
-          <p className="text-xs text-gray-300 leading-relaxed">{currentNode.description}</p>
+          <p className="text-xs text-ink-2 leading-relaxed">{currentNode.description}</p>
           {!currentNode.is_goal && currentNode.options?.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {currentNode.options.map((opt, i) => (
                 <button
                   key={i}
                   onClick={() => onNavigate?.(opt.next_node_id)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-900/40 border border-green-500/30 text-green-300 hover:bg-green-900/60 transition-colors"
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-exploration/10 border border-exploration/30 text-exploration-light hover:bg-exploration/20 transition-colors"
                 >
                   {opt.label}
                 </button>
@@ -208,21 +208,21 @@ function NegotiationPanel({ data }) {
   const pct = conviction_max > 0 ? Math.max(0, Math.min(1, conviction / conviction_max)) : 0
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-xs font-black uppercase tracking-widest text-amber-400">💬 Negociación en curso</span>
+      <span className="text-xs font-black uppercase tracking-widest text-gold">💬 Negociación en curso</span>
       {conviction_max > 0 && (
         <div className="flex items-center gap-3">
           <div className={`rounded-lg border px-3 py-1.5 ${attStyle.bg} ${attStyle.border}`}>
-            <p className="text-xs font-bold text-gray-200">{npc_name || 'NPC'}</p>
+            <p className="text-xs font-bold text-ink">{npc_name || 'NPC'}</p>
             <p className={`text-xs font-semibold ${attStyle.color}`}>{attStyle.label}</p>
           </div>
           <div className="flex-1 flex flex-col gap-1">
-            <div className="flex justify-between text-xs text-gray-500">
+            <div className="flex justify-between text-xs text-ink-3">
               <span>Convicción</span>
               <span>{conviction}/{conviction_max}</span>
             </div>
-            <div className="h-2 w-full rounded-full bg-gray-800 overflow-hidden">
+            <div className="h-2 w-full rounded-full bg-raised overflow-hidden">
               <div
-                className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                className="h-full rounded-full bg-gold transition-all duration-500"
                 style={{ width: `${pct * 100}%` }}
               />
             </div>
@@ -238,7 +238,7 @@ export default function GameModePanel({ gameMode, gameModeData, currentTurnName,
   if (!gameMode || gameMode === 'normal') return null
 
   return (
-    <div className="shrink-0 border-b border-gray-800 px-6 py-3">
+    <div className="shrink-0 border-b border-stroke px-6 py-3">
       {gameMode === 'combat'      && <CombatPanel      data={gameModeData} currentTurnName={currentTurnName} />}
       {gameMode === 'navigation'  && <NavigationPanel  data={gameModeData} totalPlayers={totalPlayers} canActInNav={canActInNav} sending={sending} onSacrifice={onSacrifice} onRiskyMove={onRiskyMove} onTurnBack={onTurnBack} />}
       {gameMode === 'exploration' && <ExplorationPanel data={gameModeData} explorationNodeId={explorationNodeId} onNavigate={onNavigateExploration} />}
