@@ -402,6 +402,29 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
       }
     }
 
+    // Boss: transición a fase 2 cuando el jefe cae al 50% de HP (solo una vez)
+    if (newMode === 'combat' && currentGameModeData?.is_boss && currentGameModeData?.boss_phase === 1) {
+      const bossMaxHp = currentGameModeData.boss_max_hp
+      const firstAliveIdx = finalGameModeData?.enemies?.findIndex(e => !e.defeated) ?? -1
+      const mainEnemy = firstAliveIdx >= 0 ? finalGameModeData.enemies[firstAliveIdx] : null
+      if (mainEnemy && bossMaxHp > 0 && mainEnemy.hp <= bossMaxHp * 0.5) {
+        finalGameModeData = {
+          ...finalGameModeData,
+          is_boss: true,
+          boss_phase: 2,
+          boss_max_hp: bossMaxHp,
+          enemies: finalGameModeData.enemies.map((e, i) =>
+            i === firstAliveIdx ? { ...e, attack: (e.attack ?? 0) + 2 } : e
+          ),
+        }
+        supabase.from('messages').insert({
+          session_id: session.id, character_id: 'narrator',
+          content: '⚡ **¡SEGUNDA FASE!** Herido pero no vencido, el enemigo desata su poder más oscuro. ¡Sus ataques se vuelven devastadores!',
+          type: 'narrator',
+        }).catch(e => console.warn('[boss] narrativa fase 2:', e))
+      }
+    }
+
     // 4. Escribir todos los cambios en Supabase (dos llamadas)
     await supabase.from('sessions')
       .update({
@@ -474,7 +497,11 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
     // Botín automático si el combate terminó
     if (newMode === 'normal') {
       // Si el combate vino de "dar la vuelta" en navegación, restaurar el modo navegación
-      await distributeLoot(defeatedEnemies)
+      if (currentGameModeData?.is_boss) {
+        await distributeBossLoot(defeatedEnemies)
+      } else {
+        await distributeLoot(defeatedEnemies)
+      }
       if (onEventComplete) await onEventComplete()
     }
   }
@@ -553,6 +580,31 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
     const totalMoney = overrideMoneyReward ?? calculateMoneyReward(defeatedEnemies)
     const moneyPerPlayer = activePlayers.length > 0 ? Math.floor(totalMoney / activePlayers.length) : 0
     await applyRewards(activePlayers, xpGain, moneyPerPlayer)
+  }
+
+  // Distribuye loot garantizando un item único para cada jugador (combate de jefe).
+  async function distributeBossLoot(defeatedEnemies) {
+    const lootUpdates = []
+    for (const id of presentIdsRef.current) {
+      const type = Math.random() < 0.5 ? 'arma' : 'equipo'
+      try {
+        const item = await getRandomItem({ type, rarity: 'único' })
+        if (item) lootUpdates.push({ character_id: id, action: 'add', item })
+      } catch (e) {
+        console.warn('[boss-loot] error obteniendo item único:', e)
+      }
+    }
+    if (lootUpdates.length > 0) {
+      await applyInventoryUpdates(lootUpdates)
+      console.log('[boss-loot] únicos distribuidos:', lootUpdates.map(u => `${u.character_id}: ${u.item?.name}`).join(', '))
+    }
+    if (defeatedEnemies?.length) {
+      const xpGain = calculateXpReward(defeatedEnemies) * 2
+      const totalMoney = calculateMoneyReward(defeatedEnemies) * 2
+      const activePlayers = presentIdsRef.current
+      const moneyPerPlayer = activePlayers.length > 0 ? Math.floor(totalMoney / activePlayers.length) : 0
+      await applyRewards(activePlayers, xpGain, moneyPerPlayer)
+    }
   }
 
   // ─── Exploración — navegación local del árbol de decisión ────────────────
@@ -910,14 +962,21 @@ Narra el descubrimiento de forma dramática y evocadora (máx. 120 palabras). Te
     if (newMode === 'combat' && currentGameMode === 'combat') return
 
     if (newMode === 'combat' && newData?.enemies) {
+      const isBossEvent = currentEventSetupRef.current?.type === 'boss'
+      const mappedEnemies = newData.enemies.map(e => {
+        const maxHp = (e.hp_max > 0 ? e.hp_max : null) ?? (e.hp > 0 ? e.hp : 5)
+        return { ...e, hp: maxHp, hp_max: maxHp, defeated: false, ability_used: false }
+      })
       newData = {
         ...newData,
-        enemies: newData.enemies.map(e => {
-          const maxHp = (e.hp_max > 0 ? e.hp_max : null) ?? (e.hp > 0 ? e.hp : 5)
-          return { ...e, hp: maxHp, hp_max: maxHp, defeated: false, ability_used: false }
-        }),
+        enemies: mappedEnemies,
         boosts: {},
         fruit_specials_used: {},
+        ...(isBossEvent ? {
+          is_boss: true,
+          boss_phase: 1,
+          boss_max_hp: mappedEnemies[0]?.hp_max ?? 0,
+        } : {}),
       }
       // Resetear contadores de combate para todos los jugadores presentes
       for (const id of presentIdsRef.current) {
