@@ -12,7 +12,7 @@ import {
   NARRATOR_SYSTEM_PROMPT,
   SUMMARY_SYSTEM_PROMPT,
 } from '../lib/narrator'
-import { generateExplorationTree, generateNegotiationConsequence } from '../lib/director'
+import { generateExplorationTree, generateNegotiationConsequence, rollNavigationEvent } from '../lib/director'
 import { characters as allCharacters } from '../data/characters'
 import { XP_CONFIG } from '../data/constants'
 import { createPromptBuilders } from '../lib/prompts'
@@ -20,8 +20,29 @@ import { createPromptBuilders } from '../lib/prompts'
 const SUMMARY_EVERY_N_MESSAGES = 10
 
 // Herramientas disponibles para el modelo mecánico (fuera de combate)
-const NORMAL_TOOL_EXECUTORS = { getRandomItem, getEnemies }
+// NORMAL_TOOL_EXECUTORS se crea dentro del hook para acceder a presentIdsRef y currentEventSetupRef
 const NORMAL_TOOLS = [GET_RANDOM_ITEM_TOOL, GET_ENEMIES_TOOL]
+
+// Escalado determinista de enemigos según número de jugadores.
+// Siempre anula lo que decida el modelo para garantizar el balance.
+// El tipo (humano/criatura) sí lo decide el modelo — tiene sentido narrativo.
+function computeEnemyParams(args, playerCount, isBossEvent) {
+  if (isBossEvent || args.difficulty === 'boss') {
+    return { difficulty: 'boss', count: 1, type: args.type || 'cualquiera' }
+  }
+  let difficulty, count
+  if (playerCount <= 1) {
+    difficulty = 'easy'; count = 1
+  } else if (playerCount === 2) {
+    difficulty = 'easy'; count = Math.min(args.count || 2, 2)
+  } else if (playerCount === 3) {
+    difficulty = 'medium'; count = Math.min(args.count || 2, 2)
+  } else {
+    difficulty = args.difficulty === 'hard' ? 'hard' : 'medium'
+    count = Math.min(args.count || 2, 3)
+  }
+  return { difficulty, count, type: args.type || 'cualquiera' }
+}
 
 export function useMessages(session, activeCharacter, presentIds = [], onEventComplete = null, currentEventSetup = null) {
   const sessionRef = useRef(session)
@@ -50,6 +71,19 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
   const supportBonusRef = useRef(0)
   // Ref de gameModeData para acceso sin stale closure en rollDice / rollSustainedChallenge
   const gameModeDataRef = useRef(session?.game_mode_data ?? null)
+
+  // Executor dinámico de getEnemies con escalado determinista por número de jugadores
+  const toolExecutorsRef = useRef(null)
+  toolExecutorsRef.current = {
+    getRandomItem,
+    getEnemies: (args) => {
+      const playerCount = presentIdsRef.current.length
+      const isBossEvent = currentEventSetupRef.current?.type === 'boss'
+      const params = computeEnemyParams(args, playerCount, isBossEvent)
+      console.log(`[getEnemies] jugadores:${playerCount} modelo pidió:`, args, '→ escalado:', params)
+      return getEnemies(params)
+    },
+  }
 
   useEffect(() => { messagesRef.current = messages }, [messages])
   useEffect(() => { narrativeSummaryRef.current = narrativeSummary }, [narrativeSummary])
@@ -698,7 +732,7 @@ Narra el descubrimiento de forma dramática y evocadora (máx. 120 palabras). Te
 
       const raw = await callMechanicsModel(MECHANICS_SYSTEM_PROMPT, mechanicsPrompt, {
         useTools: true,
-        toolExecutors: NORMAL_TOOL_EXECUTORS,
+        toolExecutors: toolExecutorsRef.current,
         tools: NORMAL_TOOLS,
         maxTokens: 800,
       })
@@ -1445,6 +1479,18 @@ Personajes presentes: ${activeIds.join(', ')}.`
 
     // Si completó el umbral, avisar al Director
     if (completed && onEventComplete) await onEventComplete()
+
+    // Evento aleatorio de navegación (~12% por tirada, solo si no completó y no hay evento activo)
+    if (!completed && Math.random() < 0.12) {
+      const navEvent = await rollNavigationEvent(sessionRef.current)
+      if (navEvent) {
+        const eventText = `**[Evento: ${navEvent.title}]** ${navEvent.description}\n\n*${navEvent.mechanic}*`
+        await supabase.from('messages').insert({
+          session_id: session.id, character_id: 'narrator',
+          content: eventText, type: 'narrator',
+        })
+      }
+    }
 
     setSending(false)
   }

@@ -24,6 +24,7 @@ function App() {
   const [page, setPage] = useState('lobby')
   const [session, setSession] = useState(null)
   const [character, setCharacter] = useState(null)
+  const [continueFromSession, setContinueFromSession] = useState(null)
 
   // Suscribirse a cambios de sesión (turno, estado) para mantener GameRoom actualizado
   useEffect(() => {
@@ -81,13 +82,26 @@ function App() {
     setPage('lobby')
   }
 
+  async function handleContinueWithCrew(finishedSession) {
+    await releaseCharacter()
+    setSession(null)
+    setContinueFromSession(finishedSession)
+    setPage('lobby')
+  }
+
   async function handleSelectCharacter() {
     await releaseCharacter()
     setPage('select')
   }
 
   if (page === 'lobby') {
-    return <Lobby onSessionSelect={handleSessionSelect} />
+    return (
+      <Lobby
+        onSessionSelect={handleSessionSelect}
+        continueFromSession={continueFromSession}
+        onContinueHandled={() => setContinueFromSession(null)}
+      />
+    )
   }
 
   if (page === 'select') {
@@ -101,7 +115,7 @@ function App() {
     )
   }
 
-  return <GameRoom character={character} session={session} onLeave={handleLeaveGame} onSelectCharacter={handleSelectCharacter} />
+  return <GameRoom character={character} session={session} onLeave={handleLeaveGame} onSelectCharacter={handleSelectCharacter} onContinueWithCrew={handleContinueWithCrew} />
 }
 
 export default App

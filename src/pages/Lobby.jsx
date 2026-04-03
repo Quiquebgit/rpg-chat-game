@@ -4,36 +4,7 @@ import { characters } from '../data/characters'
 import { initializeStorySession } from '../lib/director'
 import { SESSION_STATUS } from '../data/constants'
 import ThemeToggle from '../components/ThemeToggle'
-
-// Carga todos los ficheros .md de historias como texto plano
-const STORY_FILES = import.meta.glob('../data/stories/*.md', { query: '?raw', import: 'default', eager: true })
-
-// Parsea el frontmatter YAML simple de un fichero .md
-function parseFrontmatter(content) {
-  const match = content.match(/^---\n([\s\S]*?)\n---/)
-  if (!match) return {}
-  const result = {}
-  for (const line of match[1].split('\n')) {
-    const idx = line.indexOf(':')
-    if (idx === -1) continue
-    const key = line.slice(0, idx).trim()
-    const value = line.slice(idx + 1).trim()
-    result[key] = isNaN(value) || value === '' ? value : Number(value)
-  }
-  return result
-}
-
-// Extrae el cuerpo del .md (sin frontmatter)
-function parseBody(content) {
-  return content.replace(/^---\n[\s\S]*?\n---\n/, '').trim()
-}
-
-// Lista de historias disponibles con su clave de fichero
-const STORIES = Object.entries(STORY_FILES).map(([path, content]) => {
-  const meta = parseFrontmatter(content)
-  const filename = path.split('/').pop() // e.g. "porto-falcon.md"
-  return { filename, content, ...meta }
-}).sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+import StoryEditor from '../components/StoryEditor'
 
 function formatDate(iso) {
   if (!iso) return '—'
@@ -79,18 +50,21 @@ function IconTrash() {
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
-function Lobby({ onSessionSelect }) {
+function Lobby({ onSessionSelect, continueFromSession, onContinueHandled }) {
   const [sessions, setSessions] = useState([])
+  const [stories, setStories] = useState([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(null)
 
   // Flujo de creación de aventura
-  const [view, setView] = useState('sessions') // 'sessions' | 'story-picker' | 'difficulty-picker' | 'initializing'
+  const [view, setView] = useState('sessions') // 'sessions' | 'story-picker' | 'story-editor' | 'difficulty-picker' | 'initializing'
   const [selectedStory, setSelectedStory] = useState(null)
+  const [editingStory, setEditingStory] = useState(null) // historia a editar (null = crear nueva)
   const [templates, setTemplates] = useState([])
 
   useEffect(() => {
     loadSessions()
+    loadStories()
     loadTemplates()
 
     const sub = supabase
@@ -112,6 +86,11 @@ function Lobby({ onSessionSelect }) {
     setLoading(false)
   }
 
+  async function loadStories() {
+    const { data } = await supabase.from('stories').select('id, title, description, estimated_minutes, is_custom').order('is_custom').order('title')
+    if (data) setStories(data)
+  }
+
   async function loadTemplates() {
     const { data } = await supabase.from('difficulty_templates').select('*').order('event_count')
     if (data) setTemplates(data)
@@ -124,14 +103,14 @@ function Lobby({ onSessionSelect }) {
     const story = selectedStory
     const turnOrder = characters.map(c => c.id)
 
-    // 1. Crear la sesión con story_file y difficulty_template_id
+    // 1. Crear la sesión con story_id y difficulty_template_id
     const { data: newSession, error } = await supabase
       .from('sessions')
       .insert({
         status: 'active',
         turn_order: turnOrder,
         current_turn_character_id: turnOrder[0],
-        story_file: story.filename,
+        story_id: story.id,
         difficulty_template_id: template.id,
         current_event_order: 1,
       })
@@ -144,14 +123,33 @@ function Lobby({ onSessionSelect }) {
       return
     }
 
-    // 2. Inicializar estados de personajes
+    // 2. Inicializar estados de personajes (preservando progresión si continuamos tripulación)
+    let prevStates = []
+    if (continueFromSession) {
+      const { data } = await supabase
+        .from('session_character_state')
+        .select('character_id, inventory, money, xp, stat_upgrades')
+        .eq('session_id', continueFromSession.id)
+      prevStates = data || []
+    }
+
     await supabase.from('session_character_state').insert(
-      characters.map(c => ({ session_id: newSession.id, character_id: c.id, hp_current: c.hp, inventory: [] }))
+      characters.map(c => {
+        const prev = prevStates.find(s => s.character_id === c.id)
+        return {
+          session_id: newSession.id,
+          character_id: c.id,
+          hp_current: c.hp, // siempre descansados al empezar aventura nueva
+          inventory: prev?.inventory || [],
+          money: prev?.money || 0,
+          xp: prev?.xp || 0,
+          stat_upgrades: prev?.stat_upgrades || {},
+        }
+      })
     )
 
-    // 3. Llamar al Director para planificar el primer evento
-    const storyBody = parseBody(story.content)
-    await initializeStorySession(newSession.id, storyBody, template)
+    // 3. Llamar al Director para planificar el primer evento (carga lore desde BD)
+    await initializeStorySession(newSession.id, story.id, template)
 
     // 4. Recargar la sesión (con story_lore y current_event_briefing ya guardados)
     const { data: readySession } = await supabase
@@ -159,7 +157,33 @@ function Lobby({ onSessionSelect }) {
 
     setView('sessions')
     setSelectedStory(null)
+    if (continueFromSession) onContinueHandled()
     onSessionSelect(readySession || newSession)
+  }
+
+  // ─── Gestión de historias ─────────────────────────────────────────────────
+
+  function handleCreateStory() {
+    setEditingStory(null)
+    setView('story-editor')
+  }
+
+  function handleEditStory(story, e) {
+    e.stopPropagation()
+    setEditingStory(story)
+    setView('story-editor')
+  }
+
+  async function handleDeleteStory(story, e) {
+    e.stopPropagation()
+    if (!confirm(`¿Borrar la historia "${story.title}"? Esta acción no se puede deshacer.`)) return
+    await supabase.from('stories').delete().eq('id', story.id)
+    loadStories()
+  }
+
+  function handleStorySaved() {
+    loadStories()
+    setView('story-picker')
   }
 
   // ─── Gestión de sesiones existentes ──────────────────────────────────────
@@ -185,6 +209,14 @@ function Lobby({ onSessionSelect }) {
     setBusy(null)
   }
 
+  // Obtiene el título de la historia de una sesión (BD → fallback legacy)
+  function getStoryTitle(session) {
+    if (session.story_id) {
+      return stories.find(s => s.id === session.story_id)?.title || null
+    }
+    return null
+  }
+
   // ─── Render ──────────────────────────────────────────────────────────────
 
   // Pantalla de inicialización del Director
@@ -198,6 +230,26 @@ function Lobby({ onSessionSelect }) {
         <p className="text-sm text-ink-3 text-center max-w-sm">
           Adaptando la historia al nivel de dificultad elegido. Esto puede tardar unos segundos.
         </p>
+      </div>
+    )
+  }
+
+  // Editor de historias (crear / editar)
+  if (view === 'story-editor') {
+    return (
+      <div className="min-h-screen text-ink px-6 py-10"
+        style={{ background: 'var(--gradient-lobby)' }}
+      >
+        <div className="max-w-2xl mx-auto">
+          <button onClick={() => setView('story-picker')} className="text-xs text-ink-off hover:text-ink-2 mb-8 flex items-center gap-1">
+            ← Volver a historias
+          </button>
+          <StoryEditor
+            story={editingStory}
+            onSaved={handleStorySaved}
+            onCancel={() => setView('story-picker')}
+          />
+        </div>
       </div>
     )
   }
@@ -240,6 +292,8 @@ function Lobby({ onSessionSelect }) {
 
   // Selector de historia
   if (view === 'story-picker') {
+    const builtIn = stories.filter(s => !s.is_custom)
+    const custom = stories.filter(s => s.is_custom)
     return (
       <div className="min-h-screen text-ink px-6 py-10"
         style={{ background: 'var(--gradient-lobby)' }}
@@ -248,29 +302,61 @@ function Lobby({ onSessionSelect }) {
           <button onClick={() => setView('sessions')} className="text-xs text-ink-off hover:text-ink-2 mb-8 flex items-center gap-1">
             ← Volver al lobby
           </button>
-          <div className="text-center mb-8">
-            <p className="text-xs uppercase tracking-widest text-gold-dim/60 mb-2">Nueva aventura</p>
-            <h2 className="text-2xl font-bold text-gold-bright" style={{ fontFamily: 'var(--font-display)' }}>Elige una historia</h2>
+          {continueFromSession && (
+            <div className="mb-6 rounded-xl border border-gold/30 bg-gold/10 px-5 py-3 text-sm text-gold-bright flex items-center gap-2">
+              <span>⚔️</span>
+              <span>Continuando con la misma tripulación — el inventario, XP y berries se conservan.</span>
+            </div>
+          )}
+
+          <div className="flex items-end justify-between mb-8">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-gold-dim/60 mb-1">Nueva aventura</p>
+              <h2 className="text-2xl font-bold text-gold-bright" style={{ fontFamily: 'var(--font-display)' }}>Elige una historia</h2>
+            </div>
+            <button
+              onClick={handleCreateStory}
+              className="text-sm font-semibold text-gold border border-gold/30 bg-gold/10 px-4 py-2 rounded-lg hover:bg-gold hover:text-canvas transition-all"
+            >
+              + Crear historia
+            </button>
           </div>
-          <div className="flex flex-col gap-4">
-            {STORIES.map(story => (
-              <button
-                key={story.filename}
-                onClick={() => { setSelectedStory(story); setView('difficulty-picker') }}
-                className="w-full text-left rounded-xl border border-stroke bg-panel px-6 py-5 hover:border-gold/40 hover:bg-raised/60 transition-all group"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-bold text-ink group-hover:text-gold-bright transition-colors mb-1">{story.title}</h3>
-                    <p className="text-sm text-ink-3">{story.description}</p>
-                  </div>
-                  {story.estimated_minutes && (
-                    <span className="text-xs text-ink-off shrink-0 mt-0.5">~{story.estimated_minutes} min</span>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
+
+          {/* Historias personalizadas primero si las hay */}
+          {custom.length > 0 && (
+            <div className="mb-6">
+              <p className="text-xs uppercase tracking-widest text-ink-3 mb-3">Tus historias</p>
+              <div className="flex flex-col gap-3">
+                {custom.map(story => (
+                  <StoryCard
+                    key={story.id}
+                    story={story}
+                    onSelect={() => { setSelectedStory(story); setView('difficulty-picker') }}
+                    onEdit={(e) => handleEditStory(story, e)}
+                    onDelete={(e) => handleDeleteStory(story, e)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Historias predefinidas */}
+          {builtIn.length > 0 && (
+            <div>
+              {custom.length > 0 && (
+                <p className="text-xs uppercase tracking-widest text-ink-3 mb-3">Historias oficiales</p>
+              )}
+              <div className="flex flex-col gap-3">
+                {builtIn.map(story => (
+                  <StoryCard
+                    key={story.id}
+                    story={story}
+                    onSelect={() => { setSelectedStory(story); setView('difficulty-picker') }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -317,9 +403,7 @@ function Lobby({ onSessionSelect }) {
               const status = SESSION_STATUS[session.status] || SESSION_STATUS.abandoned
               const isActive = session.status === 'active'
               const isBusy = busy === session.id
-              const storyTitle = session.story_file
-                ? STORIES.find(s => s.filename === session.story_file)?.title
-                : null
+              const storyTitle = getStoryTitle(session)
 
               return (
                 <div
@@ -375,6 +459,56 @@ function Lobby({ onSessionSelect }) {
           </div>
         )}
 
+      </div>
+    </div>
+  )
+}
+
+// ─── StoryCard ────────────────────────────────────────────────────────────────
+
+function StoryCard({ story, onSelect, onEdit, onDelete }) {
+  return (
+    <div
+      onClick={onSelect}
+      className="w-full text-left rounded-xl border border-stroke bg-panel px-6 py-5 hover:border-gold/40 hover:bg-raised/60 transition-all group cursor-pointer"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="text-base font-bold text-ink group-hover:text-gold-bright transition-colors">{story.title}</h3>
+            {story.is_custom && (
+              <span className="text-xs text-gold/60 border border-gold/25 px-1.5 py-0 rounded shrink-0">Personalizada</span>
+            )}
+          </div>
+          <p className="text-sm text-ink-3">{story.description}</p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {story.estimated_minutes && (
+            <span className="text-xs text-ink-off mt-0.5">~{story.estimated_minutes} min</span>
+          )}
+          {story.is_custom && onEdit && (
+            <button
+              onClick={onEdit}
+              title="Editar"
+              className="ml-2 p-1.5 rounded-lg text-ink-3 hover:text-ink-2 hover:bg-raised/60 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
+              </svg>
+            </button>
+          )}
+          {story.is_custom && onDelete && (
+            <button
+              onClick={onDelete}
+              title="Borrar"
+              className="p-1.5 rounded-lg text-combat/40 hover:text-combat-light hover:bg-combat/10 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

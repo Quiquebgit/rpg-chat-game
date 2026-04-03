@@ -14,7 +14,7 @@ import { StatBoostPanel, HealPanel } from '../components/StatBoostPanel'
 import { CharacterPanel } from '../components/CharacterPanel'
 import ThemeToggle from '../components/ThemeToggle'
 
-function GameRoom({ character, session, onLeave, onSelectCharacter }) {
+function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWithCrew }) {
   const [input, setInput] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [playersOpen, setPlayersOpen] = useState(false)
@@ -294,6 +294,35 @@ function GameRoom({ character, session, onLeave, onSelectCharacter }) {
                   {STAT_LABELS[stat] ?? stat}
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de fin de aventura */}
+      {session.status === 'finished' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="mx-4 max-w-md w-full rounded-2xl border border-gold/40 bg-canvas p-8 flex flex-col gap-5 shadow-2xl shadow-gold/20 text-center">
+            <p className="text-5xl">⚓</p>
+            <h3 className="text-2xl font-bold text-gold-bright" style={{ fontFamily: 'var(--font-display)' }}>¡Aventura completada!</h3>
+            <p className="text-sm text-ink-2 leading-relaxed">
+              La tripulación ha llegado al final de esta historia. ¿Qué hacéis a continuación?
+            </p>
+            <div className="flex flex-col gap-3 pt-2">
+              {onContinueWithCrew && (
+                <button
+                  onClick={() => onContinueWithCrew(session)}
+                  className="w-full py-3 rounded-xl font-bold bg-gold text-canvas hover:bg-gold-bright transition-all"
+                >
+                  ⚔️ Nueva aventura con esta tripulación
+                </button>
+              )}
+              <button
+                onClick={onLeave}
+                className="w-full py-3 rounded-xl font-semibold border border-stroke text-ink-2 hover:bg-raised/50 transition-all"
+              >
+                Volver al Lobby
+              </button>
             </div>
           </div>
         </div>

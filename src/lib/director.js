@@ -88,10 +88,22 @@ Formato de respuesta al completar el evento final:
   "is_final": true
 }`
 
+// Carga el lore de una historia desde la tabla stories de Supabase.
+export async function loadStory(storyId) {
+  const { data, error } = await supabase.from('stories').select('*').eq('id', storyId).single()
+  if (error) { console.error('[director] Error cargando historia:', error); return null }
+  return data
+}
+
 // Llama al Director para planificar la primera sesión de una historia.
 // Guarda story_lore, current_event_briefing y current_event_order en Supabase.
 // Devuelve el resultado del Director (incluye opening_hint para el narrador).
-export async function initializeStorySession(sessionId, storyContent, template) {
+// storyId: UUID de la tabla stories
+export async function initializeStorySession(sessionId, storyId, template) {
+  const story = await loadStory(storyId)
+  if (!story) { console.error('[director] Historia no encontrada:', storyId); return null }
+  const storyContent = story.lore
+
   const firstEvent = template.events.find(e => e.order === 1)
   const userPrompt = `Historia:\n${storyContent}\n\nPlantilla de dificultad: ${template.name} (${template.description})\n\nPrimer evento a adaptar: ${JSON.stringify(firstEvent)}\n\nGenera el story_lore, el event_briefing del primer evento y el opening_hint.`
 
@@ -176,6 +188,40 @@ export async function generateExplorationTree(sessionId, storyLore, eventBriefin
     console.log(`[director]   ${node.id}${node.is_goal ? ' [GOAL]' : ''}: ${opts || '(sin opciones)'}`)
   }
   return tree
+}
+
+const NAVIGATION_EVENT_SYSTEM_PROMPT = `Eres el Director de Guion de un juego de rol. Durante la navegación, debes generar micro-eventos imprevistos y dramáticos.
+Devuelve SOLO JSON válido:
+{
+  "type": "encounter|weather|merchant|discovery",
+  "title": "Nombre breve del evento (máx. 5 palabras)",
+  "description": "Descripción narrativa del evento en 2-3 frases. Usa lenguaje evocador y conecta con el lore.",
+  "mechanic": "qué deben hacer los jugadores: tirada de stat concreto, decisión de equipo, gasto de berries, etc. (1 frase)"
+}
+- encounter: barco pirata, marine o criatura marina que aparece
+- weather: tormenta, niebla, calma chicha, corriente
+- merchant: barco mercante con algo interesante para comprar/intercambiar
+- discovery: isla, objeto, mensaje en una botella, rastro de algo mayor`
+
+// Genera un evento aleatorio durante la navegación.
+// Probabilidad: ~12% por turno en modo navigation (gestiona el caller).
+// Devuelve { type, title, description, mechanic } o null si falla.
+export async function rollNavigationEvent(session) {
+  const context = [
+    session.story_lore ? `Lore:\n${session.story_lore}` : '',
+    session.current_event_briefing ? `Evento actual:\n${session.current_event_briefing}` : '',
+  ].filter(Boolean).join('\n\n')
+
+  const userPrompt = `${context}\n\nGenera un evento inesperado durante la navegación. Debe ser coherente con el lore y aportar tensión o drama.`
+
+  try {
+    const raw = await callDirectorModel(NAVIGATION_EVENT_SYSTEM_PROMPT, userPrompt)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch (err) {
+    console.error('[director] Error generando evento de navegación:', err)
+    return null
+  }
 }
 
 // Genera una consecuencia narrativa por fallo en negociación y la inserta como mensaje del narrador.
