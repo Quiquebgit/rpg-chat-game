@@ -198,8 +198,8 @@ El panel acumula: stats base, stats nuevos (DES/CAR), habilidad especial, habili
 #### Más contenido
 - [x] 4 historias nuevas: Fortaleza Korrath (heist), Arrecife Perdido (exploración submarina), Festival de Baltimor (conspiración), Sombras en la Marina (thriller político)
 - [x] Sistema de eventos aleatorios en navegación: `rollNavigationEvent()` en `director.js` · trigger ~12% por tirada en `useMessages.js`
-- [ ] Modo boss: enemigo único con fases, texto especial, recompensa única garantizada _(diferido a Sprint 5/6)_
-- [ ] Más items únicos y raros en la tabla `items` de Supabase _(diferido a Sprint 5/6)_
+- [x] Modo boss: enemigo único con fases, texto especial, recompensa única garantizada — fase 2 al 50% HP (+2 ATK), `distributeBossLoot` (item único + XP/berries x2)
+- [x] Más items únicos y raros en la tabla `items` de Supabase — 12 nuevos items: dexterity/charisma (hueco cubierto), boss-temáticos, consumibles de alto nivel
 
 ### Archivos afectados
 `src/data/stories/*.md` → Supabase · `src/lib/director.js` · `src/pages/Lobby.jsx` · `src/hooks/useSession.js`
