@@ -63,6 +63,13 @@ OTRAS REGLAS:
 - desafío sostenido: si la acción requiere varias tiradas para completarse (forzar cerradura reforzada, escalar muralla bajo lluvia, hackear un sistema), pon dice_required:true y dice_sustained_target:N (N=2-4 éxitos necesarios). El sistema acumulará los resultados automáticamente.
 - money_reward: incluir SOLO al finalizar un combate, encontrar un tesoro, o completar una misión con recompensa económica clara. Omitir si no hay recompensa narrativa de dinero.
 
+PERSISTENCIA DEL MUNDO:
+- Si el narrador introduce un NPC nuevo con nombre propio (marino, pirata, personaje importante), llama a saveWorldNpc() con sus stats y descripción.
+- NO llames a saveWorldNpc si el NPC ya aparece en "NPCs conocidos del mundo" — ya existe.
+- Si los jugadores llegan a una ubicación nueva con nombre propio, llama a saveWorldLocation() para registrarla en el mapa.
+- NO llames a saveWorldLocation si el lugar ya aparece en "Ubicaciones descubiertas" — ya existe.
+- Al usar NPCs conocidos en combate, usa getEnemies() para obtener enemigos genéricos pero dale el nombre del NPC conocido si corresponde.
+
 {"dice_required":false,"dice_count":1,"dice_stat":null,"dice_threshold":null,"dice_sustained_target":null,"action_result":null,"next_character_id":"","stat_updates":[],"inventory_updates":[],"game_mode":null,"game_mode_data":null,"event_type":null,"session_event":null,"support_roll":false,"money_reward":null}`
 
 // System prompt del modelo mecánico en modo NEGOCIACIÓN

@@ -5,6 +5,8 @@ import { initializeStorySession } from '../lib/director'
 import { SESSION_STATUS } from '../data/constants'
 import ThemeToggle from '../components/ThemeToggle'
 import StoryEditor from '../components/StoryEditor'
+import WorldNpcPanel from '../components/WorldNpcPanel'
+import WorldMap from '../components/WorldMap'
 
 function formatDate(iso) {
   if (!iso) return '—'
@@ -62,10 +64,17 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled }) {
   const [editingStory, setEditingStory] = useState(null) // historia a editar (null = crear nueva)
   const [templates, setTemplates] = useState([])
 
+  // Mundo persistente
+  const [worldNpcs, setWorldNpcs] = useState([])
+  const [worldLocations, setWorldLocations] = useState([])
+  const [worldConnections, setWorldConnections] = useState([])
+  const [worldTab, setWorldTab] = useState('enemies')
+
   useEffect(() => {
     loadSessions()
     loadStories()
     loadTemplates()
+    loadWorldData()
 
     const sub = supabase
       .channel('lobby-sessions')
@@ -94,6 +103,17 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled }) {
   async function loadTemplates() {
     const { data } = await supabase.from('difficulty_templates').select('*').order('event_count')
     if (data) setTemplates(data)
+  }
+
+  async function loadWorldData() {
+    const [npcsRes, locsRes, connsRes] = await Promise.all([
+      supabase.from('world_npcs').select('*').order('created_at'),
+      supabase.from('world_locations').select('*').order('created_at'),
+      supabase.from('world_location_connections').select('*'),
+    ])
+    if (npcsRes.data) setWorldNpcs(npcsRes.data)
+    if (locsRes.data) setWorldLocations(locsRes.data)
+    if (connsRes.data) setWorldConnections(connsRes.data)
   }
 
   // ─── Crear sesión con historia ───────────────────────────────────────────
@@ -392,6 +412,41 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled }) {
         >
           + Nueva aventura
         </button>
+
+        {/* Mundo persistente: NPCs conocidos + Mapa */}
+        {(worldNpcs.length > 0 || worldLocations.length > 0) && (
+          <div className="mb-8 rounded-xl border border-stroke bg-panel overflow-hidden">
+            {/* Tabs */}
+            <div className="flex border-b border-stroke">
+              {[
+                { id: 'enemies', label: 'Enemigos conocidos', icon: '⚔️', count: worldNpcs.length },
+                { id: 'map', label: 'Mapa del mundo', icon: '🗺️', count: worldLocations.length },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setWorldTab(tab.id)}
+                  className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
+                    worldTab === tab.id
+                      ? 'text-gold-bright border-b-2 border-gold'
+                      : 'text-ink-3 hover:text-ink-2'
+                  }`}
+                >
+                  <span className="mr-1">{tab.icon}</span>
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  {tab.count > 0 && (
+                    <span className="ml-1 text-[10px] text-ink-off">({tab.count})</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Contenido del tab */}
+            <div className="p-4">
+              {worldTab === 'enemies' && <WorldNpcPanel npcs={worldNpcs} />}
+              {worldTab === 'map' && <WorldMap locations={worldLocations} connections={worldConnections} />}
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <p className="text-center text-ink-off animate-pulse text-sm">Cargando sesiones…</p>

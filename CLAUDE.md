@@ -29,7 +29,7 @@ src/
 ├── pages/        # CharacterSelect, GameRoom, Lobby
 ├── hooks/        # useSession, useMessages, usePresence, useNarration, useDirector, useTheme
 ├── lib/          # supabase.js · groq.js · narrator.js · prompts.js · combat.js
-│                 # director.js · items.js · enemies.js
+│                 # director.js · items.js · enemies.js · worldState.js
 ├── styles/       # themes.css · animations.css · typography.css · utilities.css
 └── data/         # characters.js · constants.js · stories/*.md
 ```
@@ -95,6 +95,7 @@ Para efectos en `style={{}}`: usar `var(--mode-combat-flash)`, `var(--gradient-l
 | Sistema de tiradas y mecánicas de acción | `/action-system` | DiceMessage.jsx, useMessages.js, combat.js |
 | Diseño visual, colores, tipografía, animaciones | `/frontend-design` | components/*, pages/*, constants.js |
 | Lore, historias, universo, personajes del mundo | `/lore-one-piece` | stories/*.md, narrator.js |
+| Mundo persistente, NPCs, mapa, ubicaciones | `/db-schema` | worldState.js, world_npcs/world_locations tables |
 
 ### Invocar para realizar tareas
 | Tarea | Skill |
@@ -155,5 +156,6 @@ Ver [ROADMAP.md](ROADMAP.md) para el plan completo de sprints.
 - Sprint 3 completado al 100%: CharacterPanel con tabs (Personaje/Poderes/Mochila) + bottom sheet mobile, fuente Cinzel, @keyframes dice-roll/scale-in/dot-bounce/glow-pulse/mode-flash, DiceMessage animado, typing indicator 3 puntos, GameModePanel mejorado (bounty badge, grayscale derrotados, glow-pulse turno), CharacterSelect con barras de stats, Lobby con gradiente épico
 - Sistema de diseño completado: paleta One Piece completa (dark Grand Line Night + light Dawn Island), tokens CSS en `src/styles/themes.css`, hook `useTheme` + `ThemeToggle`, migración total de todas las clases Tailwind hardcodeadas a tokens semánticos en todos los componentes y páginas, correcciones de contraste WCAG en ambos temas
 - Sprint 4 completado al 100%: tabla `stories` en Supabase + seed 7 historias (3 originales + 4 nuevas), `loadStory()` en director.js, Lobby carga historias desde BD, `StoryEditor.jsx` para historias personalizadas, modal fin de aventura con `continueWithCrew` (preserva XP/berries/inventario/stat_upgrades), `rollNavigationEvent()` con trigger ~12% por tirada
+- Sprint 5 completado al 100%: mundo persistente con tablas `world_npcs` + `world_locations` + `world_location_connections`, jerarquía de Marina generada por IA (~16 NPCs), tool calling `saveWorldNpc`/`saveWorldLocation` para persistencia automática, `buildWorldContext()` en prompts, derrota de NPCs marcada en BD, panel "Enemigos conocidos" + mapa SVG interactivo en Lobby, Director sugiere destinos coherentes con ubicaciones existentes
 
-**Próximo sprint:** Sprint 5 (Mundo Persistente: Marina y Mapa)
+**Próximo sprint:** Sprint 6 (Social y Engagement)

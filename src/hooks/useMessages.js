@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { callMechanicsModel, callNarratorModel, ModelsBusyError } from '../lib/groq'
 import { getRandomItem, GET_RANDOM_ITEM_TOOL } from '../lib/items'
 import { getEnemies, GET_ENEMIES_TOOL } from '../lib/enemies'
+import { saveWorldNpc, defeatWorldNpc, getWorldNpcs, saveWorldLocation, getWorldLocations, generateMarinaHierarchy, SAVE_WORLD_NPC_TOOL, SAVE_WORLD_LOCATION_TOOL } from '../lib/worldState'
 import { resolveCombatTurn, checkDegree, calculateXpReward, calculateMoneyReward } from '../lib/combat'
 import {
   COMBAT_MECHANICS_SYSTEM_PROMPT,
@@ -21,7 +22,7 @@ const SUMMARY_EVERY_N_MESSAGES = 10
 
 // Herramientas disponibles para el modelo mecánico (fuera de combate)
 // NORMAL_TOOL_EXECUTORS se crea dentro del hook para acceder a presentIdsRef y currentEventSetupRef
-const NORMAL_TOOLS = [GET_RANDOM_ITEM_TOOL, GET_ENEMIES_TOOL]
+const NORMAL_TOOLS = [GET_RANDOM_ITEM_TOOL, GET_ENEMIES_TOOL, SAVE_WORLD_NPC_TOOL, SAVE_WORLD_LOCATION_TOOL]
 
 // Escalado determinista de enemigos según número de jugadores.
 // Siempre anula lo que decida el modelo para garantizar el balance.
@@ -72,6 +73,10 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
   // Ref de gameModeData para acceso sin stale closure en rollDice / rollSustainedChallenge
   const gameModeDataRef = useRef(session?.game_mode_data ?? null)
 
+  // Estado del mundo persistente (NPCs y ubicaciones conocidos)
+  const worldNpcsRef = useRef([])
+  const worldLocationsRef = useRef([])
+
   // Executor dinámico de getEnemies con escalado determinista por número de jugadores
   const toolExecutorsRef = useRef(null)
   toolExecutorsRef.current = {
@@ -83,6 +88,8 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
       console.log(`[getEnemies] jugadores:${playerCount} modelo pidió:`, args, '→ escalado:', params)
       return getEnemies(params)
     },
+    saveWorldNpc: (args) => saveWorldNpc({ ...args, first_seen_session: session?.id }),
+    saveWorldLocation: (args) => saveWorldLocation({ ...args, discovered_in_session: session?.id }),
   }
 
   useEffect(() => { messagesRef.current = messages }, [messages])
@@ -115,6 +122,7 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
     if (!session) return
     loadMessages()
     loadCharacterStates()
+    loadWorldState()
     subscribeToMessages()
     subscribeToCharacterStates()
     return () => {
@@ -122,6 +130,24 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
       characterStatesSubRef.current?.unsubscribe()
     }
   }, [session?.id])
+
+  // Carga estado del mundo persistente (NPCs y ubicaciones conocidos)
+  async function loadWorldState() {
+    const [npcs, locations] = await Promise.all([
+      getWorldNpcs(),
+      getWorldLocations(),
+    ])
+    worldNpcsRef.current = npcs || []
+    worldLocationsRef.current = locations || []
+
+    // Generar jerarquía de la Marina si no existe (lazy, idempotente)
+    if (!npcs?.some(n => n.faction === 'marina')) {
+      const marinaNpcs = await generateMarinaHierarchy(session?.id)
+      if (marinaNpcs.length) {
+        worldNpcsRef.current = [...worldNpcsRef.current, ...marinaNpcs]
+      }
+    }
+  }
 
   async function loadMessages() {
     const [{ data: msgs, error }, { data: sessionData }] = await Promise.all([
@@ -184,7 +210,7 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
     buildNavigationNarratorPrompt,
     buildNegotiationMechanicsPrompt,
     buildNpcNarratorPrompt,
-  } = createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef, currentEventSetupRef })
+  } = createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef, currentEventSetupRef, worldNpcsRef, worldLocationsRef })
 
   // Avanza el contador de turno del beat y pasa al siguiente si se agotó
   async function advanceBeatIfNeeded() {
@@ -501,6 +527,13 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
         await distributeBossLoot(defeatedEnemies)
       } else {
         await distributeLoot(defeatedEnemies)
+      }
+      // Persistir derrota de NPCs del mundo (no-op si no coinciden nombres)
+      if (defeatedEnemies?.length) {
+        for (const enemy of defeatedEnemies) {
+          await defeatWorldNpc(enemy.name, session.id)
+        }
+        await loadWorldState()
       }
       if (onEventComplete) await onEventComplete()
     }

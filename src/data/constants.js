@@ -107,3 +107,41 @@ export const SESSION_STATUS = {
   finished:  { label: 'Terminada', style: 'text-navigation-light  bg-navigation/10  border-navigation/30' },
   abandoned: { label: 'Archivada', style: 'text-ink-3             bg-raised          border-stroke' },
 }
+
+// ── Mundo persistente (Sprint 5) ─────────────────────────────────────────────
+
+// Rangos de la marina y sus etiquetas
+export const MARINA_RANKS = {
+  fleet_admiral: { label: 'Almirante de Flota', icon: '⭐', tier: 1 },
+  admiral:       { label: 'Almirante',          icon: '🎖️', tier: 2 },
+  vice_admiral:  { label: 'Vicealmirante',      icon: '⚓', tier: 3 },
+  captain:       { label: 'Capitán',            icon: '🚩', tier: 4 },
+  commander:     { label: 'Comandante',         icon: '📋', tier: 5 },
+  lieutenant:    { label: 'Teniente',           icon: '🔰', tier: 6 },
+  other:         { label: 'Otro',               icon: '👤', tier: 7 },
+}
+
+// Estilos de facción para NPCs del mundo
+export const FACTION_STYLES = {
+  marina:   { label: 'Marina',   color: 'text-navigation-light', bg: 'bg-navigation/10', border: 'border-navigation/30' },
+  pirata:   { label: 'Pirata',   color: 'text-combat-light',     bg: 'bg-combat/10',     border: 'border-combat/30' },
+  gobierno: { label: 'Gobierno', color: 'text-gold',             bg: 'bg-gold/10',       border: 'border-gold/30' },
+  otro:     { label: 'Otro',     color: 'text-ink-2',            bg: 'bg-raised',        border: 'border-stroke-3' },
+}
+
+// Estilos de tipo de ubicación para el mapa
+export const LOCATION_TYPE_STYLES = {
+  island:   { label: 'Isla',        icon: '🏝️', fill: 'var(--mode-exploration)' },
+  port:     { label: 'Puerto',      icon: '⚓',  fill: 'var(--mode-navigation)' },
+  fortress: { label: 'Fortaleza',   icon: '🏰', fill: 'var(--mode-combat)' },
+  sea_zone: { label: 'Zona marina', icon: '🌊', fill: 'var(--mode-navigation)' },
+  landmark: { label: 'Hito',        icon: '📍', fill: 'var(--accent-gold)' },
+}
+
+// Estilos de estado de NPCs del mundo
+export const NPC_STATUS_STYLES = {
+  active:   { label: 'Activo',    color: 'text-exploration-light', dot: 'bg-exploration' },
+  defeated: { label: 'Derrotado', color: 'text-ink-off',           dot: 'bg-ink-off' },
+  allied:   { label: 'Aliado',    color: 'text-gold-bright',       dot: 'bg-gold' },
+  missing:  { label: 'Desaparecido', color: 'text-ink-3',          dot: 'bg-ink-3' },
+}

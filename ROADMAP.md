@@ -212,7 +212,7 @@ El panel acumula: stats base, stats nuevos (DES/CAR), habilidad especial, habili
 
 ---
 
-## Sprint 5 — Mundo Persistente: Marina y Mapa
+## Sprint 5 — Mundo Persistente: Marina y Mapa ✅ COMPLETADO
 **Duración estimada:** 3 semanas  
 **Experiencia objetivo:** *"¡El almirante Korrath que conocimos en la primera historia apareció de nuevo! Y sigue recordando que le ganamos."*
 
@@ -224,19 +224,19 @@ Da coherencia al mundo entre sesiones. El universo empieza a sentirse vivo y con
 ### Tareas
 
 #### Sistema de Marina (NPCs persistentes)
-- [ ] Tabla `world_npcs` en Supabase: `id, name, rank, faction, hp, attack, defense, description, status, first_seen_session`
-- [ ] Jerarquía de marina: Almirante de Flota → 3 Almirantes → Vicealmirantes → Capitanes (generada por IA en primera sesión)
-- [ ] Cuando el narrador genera un NPC de marina, el modelo mecánico lo guarda en `world_npcs` con sus características
-- [ ] En historias siguientes, la IA consulta `world_npcs` para mantener coherencia (mismo nombre, stats, actitud)
-- [ ] Si un NPC es derrotado en combate → `status: 'defeated'` → no vuelve a aparecer activo
-- [ ] Panel de "Enemigos conocidos" en Lobby: lista de NPCs descubiertos con su info
+- [x] Tabla `world_npcs` en Supabase: `id, name, rank, faction, hp, attack, defense, description, status, first_seen_session`
+- [x] Jerarquía de marina: Almirante de Flota → 3 Almirantes → Vicealmirantes → Capitanes (generada por IA en primera sesión)
+- [x] Cuando el narrador genera un NPC de marina, el modelo mecánico lo guarda en `world_npcs` con sus características
+- [x] En historias siguientes, la IA consulta `world_npcs` para mantener coherencia (mismo nombre, stats, actitud)
+- [x] Si un NPC es derrotado en combate → `status: 'defeated'` → no vuelve a aparecer activo
+- [x] Panel de "Enemigos conocidos" en Lobby: lista de NPCs descubiertos con su info
 
 #### Sistema de Mapa
-- [ ] Tabla `world_locations` en Supabase: `id, name, description, discovered_in_session, connections[]`
-- [ ] Grafo de ubicaciones: cada isla/lugar es un nodo, las rutas son aristas con distancia (días de viaje)
-- [ ] Al explorar una ubicación nueva, el modelo la guarda en `world_locations` y conecta con la anterior
-- [ ] Vista de mapa en Lobby: representación visual del grafo de islas descubiertas (SVG o canvas)
-- [ ] Al iniciar nueva historia, el Director sugiere destinos coherentes con el grafo existente
+- [x] Tabla `world_locations` en Supabase: `id, name, description, discovered_in_session, connections[]`
+- [x] Grafo de ubicaciones: cada isla/lugar es un nodo, las rutas son aristas con distancia (días de viaje)
+- [x] Al explorar una ubicación nueva, el modelo la guarda en `world_locations` y conecta con la anterior
+- [x] Vista de mapa en Lobby: representación visual del grafo de islas descubiertas (SVG o canvas)
+- [x] Al iniciar nueva historia, el Director sugiere destinos coherentes con el grafo existente
 
 ### Archivos afectados
 Nuevas tablas Supabase · `src/lib/director.js` · `src/lib/narrator.js` · `src/pages/Lobby.jsx` · nuevos componentes

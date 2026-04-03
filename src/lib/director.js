@@ -104,8 +104,17 @@ export async function initializeStorySession(sessionId, storyId, template) {
   if (!story) { console.error('[director] Historia no encontrada:', storyId); return null }
   const storyContent = story.lore
 
+  // Cargar ubicaciones existentes para coherencia del mundo
+  const { data: existingLocations } = await supabase
+    .from('world_locations')
+    .select('name, description, location_type')
+    .limit(10)
+  const locationContext = existingLocations?.length
+    ? `\n\nUbicaciones ya descubiertas en el mundo:\n${existingLocations.map(l => `- ${l.name} (${l.location_type}): ${l.description?.slice(0, 60) || ''}`).join('\n')}\nPuedes referenciar estos lugares o sugerir destinos coherentes con el grafo existente.`
+    : ''
+
   const firstEvent = template.events.find(e => e.order === 1)
-  const userPrompt = `Historia:\n${storyContent}\n\nPlantilla de dificultad: ${template.name} (${template.description})\n\nPrimer evento a adaptar: ${JSON.stringify(firstEvent)}\n\nGenera el story_lore, el event_briefing del primer evento y el opening_hint.`
+  const userPrompt = `Historia:\n${storyContent}\n\nPlantilla de dificultad: ${template.name} (${template.description})\n\nPrimer evento a adaptar: ${JSON.stringify(firstEvent)}${locationContext}\n\nGenera el story_lore, el event_briefing del primer evento y el opening_hint.`
 
   let result
   try {
@@ -286,7 +295,16 @@ export async function advanceToNextEvent(session, template) {
   const nextEvent = template.events.find(e => e.order === nextOrder)
   if (!nextEvent) return null
 
-  const userPrompt = `Lore de la historia:\n${session.story_lore}\n\nEvento completado: ${JSON.stringify(currentEvent)}\n\nSiguiente evento a adaptar: ${JSON.stringify(nextEvent)}\n\nGenera la transición narrativa y el briefing del nuevo evento.`
+  // Cargar ubicaciones existentes para transiciones coherentes
+  const { data: existingLocations } = await supabase
+    .from('world_locations')
+    .select('name, location_type')
+    .limit(10)
+  const locationContext = existingLocations?.length
+    ? `\nUbicaciones conocidas: ${existingLocations.map(l => l.name).join(', ')}.`
+    : ''
+
+  const userPrompt = `Lore de la historia:\n${session.story_lore}\n\nEvento completado: ${JSON.stringify(currentEvent)}\n\nSiguiente evento a adaptar: ${JSON.stringify(nextEvent)}${locationContext}\n\nGenera la transición narrativa y el briefing del nuevo evento.`
 
   let result
   try {

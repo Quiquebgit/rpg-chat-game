@@ -6,7 +6,7 @@ import { characters as allCharacters } from '../data/characters'
 
 const NARRATOR_CONTEXT_MESSAGES = 10
 
-export function createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef, currentEventSetupRef }) {
+export function createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef, currentEventSetupRef, worldNpcsRef, worldLocationsRef }) {
 
   // ─── Contexto de personajes ────────────────────────────────────────────────
 
@@ -150,6 +150,37 @@ export function createPromptBuilders({ activeCharacter, presentIdsRef, character
     return `\n## Objetivo narrativo de este turno (obligatorio)\n"${beat.goal}"\n${warning}\n`
   }
 
+  // ─── Contexto del mundo persistente ────────────────────────────────────────
+
+  function buildWorldContext() {
+    const npcs = worldNpcsRef?.current || []
+    const locations = worldLocationsRef?.current || []
+    if (!npcs.length && !locations.length) return ''
+
+    const parts = []
+
+    if (npcs.length) {
+      const activeNpcs = npcs.filter(n => n.status === 'active').slice(0, 10)
+      const defeatedNpcs = npcs.filter(n => n.status === 'defeated').slice(0, 5)
+      if (activeNpcs.length) {
+        parts.push(`## NPCs conocidos del mundo (activos)\n${activeNpcs.map(n =>
+          `- ${n.name} [${n.rank}/${n.faction}] HP${n.hp} ATK${n.attack} DEF${n.defense} — ${n.description?.slice(0, 60) || ''}`
+        ).join('\n')}`)
+      }
+      if (defeatedNpcs.length) {
+        parts.push(`NPCs derrotados (NO vuelven a aparecer): ${defeatedNpcs.map(n => n.name).join(', ')}`)
+      }
+    }
+
+    if (locations.length) {
+      parts.push(`## Ubicaciones descubiertas\n${locations.slice(0, 8).map(l =>
+        `- ${l.name} (${l.location_type})`
+      ).join('\n')}`)
+    }
+
+    return parts.join('\n') + '\n'
+  }
+
   // ─── Prompts del modelo mecánico ──────────────────────────────────────────
 
   // Prompt del modelo mecánico en modo combate (solo intenciones)
@@ -186,7 +217,7 @@ ${stunned.length ? `Aturdidos (pierden turno): ${stunned.join(', ')}\n` : ''}nex
 Jugadores activos: ${playerCount}
 Acción: ${playerAction}
 Personajes: ${buildMinimalCharContext()}
-${buildActiveInventoryContext()}${buildRecentNarratorContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}next:${leastActive} no_rep:${activeCharacter.id}`
+${buildActiveInventoryContext()}${buildRecentNarratorContext()}${buildWorldContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}next:${leastActive} no_rep:${activeCharacter.id}`
   }
 
   function buildGmMechanicsPrompt(instruction, currentGameModeData, currentGameMode) {
@@ -195,7 +226,7 @@ ${buildActiveInventoryContext()}${buildRecentNarratorContext()}${buildGameModeCo
     return `GM(${activeCharacter.id}): ${instruction}
 Jugadores activos: ${playerCount}
 Personajes: ${buildMinimalCharContext()}
-${buildActiveInventoryContext()}${buildRecentNarratorContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}REGLA: si la instrucción implica combate, llama getEnemies() y pon game_mode:"combat" ahora mismo.
+${buildActiveInventoryContext()}${buildRecentNarratorContext()}${buildWorldContext()}${buildGameModeContext(currentGameModeData, currentGameMode)}${buildEventContext()}REGLA: si la instrucción implica combate, llama getEnemies() y pon game_mode:"combat" ahora mismo.
 next:${leastActive}
 "yo/me/mi/dame"→${activeCharacter.id} | combat:usa getEnemies() | game_mode_data completo si activa modo`
   }
@@ -217,7 +248,7 @@ next:${leastActive}
     const nextChar = allCharacters.find(c => c.id === nextTurnId)
     const alive = currentGameModeData?.enemies?.filter(e => !e.defeated) || []
 
-    return `${buildStoryContext()}## Personajes en sesión
+    return `${buildStoryContext()}${buildWorldContext()}## Personajes en sesión
 ${buildCharacterContext()}
 ${summary ? `## Resumen de la sesión\n${summary}\n` : ''}## Estado del combate
 Enemigos vivos: ${alive.map(e => `${e.name}(HP:${e.hp}/${e.hp_max})`).join(', ') || 'ninguno — ¡combate terminado!'}
@@ -245,7 +276,7 @@ Termina interpelando a: ${nextChar?.name || nextTurnId}`
     const nextId = realNextId || mechanics.next_character_id
     const nextChar = allCharacters.find(c => c.id === nextId)
 
-    return `${buildStoryContext()}## Personajes en sesión
+    return `${buildStoryContext()}${buildWorldContext()}## Personajes en sesión
 ${buildCharacterContext()}
 ${summary ? `## Resumen de la sesión\n${summary}\n` : ''}## Historial reciente
 ${chatHistory}
