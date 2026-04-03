@@ -7,6 +7,9 @@ import ThemeToggle from '../components/ThemeToggle'
 import StoryEditor from '../components/StoryEditor'
 import WorldNpcPanel from '../components/WorldNpcPanel'
 import WorldMap from '../components/WorldMap'
+import { CopyLinkButton } from '../components/CopyLinkButton'
+import FamilyModeToggle from '../components/FamilyModeToggle'
+import { SessionHistoryCard } from '../components/SessionHistoryCard'
 
 function formatDate(iso) {
   if (!iso) return '—'
@@ -52,7 +55,7 @@ function IconTrash() {
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
-function Lobby({ onSessionSelect, continueFromSession, onContinueHandled }) {
+function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, familyMode, toggleFamilyMode }) {
   const [sessions, setSessions] = useState([])
   const [stories, setStories] = useState([])
   const [loading, setLoading] = useState(true)
@@ -69,6 +72,7 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled }) {
   const [worldLocations, setWorldLocations] = useState([])
   const [worldConnections, setWorldConnections] = useState([])
   const [worldTab, setWorldTab] = useState('enemies')
+  const [sessionTab, setSessionTab] = useState('active') // 'active' | 'history'
 
   useEffect(() => {
     loadSessions()
@@ -390,7 +394,8 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled }) {
     >
       <div className="max-w-2xl mx-auto">
 
-        <div className="flex justify-end mb-2">
+        <div className="flex justify-end gap-1 mb-2">
+          <FamilyModeToggle familyMode={familyMode} onToggle={toggleFamilyMode} />
           <ThemeToggle />
         </div>
 
@@ -448,13 +453,51 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled }) {
           </div>
         )}
 
+        {/* Tabs: Aventuras activas / Historial */}
+        {!loading && sessions.length > 0 && (
+          <div className="flex border-b border-stroke mb-4">
+            {[
+              { id: 'active', label: 'Aventuras activas', count: sessions.filter(s => s.status !== 'finished').length },
+              { id: 'history', label: 'Historial', count: sessions.filter(s => s.status === 'finished').length },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setSessionTab(tab.id)}
+                className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
+                  sessionTab === tab.id
+                    ? 'text-gold-bright border-b-2 border-gold'
+                    : 'text-ink-3 hover:text-ink-2'
+                }`}
+              >
+                {tab.label}
+                {tab.count > 0 && <span className="ml-1 text-[10px] text-ink-off">({tab.count})</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
         {loading ? (
           <p className="text-center text-ink-off animate-pulse text-sm">Cargando sesiones…</p>
         ) : sessions.length === 0 ? (
           <p className="text-center text-ink-off italic text-sm mt-8">No hay sesiones todavía.</p>
+        ) : sessionTab === 'history' ? (
+          /* Historial de sesiones terminadas */
+          (() => {
+            const finished = sessions.filter(s => s.status === 'finished')
+            return finished.length === 0 ? (
+              <p className="text-center text-ink-off italic text-sm mt-4">No hay partidas terminadas aún.</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {finished.map(session => (
+                  <SessionHistoryCard key={session.id} session={session} storyTitle={getStoryTitle(session)} />
+                ))}
+              </div>
+            )
+          })()
         ) : (
+          /* Aventuras activas y archivadas */
           <div className="flex flex-col gap-3">
-            {sessions.map(session => {
+            {sessions.filter(s => s.status !== 'finished').map(session => {
               const status = SESSION_STATUS[session.status] || SESSION_STATUS.abandoned
               const isActive = session.status === 'active'
               const isBusy = busy === session.id
@@ -487,6 +530,7 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled }) {
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0 divide-x divide-stroke" onClick={e => e.stopPropagation()}>
+                      {isActive && <CopyLinkButton sessionId={session.id} />}
                       <button onClick={() => onSessionSelect(session)} disabled={isBusy} title="Entrar"
                         className="p-2 rounded-lg text-gold hover:text-gold-bright hover:bg-gold/10 disabled:opacity-40 transition-colors">
                         <IconEnter />

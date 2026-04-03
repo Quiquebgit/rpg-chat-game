@@ -63,7 +63,7 @@ OLA 2  ─── Sprint 2 (Personaje + Economía) ──┐
 
 OLA 3  ─── Sprint 5 (Mundo Persistente: Marina + Mapa)
 
-OLA 4  ─── Sprint 6 (Social y Engagement)
+OLA 4  ─── Sprint 6 (Social y Engagement) ✅
 
 OLA 5  ─── Sprint 7 (Progresión entre sesiones)
 
@@ -249,23 +249,23 @@ Nuevas tablas Supabase · `src/lib/director.js` · `src/lib/narrator.js` · `src
 
 ---
 
-## Sprint 6 — Social y Engagement
+## Sprint 6 — Social y Engagement ✅ COMPLETADO
 **Duración estimada:** 2 semanas  
 **Experiencia objetivo:** *"Oye, ¿te puedo pasar el link para que te unas? Estamos jugando ahora."*
 
 **Depende de:** Sprint 1 (mecánicas) + Sprint 3 (UI)
 
 ### Tareas
-- [ ] Link de invitación: URL con `session_id` que lleva directamente a selección de personaje
-- [ ] Reacciones de emoji en mensajes del narrador (todos pueden reaccionar, visible en tiempo real)
-- [ ] Espectadores mejorados: pueden votar sobre la acción del jugador en turno
-- [ ] Recap de sesión al terminar: highlights automáticos (mejores tiradas, momentos épicos, muertes)
-- [ ] Notificaciones in-game: "es tu turno" badge en pestaña del navegador
-- [ ] Panel de historial de sesiones: ver resúmenes de partidas pasadas en Lobby
-- [ ] Modo "Fácil para familia": simplificar UI, reducir complejidad de opciones visibles
+- [x] Link de invitación: URL con `?join=session_id` que lleva directamente a selección de personaje — `CopyLinkButton` en Lobby y GameRoom, parsing en `App.jsx`
+- [x] Reacciones de emoji en mensajes del narrador (todos pueden reaccionar, visible en tiempo real) — tabla `message_reactions`, `useReactions` hook, `ReactionBar` component
+- [x] Espectadores mejorados: pueden sugerir acciones al jugador en turno vía broadcast — `SpectatorSuggestInput`, `SuggestionPills`
+- [x] Recap de sesión al terminar: highlights automáticos (mejores tiradas, momentos épicos, muertes) — `recap.js`, `SessionRecapModal`, columna `session_recap` en sessions
+- [x] Notificaciones in-game: "es tu turno" badge en pestaña del navegador — `useTurnNotification` hook
+- [x] Panel de historial de sesiones: ver resúmenes de partidas pasadas en Lobby — tabs activas/historial, `SessionHistoryCard`
+- [x] Modo "Fácil para familia": simplificar UI, reducir complejidad de opciones visibles — `useFamilyMode` hook, `FamilyModeToggle`, condicionales en CharacterPanel/GameModePanel/DiceMessage
 
 ### Archivos afectados
-`src/hooks/usePresence.js` · `src/pages/GameRoom.jsx` · `src/pages/Lobby.jsx` · nuevos componentes
+`src/hooks/usePresence.js` · `src/hooks/useReactions.js` · `src/hooks/useTurnNotification.js` · `src/hooks/useFamilyMode.js` · `src/lib/recap.js` · `src/lib/director.js` · `src/pages/GameRoom.jsx` · `src/pages/Lobby.jsx` · `src/App.jsx` · nuevos componentes
 
 ### Skills a leer
 `/game-flow` · `/db-schema` · `/frontend-design`

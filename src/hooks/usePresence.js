@@ -9,6 +9,7 @@ export function usePresence(session, character = null) {
   // El jugador local se considera presente de inmediato; Presence añade los remotos al sincronizar
   const [presentIds, setPresentIds] = useState(character?.id ? [character.id] : [])
   const [participantIds, setParticipantIds] = useState([])
+  const [spectatorSuggestions, setSpectatorSuggestions] = useState([])
   const channelRef = useRef(null)
 
   // Persistir estado de participante en sessionStorage para sobrevivir navegación entre páginas
@@ -45,6 +46,12 @@ export function usePresence(session, character = null) {
           .update({ is_active: false })
           .eq('session_id', session.id)
           .eq('character_id', key)
+      })
+      // Sugerencias de espectadores — efímeras vía broadcast
+      .on('broadcast', { event: 'SPECTATOR_SUGGESTION' }, ({ payload }) => {
+        if (payload) {
+          setSpectatorSuggestions(prev => [...prev, { id: crypto.randomUUID(), characterName: payload.characterName, suggestion: payload.suggestion }])
+        }
       })
       // Broadcast que emite el cliente que inicia la partida para marcar a todos los presentes
       .on('broadcast', { event: 'GAME_STARTED' }, ({ payload }) => {
@@ -93,5 +100,25 @@ export function usePresence(session, character = null) {
     channelRef.current.track({ character_id: character.id, isParticipant: true })
   }
 
-  return { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant }
+  // Enviar sugerencia como espectador
+  function sendSuggestion(suggestion) {
+    if (!channelRef.current || !character?.id) return
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'SPECTATOR_SUGGESTION',
+      payload: { characterName: character.name || character.id, suggestion },
+    })
+  }
+
+  // Descartar una sugerencia individual
+  function dismissSuggestion(id) {
+    setSpectatorSuggestions(prev => prev.filter(s => s.id !== id))
+  }
+
+  // Limpiar todas las sugerencias (al cambiar de turno)
+  function clearSuggestions() {
+    setSpectatorSuggestions([])
+  }
+
+  return { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant, spectatorSuggestions, sendSuggestion, dismissSuggestion, clearSuggestions }
 }

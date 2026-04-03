@@ -30,6 +30,7 @@ export function CharacterPanel({
   onUseItem,
   onGiftItem,
   onDebugAddItem,
+  familyMode,
 }) {
   const [activeTab, setActiveTab] = useState('personaje')
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -213,10 +214,10 @@ export function CharacterPanel({
 
   const panelContent = (
     <div className="flex flex-col h-full">
-      {renderTabBar()}
-      {activeTab === 'personaje' && renderPersonaje()}
-      {activeTab === 'poderes'   && renderPoderes()}
-      {activeTab === 'mochila'   && renderMochila()}
+      {!familyMode && renderTabBar()}
+      {(familyMode || activeTab === 'personaje') && renderPersonaje()}
+      {!familyMode && activeTab === 'poderes'   && renderPoderes()}
+      {!familyMode && activeTab === 'mochila'   && renderMochila()}
     </div>
   )
 

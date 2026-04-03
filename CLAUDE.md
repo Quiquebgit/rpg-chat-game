@@ -28,8 +28,9 @@ src/
 ├── components/   # UI reutilizable (GameModePanel, DiceMessage, InventoryPanel…)
 ├── pages/        # CharacterSelect, GameRoom, Lobby
 ├── hooks/        # useSession, useMessages, usePresence, useNarration, useDirector, useTheme
+│                 # useReactions, useTurnNotification, useFamilyMode
 ├── lib/          # supabase.js · groq.js · narrator.js · prompts.js · combat.js
-│                 # director.js · items.js · enemies.js · worldState.js
+│                 # director.js · items.js · enemies.js · worldState.js · recap.js
 ├── styles/       # themes.css · animations.css · typography.css · utilities.css
 └── data/         # characters.js · constants.js · stories/*.md
 ```
@@ -157,5 +158,6 @@ Ver [ROADMAP.md](ROADMAP.md) para el plan completo de sprints.
 - Sistema de diseño completado: paleta One Piece completa (dark Grand Line Night + light Dawn Island), tokens CSS en `src/styles/themes.css`, hook `useTheme` + `ThemeToggle`, migración total de todas las clases Tailwind hardcodeadas a tokens semánticos en todos los componentes y páginas, correcciones de contraste WCAG en ambos temas
 - Sprint 4 completado al 100%: tabla `stories` en Supabase + seed 7 historias (3 originales + 4 nuevas), `loadStory()` en director.js, Lobby carga historias desde BD, `StoryEditor.jsx` para historias personalizadas, modal fin de aventura con `continueWithCrew` (preserva XP/berries/inventario/stat_upgrades), `rollNavigationEvent()` con trigger ~12% por tirada
 - Sprint 5 completado al 100%: mundo persistente con tablas `world_npcs` + `world_locations` + `world_location_connections`, jerarquía de Marina generada por IA (~16 NPCs), tool calling `saveWorldNpc`/`saveWorldLocation` para persistencia automática, `buildWorldContext()` en prompts, derrota de NPCs marcada en BD, panel "Enemigos conocidos" + mapa SVG interactivo en Lobby, Director sugiere destinos coherentes con ubicaciones existentes
+- Sprint 6 completado al 100%: link de invitación (`?join=session_id`) con `CopyLinkButton`, reacciones emoji en mensajes del narrador (tabla `message_reactions` + `useReactions` + `ReactionBar`), sugerencias de espectadores vía broadcast (`SpectatorSuggestInput` + `SuggestionPills`), recap automático al terminar sesión (`recap.js` + `SessionRecapModal` + columna `session_recap`), notificación "es tu turno" en pestaña (`useTurnNotification`), panel historial en Lobby con tabs activas/historial (`SessionHistoryCard`), modo familia (`useFamilyMode` + `FamilyModeToggle`, simplifica CharacterPanel/GameModePanel/DiceMessage)
 
-**Próximo sprint:** Sprint 6 (Social y Engagement)
+**Próximo sprint:** Sprint 7 (Progresión entre Sesiones)

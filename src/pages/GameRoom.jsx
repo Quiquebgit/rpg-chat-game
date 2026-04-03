@@ -13,8 +13,14 @@ import { PreGameScreen } from '../components/PreGameScreen'
 import { StatBoostPanel, HealPanel } from '../components/StatBoostPanel'
 import { CharacterPanel } from '../components/CharacterPanel'
 import ThemeToggle from '../components/ThemeToggle'
+import { useTurnNotification } from '../hooks/useTurnNotification'
+import { CopyLinkButton } from '../components/CopyLinkButton'
+import { useReactions } from '../hooks/useReactions'
+import { SpectatorSuggestInput } from '../components/SpectatorSuggestInput'
+import { SuggestionPills } from '../components/SuggestionPills'
+import { SessionRecapModal } from '../components/SessionRecapModal'
 
-function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWithCrew }) {
+function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWithCrew, familyMode }) {
   const [input, setInput] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [playersOpen, setPlayersOpen] = useState(false)
@@ -24,10 +30,11 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
   const inputRef = useRef(null)
   const lastNarratedIdRef = useRef(null)
 
-  const { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant } = usePresence(session, character)
+  const { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant, spectatorSuggestions, sendSuggestion, dismissSuggestion, clearSuggestions } = usePresence(session, character)
   const { completeCurrentEvent, currentEventSetup } = useDirector(session)
   const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, rollNavigation, sacrificeForNavigation, riskyMove, turnBack, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem, useItem, giftItem, killCharacter, explorationNodeId, navigateExplorationNode, applyStatUpgrade, setGameModeDirect } = useMessages(session, character, presentIds, completeCurrentEvent, currentEventSetup)
   const { speak, stop, isNarrating, isEnabled: narrationEnabled, toggle: toggleNarration, error: narrationError, supported: narrationSupported } = useNarration()
+  const { reactionsByMessage, toggleReaction } = useReactions(session?.id)
 
   // Narrar automáticamente los mensajes nuevos del narrador
   useEffect(() => {
@@ -123,6 +130,10 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
   // ¿Es el turno de este jugador?
   const currentTurnName = allCharacters.find(c => c.id === session?.current_turn_character_id)?.name
   const isMyTurn = session?.current_turn_character_id === character.id && !isDead
+  useTurnNotification(isMyTurn)
+
+  // Limpiar sugerencias de espectadores al cambiar de turno
+  useEffect(() => { clearSuggestions() }, [session?.current_turn_character_id])
 
   // Tirada de navegación: en modo navigation y es el turno de este jugador
   // En navegación no hay turnos: cada jugador tira cuando quiera, si aún no lo ha hecho esta ronda
@@ -170,9 +181,9 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
       return
     }
 
-    if (text === '/gm') {
+    if (!familyMode && text === '/gm') {
       setShowGmModeSelector(true)
-    } else if (text.startsWith('/gm ')) {
+    } else if (!familyMode && text.startsWith('/gm ')) {
       await sendGmMessage(text.slice(4).trim())
     } else if (text.startsWith('/')) {
       await sendAction(text.slice(1).trim())
@@ -273,6 +284,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
         onUseItem={(item, i) => item.type === 'fruta' && !item.equipped ? setFruitConfirmItem({ item, i }) : useItem(item, i)}
         onGiftItem={giftItem}
         onDebugAddItem={import.meta.env.DEV ? debugAddItem : null}
+        familyMode={familyMode}
       />
 
       {/* Modal de stat-up por XP */}
@@ -299,33 +311,13 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
         </div>
       )}
 
-      {/* Modal de fin de aventura */}
+      {/* Modal de fin de aventura con recap */}
       {session.status === 'finished' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="mx-4 max-w-md w-full rounded-2xl border border-gold/40 bg-canvas p-8 flex flex-col gap-5 shadow-2xl shadow-gold/20 text-center">
-            <p className="text-5xl">⚓</p>
-            <h3 className="text-2xl font-bold text-gold-bright" style={{ fontFamily: 'var(--font-display)' }}>¡Aventura completada!</h3>
-            <p className="text-sm text-ink-2 leading-relaxed">
-              La tripulación ha llegado al final de esta historia. ¿Qué hacéis a continuación?
-            </p>
-            <div className="flex flex-col gap-3 pt-2">
-              {onContinueWithCrew && (
-                <button
-                  onClick={() => onContinueWithCrew(session)}
-                  className="w-full py-3 rounded-xl font-bold bg-gold text-canvas hover:bg-gold-bright transition-all"
-                >
-                  ⚔️ Nueva aventura con esta tripulación
-                </button>
-              )}
-              <button
-                onClick={onLeave}
-                className="w-full py-3 rounded-xl font-semibold border border-stroke text-ink-2 hover:bg-raised/50 transition-all"
-              >
-                Volver al Lobby
-              </button>
-            </div>
-          </div>
-        </div>
+        <SessionRecapModal
+          recap={session.session_recap}
+          onContinue={onContinueWithCrew ? () => onContinueWithCrew(session) : null}
+          onLeave={onLeave}
+        />
       )}
 
       {/* Modal confirmación fruta del diablo */}
@@ -502,6 +494,9 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
               </button>
             )}
 
+            {/* Copiar enlace de invitación */}
+            <CopyLinkButton sessionId={session.id} />
+
             {/* Toggle de tema */}
             <ThemeToggle />
 
@@ -536,6 +531,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
           onTurnBack={turnBack}
           explorationNodeId={explorationNodeId}
           onNavigateExploration={navigateExplorationNode}
+          familyMode={familyMode}
         />
 
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
@@ -553,7 +549,12 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
               if (msg.type === 'narrator') {
                 return (
                   <div key={msg.id} className="flex flex-col items-center gap-2">
-                    <NarratorMessage content={msg.content} />
+                    <NarratorMessage
+                      content={msg.content}
+                      messageId={msg.id}
+                      reactions={reactionsByMessage[msg.id]}
+                      onReact={toggleReaction}
+                    />
                   </div>
                 )
               }
@@ -563,6 +564,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
                     key={msg.id}
                     name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
                     content={msg.content}
+                    familyMode={familyMode}
                   />
                 )
               }
@@ -650,6 +652,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
           ) : isSpectator ? (
             <div className="flex flex-col items-center gap-3">
               <p className="text-xs text-ink-off uppercase tracking-widest">Estás viendo la partida como espectador</p>
+              <SpectatorSuggestInput onSend={sendSuggestion} />
               <button
                 onClick={handleAnnounceEntry}
                 disabled={sending}
@@ -748,7 +751,10 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
                 />
               </div>
             )}
-            {isMyTurn && (
+            {isMyTurn && spectatorSuggestions.length > 0 && (
+              <SuggestionPills suggestions={spectatorSuggestions} onDismiss={dismissSuggestion} />
+            )}
+            {isMyTurn && !familyMode && (
               <div className="flex justify-center mb-2">
                 <button
                   onClick={() => setActionMode(v => !v)}

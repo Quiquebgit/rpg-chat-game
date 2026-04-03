@@ -3,6 +3,7 @@
 
 import { supabase } from './supabase'
 import { callDirectorModel } from './groq'
+import { generateAndSaveRecap } from './recap'
 
 // Prompt para rellenar el texto de un único nodo del árbol de exploración
 const NODE_TEXT_SYSTEM_PROMPT = `Eres el Director de Guion de un juego de rol.
@@ -284,6 +285,13 @@ export async function advanceToNextEvent(session, template) {
         session_id: session.id, character_id: 'narrator',
         content: result.closing_narrative, type: 'narrator',
       })
+    }
+    // Generar recap antes de marcar como terminada (no bloquea si falla)
+    try {
+      await generateAndSaveRecap(session.id)
+      console.log('[director] Recap generado correctamente')
+    } catch (err) {
+      console.error('[director] Error generando recap:', err)
     }
     await supabase.from('sessions').update({ status: 'finished' }).eq('id', session.id)
     console.log('[director] Aventura completada, sesión marcada como terminada')

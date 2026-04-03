@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import { useTheme } from './hooks/useTheme'
+import { useFamilyMode } from './hooks/useFamilyMode'
 import Lobby from './pages/Lobby'
 import CharacterSelect from './pages/CharacterSelect'
 import GameRoom from './pages/GameRoom'
@@ -20,11 +21,35 @@ const playerId = getPlayerId()
 function App() {
   // Inicializa el tema desde localStorage o preferencia del sistema
   useTheme()
+  const { familyMode, toggleFamilyMode } = useFamilyMode()
 
   const [page, setPage] = useState('lobby')
   const [session, setSession] = useState(null)
   const [character, setCharacter] = useState(null)
   const [continueFromSession, setContinueFromSession] = useState(null)
+  const joinHandled = useRef(false)
+
+  // Link de invitación: ?join=<session_id> lleva directo a selección de personaje
+  useEffect(() => {
+    if (joinHandled.current) return
+    const joinId = new URLSearchParams(window.location.search).get('join')
+    if (!joinId) return
+    joinHandled.current = true
+    // Limpiar la URL para evitar re-trigger al refrescar
+    window.history.replaceState({}, '', window.location.pathname)
+
+    supabase
+      .from('sessions')
+      .select('*')
+      .eq('id', joinId)
+      .single()
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setSession(data)
+          setPage('select')
+        }
+      })
+  }, [])
 
   // Suscribirse a cambios de sesión (turno, estado) para mantener GameRoom actualizado
   useEffect(() => {
@@ -100,6 +125,8 @@ function App() {
         onSessionSelect={handleSessionSelect}
         continueFromSession={continueFromSession}
         onContinueHandled={() => setContinueFromSession(null)}
+        familyMode={familyMode}
+        toggleFamilyMode={toggleFamilyMode}
       />
     )
   }
@@ -115,7 +142,7 @@ function App() {
     )
   }
 
-  return <GameRoom character={character} session={session} onLeave={handleLeaveGame} onSelectCharacter={handleSelectCharacter} onContinueWithCrew={handleContinueWithCrew} />
+  return <GameRoom character={character} session={session} onLeave={handleLeaveGame} onSelectCharacter={handleSelectCharacter} onContinueWithCrew={handleContinueWithCrew} familyMode={familyMode} />
 }
 
 export default App

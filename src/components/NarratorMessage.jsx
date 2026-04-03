@@ -1,10 +1,15 @@
-export function NarratorMessage({ content }) {
+import { ReactionBar } from './ReactionBar'
+
+export function NarratorMessage({ content, messageId, reactions, onReact }) {
   return (
     <div className="flex flex-col items-center gap-1 px-4">
       <span className="text-xs uppercase tracking-widest text-gold-dim/60">Narrador</span>
       <div className="bg-panel border border-gold/20 rounded-xl px-5 py-3 max-w-2xl text-center">
         <p className="text-sm text-ink-2 leading-relaxed italic">{content}</p>
       </div>
+      {onReact && (
+        <ReactionBar reactions={reactions} onReact={(emoji) => onReact(messageId, emoji)} />
+      )}
     </div>
   )
 }

@@ -10,7 +10,7 @@ const DEGREE_STYLES = {
 
 const STAT_LABELS = { attack: 'ATK', defense: 'DEF', navigation: 'NAV', ability: 'HAB' }
 
-export function DiceMessage({ name, content }) {
+export function DiceMessage({ name, content, familyMode }) {
   const [revealed, setRevealed] = useState(false)
 
   useEffect(() => {
@@ -102,7 +102,7 @@ export function DiceMessage({ name, content }) {
         </div>
 
         {/* Info de skill_check: DC, stat y grado */}
-        {dc && revealed && (
+        {dc && revealed && !familyMode && (
           <div className="flex flex-col items-center gap-1.5 border-t border-stroke pt-3 w-full"
             style={{ animation: 'scale-in 0.25s ease-out' }}
           >
@@ -114,6 +114,16 @@ export function DiceMessage({ name, content }) {
               <span className={degreeLabel.className}>
                 {degreeLabel.label}
               </span>
+            )}
+          </div>
+        )}
+        {/* Modo familia: indicador simple pasa/falla */}
+        {dc && revealed && familyMode && (
+          <div className="border-t border-stroke pt-3 w-full text-center" style={{ animation: 'scale-in 0.25s ease-out' }}>
+            {degree === 'critical_success' || degree === 'success' ? (
+              <span className="text-lg font-black text-degree-success">Acierto</span>
+            ) : (
+              <span className="text-lg font-black text-degree-failure">Fallo</span>
             )}
           </div>
         )}

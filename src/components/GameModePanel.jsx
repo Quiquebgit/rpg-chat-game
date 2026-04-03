@@ -234,12 +234,50 @@ function NegotiationPanel({ data }) {
 }
 
 // --- Panel principal ---
-export default function GameModePanel({ gameMode, gameModeData, currentTurnName, sending, canActInNav, totalPlayers, onSacrifice, onRiskyMove, onTurnBack, explorationNodeId, onNavigateExploration }) {
+// Tarjeta de enemigo simplificada para modo familia: solo nombre + barra HP
+function EnemyCardSimple({ enemy }) {
+  const hpPct = enemy.hp_max > 0 ? Math.max(0, enemy.hp / enemy.hp_max) : 0
+  const hpBarColor = enemy.defeated ? 'bg-stroke-3'
+    : hpPct <= 0.25 ? 'bg-hp-low'
+    : hpPct <= 0.5  ? 'bg-hp-medium'
+    : 'bg-hp-high'
+
+  return (
+    <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 min-w-[140px] bg-combat/10 border-combat/30 ${enemy.defeated ? 'opacity-40 grayscale' : ''}`}>
+      <span className="text-lg leading-none">{enemy.icon || '👾'}</span>
+      <div className="flex-1 min-w-0">
+        <span className="text-xs font-bold text-combat-light truncate block">{enemy.name}</span>
+        <div className="h-1.5 w-full rounded-full bg-raised overflow-hidden mt-1">
+          <div className={`h-full rounded-full transition-all duration-700 ${hpBarColor}`} style={{ width: `${hpPct * 100}%` }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CombatPanelSimple({ data, currentTurnName }) {
+  const enemies = data?.enemies || []
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-black uppercase tracking-widest text-combat-light">⚔️ Combate</span>
+        {currentTurnName && (
+          <span className="text-xs text-ink-3">— turno de <span className="text-gold-bright font-semibold">{currentTurnName}</span></span>
+        )}
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        {enemies.map(enemy => <EnemyCardSimple key={enemy.id} enemy={enemy} />)}
+      </div>
+    </div>
+  )
+}
+
+export default function GameModePanel({ gameMode, gameModeData, currentTurnName, sending, canActInNav, totalPlayers, onSacrifice, onRiskyMove, onTurnBack, explorationNodeId, onNavigateExploration, familyMode }) {
   if (!gameMode || gameMode === 'normal') return null
 
   return (
     <div className="shrink-0 border-b border-stroke px-6 py-3">
-      {gameMode === 'combat'      && <CombatPanel      data={gameModeData} currentTurnName={currentTurnName} />}
+      {gameMode === 'combat'      && (familyMode ? <CombatPanelSimple data={gameModeData} currentTurnName={currentTurnName} /> : <CombatPanel data={gameModeData} currentTurnName={currentTurnName} />)}
       {gameMode === 'navigation'  && <NavigationPanel  data={gameModeData} totalPlayers={totalPlayers} canActInNav={canActInNav} sending={sending} onSacrifice={onSacrifice} onRiskyMove={onRiskyMove} onTurnBack={onTurnBack} />}
       {gameMode === 'exploration' && <ExplorationPanel data={gameModeData} explorationNodeId={explorationNodeId} onNavigate={onNavigateExploration} />}
       {gameMode === 'negotiation' && <NegotiationPanel data={gameModeData} />}
