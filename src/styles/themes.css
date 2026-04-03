@@ -23,7 +23,7 @@
   --text-primary:   #f5f0e8;
   --text-secondary: #c0b090;
   --text-muted:     #6b5c45;
-  --text-disabled:  #3d3025;
+  --text-disabled:  #5a4838;  /* subido: ~2.5:1 sobre fondo oscuro (era #3d3025, 1.2:1) */
 
   /* Acento — Sombrero de Paja */
   --accent-gold:        #f59e0b;
