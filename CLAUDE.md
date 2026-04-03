@@ -27,11 +27,59 @@ VITE_GOOGLE_TTS_API_KEY   # opcional — sin ella usa Web Speech API
 src/
 ├── components/   # UI reutilizable (GameModePanel, DiceMessage, InventoryPanel…)
 ├── pages/        # CharacterSelect, GameRoom, Lobby
-├── hooks/        # useSession, useMessages, usePresence, useNarration, useDirector
+├── hooks/        # useSession, useMessages, usePresence, useNarration, useDirector, useTheme
 ├── lib/          # supabase.js · groq.js · narrator.js · prompts.js · combat.js
 │                 # director.js · items.js · enemies.js
+├── styles/       # themes.css · animations.css · typography.css · utilities.css
 └── data/         # characters.js · constants.js · stories/*.md
 ```
+
+---
+
+## Sistema de diseño
+
+### Arquitectura CSS
+Los estilos están separados en `src/styles/`. **Nunca usar colores Tailwind hardcodeados** (`bg-gray-900`, `text-amber-400`…) — siempre usar los tokens del `@theme`.
+
+```
+src/styles/
+├── themes.css      ← Variables CSS: dark "Grand Line Night" + light "Dawn Island"
+├── animations.css  ← @keyframes: dice-roll, scale-in, dot-bounce, glow-pulse, mode-flash…
+├── typography.css  ← Cinzel (display) + Inter (body)
+└── utilities.css   ← Transición suave al cambiar tema
+```
+
+### Temas
+Dos temas controlados por `data-theme` en `<html>`. El hook `useTheme` (persistido en `localStorage` como `op-theme`) y el componente `<ThemeToggle />` gestionan el toggle manual y la detección de `prefers-color-scheme`.
+
+| Tema | Activación | Descripción |
+|---|---|---|
+| Grand Line Night | `data-theme="dark"` | Carbón negro + oro brillante |
+| Dawn Island | `data-theme="light"` | Pergamino cálido + tinta oscura |
+
+### Tokens — referencia rápida
+| Utilidad Tailwind | Uso |
+|---|---|
+| `bg-canvas` / `bg-panel` / `bg-raised` / `bg-float` | Fondos por elevación |
+| `text-ink` / `text-ink-2` / `text-ink-3` / `text-ink-off` | Texto: principal → hint |
+| `border-stroke` / `border-stroke-2` / `border-stroke-3` | Bordes por intensidad |
+| `bg-gold` / `text-gold` / `text-gold-bright` / `text-gold-dim` | Acento oro (ambos temas) |
+| `bg-combat` / `bg-navigation` / `bg-exploration` / `bg-negotiation` | Color por modo de juego |
+| `text-combat-light` / `text-navigation-light` / … | Texto claro sobre fondo de modo |
+| `bg-stat-attack` / `bg-stat-defense` / `bg-stat-navigation` / `bg-stat-dexterity` / `bg-stat-charisma` | Color por stat |
+| `bg-item-fruta` / `bg-item-arma` / `bg-item-equipo` / `bg-item-consumible` | Color por tipo de item |
+| `bg-hp-high` / `bg-hp-medium` / `bg-hp-low` | Barra de HP dinámica |
+| `text-degree-crit-success` / `text-degree-success` / `text-degree-failure` / `text-degree-crit-failure` | Grados de tirada |
+
+Para opacidades: `bg-gold/10`, `border-combat/30` — Tailwind v4 usa `color-mix()` automáticamente.
+Para efectos en `style={{}}`: usar `var(--mode-combat-flash)`, `var(--gradient-lobby)`, nunca `rgba()` hardcodeado.
+
+### Reglas de diseño
+- ❌ Nunca `bg-gray-*`, `text-amber-*` u otros colores Tailwind hardcodeados en JSX
+- ❌ Nunca `rgba(220,38,38,0.3)` en `style={{}}` — usar `var(--mode-combat-flash)`
+- ❌ Nunca lógica `if (darkMode)` en componentes — el CSS lo resuelve solo
+- ✅ Para glow/shadow con color dinámico: `color-mix(in srgb, var(--degree-crit-success) 35%, transparent)`
+- ✅ `text-ink-off` solo para decoración/hints — texto que el usuario lea: mínimo `text-ink-3`
 
 ---
 
@@ -105,5 +153,6 @@ Ver [ROADMAP.md](ROADMAP.md) para el plan completo de sprints.
 - Sprint 1 completado al 100%: `checkDegree`, `skill_check`, `support_roll`, consecuencias mecánicas por grado, desafíos sostenidos, acciones triviales/imposibles, DiceMessage con grado visual
 - Sprint 2 completado al 100%: dexterity+charisma en personajes y prompts, economía de berries (money/XP en BD), bounty de jugadores y enemigos, progresión por XP con modal de stat-up, calculateXpReward/calculateMoneyReward en combat.js
 - Sprint 3 completado al 100%: CharacterPanel con tabs (Personaje/Poderes/Mochila) + bottom sheet mobile, fuente Cinzel, @keyframes dice-roll/scale-in/dot-bounce/glow-pulse/mode-flash, DiceMessage animado, typing indicator 3 puntos, GameModePanel mejorado (bounty badge, grayscale derrotados, glow-pulse turno), CharacterSelect con barras de stats, Lobby con gradiente épico
+- Sistema de diseño completado: paleta One Piece completa (dark Grand Line Night + light Dawn Island), tokens CSS en `src/styles/themes.css`, hook `useTheme` + `ThemeToggle`, migración total de todas las clases Tailwind hardcodeadas a tokens semánticos en todos los componentes y páginas, correcciones de contraste WCAG en ambos temas
 
 **Próximo sprint:** Sprint 4 (Contenido y Gestión de Historias)
