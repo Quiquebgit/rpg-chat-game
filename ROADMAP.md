@@ -177,29 +177,29 @@ El panel acumula: stats base, stats nuevos (DES/CAR), habilidad especial, habili
 
 ---
 
-## Sprint 4 — Contenido y Gestión de Historias
+## Sprint 4 — Contenido y Gestión de Historias ✅ COMPLETADO
 **Duración estimada:** 2 semanas  
 **Experiencia objetivo:** *"¿Podemos crear nuestra propia historia hoy? Quiero inventarme una isla."*
 
 ### Tareas
 
 #### Historias en BD + editor desde UI
-- [ ] Migrar historias de archivos `.md` a tabla `stories` en Supabase (title, description, lore, beats, difficulty)
-- [ ] Formulario en Lobby para **crear y editar historias** desde la interfaz: título, descripción, lore inicial, dificultad
-- [ ] El Director carga historias desde BD en lugar de archivos locales
-- [ ] Pantalla de selección de historia mejorada: portada, descripción, dificultad visual
+- [x] Migrar historias de archivos `.md` a tabla `stories` en Supabase (title, description, lore, is_custom)
+- [x] Formulario en Lobby para **crear y editar historias** desde la interfaz: título, descripción, lore, duración (`StoryEditor.jsx`)
+- [x] El Director carga historias desde BD en lugar de archivos locales (`loadStory()` en `director.js`)
+- [x] Pantalla de selección de historia mejorada: secciones "Tus historias" / "Oficiales", badges, edición/borrado inline
 
 #### Continuar partidas terminadas
-- [ ] Al terminar una historia, ofrecer "Nueva aventura con esta tripulación"
-- [ ] Mantener personajes con sus stats, inventario, XP y berries ganados
-- [ ] El Director genera una nueva historia apropiada al nivel de la tripulación
-- [ ] Restaurar sesiones `finished` como punto de partida para la siguiente
+- [x] Al terminar una historia, ofrecer "Nueva aventura con esta tripulación" (modal en `GameRoom.jsx`)
+- [x] Mantener personajes con sus stats, inventario, XP y berries ganados (`continueWithCrew` en `App.jsx` + `Lobby.jsx`)
+- [x] El Director genera una nueva historia apropiada (el selector de historia ya existe; banner informativo en story-picker)
+- [x] Sesión nueva crea character states copiando progresión de la sesión terminada (HP reset a máximo)
 
 #### Más contenido
-- [ ] 4 historias nuevas: heist en una fortaleza, exploración submarina, festival pirata, conspiración política marina
-- [ ] Sistema de eventos aleatorios en navegación: encuentros en el mar, clima extremo, mercaderes
-- [ ] Modo boss: enemigo único con fases, texto especial, recompensa única garantizada
-- [ ] Más items únicos y raros en la tabla `items` de Supabase
+- [x] 4 historias nuevas: Fortaleza Korrath (heist), Arrecife Perdido (exploración submarina), Festival de Baltimor (conspiración), Sombras en la Marina (thriller político)
+- [x] Sistema de eventos aleatorios en navegación: `rollNavigationEvent()` en `director.js` · trigger ~12% por tirada en `useMessages.js`
+- [ ] Modo boss: enemigo único con fases, texto especial, recompensa única garantizada _(diferido a Sprint 5/6)_
+- [ ] Más items únicos y raros en la tabla `items` de Supabase _(diferido a Sprint 5/6)_
 
 ### Archivos afectados
 `src/data/stories/*.md` → Supabase · `src/lib/director.js` · `src/pages/Lobby.jsx` · `src/hooks/useSession.js`

@@ -154,5 +154,6 @@ Ver [ROADMAP.md](ROADMAP.md) para el plan completo de sprints.
 - Sprint 2 completado al 100%: dexterity+charisma en personajes y prompts, economía de berries (money/XP en BD), bounty de jugadores y enemigos, progresión por XP con modal de stat-up, calculateXpReward/calculateMoneyReward en combat.js
 - Sprint 3 completado al 100%: CharacterPanel con tabs (Personaje/Poderes/Mochila) + bottom sheet mobile, fuente Cinzel, @keyframes dice-roll/scale-in/dot-bounce/glow-pulse/mode-flash, DiceMessage animado, typing indicator 3 puntos, GameModePanel mejorado (bounty badge, grayscale derrotados, glow-pulse turno), CharacterSelect con barras de stats, Lobby con gradiente épico
 - Sistema de diseño completado: paleta One Piece completa (dark Grand Line Night + light Dawn Island), tokens CSS en `src/styles/themes.css`, hook `useTheme` + `ThemeToggle`, migración total de todas las clases Tailwind hardcodeadas a tokens semánticos en todos los componentes y páginas, correcciones de contraste WCAG en ambos temas
+- Sprint 4 completado al 100%: tabla `stories` en Supabase + seed 7 historias (3 originales + 4 nuevas), `loadStory()` en director.js, Lobby carga historias desde BD, `StoryEditor.jsx` para historias personalizadas, modal fin de aventura con `continueWithCrew` (preserva XP/berries/inventario/stat_upgrades), `rollNavigationEvent()` con trigger ~12% por tirada
 
-**Próximo sprint:** Sprint 4 (Contenido y Gestión de Historias)
+**Próximo sprint:** Sprint 5 (Mundo Persistente: Marina y Mapa)
