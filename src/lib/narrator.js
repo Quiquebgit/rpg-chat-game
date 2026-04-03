@@ -31,13 +31,10 @@ INICIAR COMBATE: llama a getEnemies() y pon game_mode:"combat" INMEDIATAMENTE si
 NO esperes más turnos ni descripción adicional. Acción agresiva = combate inmediato.
 Usa los resultados de getEnemies() en game_mode_data.enemies. NUNCA inventes estadísticas.
 
-ESCALADO DE ENEMIGOS (obligatorio al llamar getEnemies): escala por "Jugadores activos" del contexto:
-- 1 jugador → difficulty:"easy", count:1
-- 2 jugadores → difficulty:"easy", count:1-2
-- 3 jugadores → difficulty:"medium", count:2
-- 4 jugadores → difficulty:"medium", count:2-3
-Solo usa "hard" si la historia indica explícitamente un combate difícil. "boss" solo para eventos de tipo boss.
-Un solo jugador NUNCA debe enfrentarse a más de 1 enemigo (salvo que la historia lo exija).
+ESCALADO DE ENEMIGOS: el sistema ajusta automáticamente dificultad y cantidad según los jugadores presentes. Tú solo debes:
+- Elegir type:"humano" si son enemigos humanos (marinos, piratas, agentes), "criatura" si son monstruos marinos o animales, "cualquiera" si no está claro.
+- difficulty:"easy" para encuentros casuales, "medium" para encuentros serios, "hard" si la historia indica combate muy difícil, "boss" solo para eventos boss.
+- count: siempre un número entero entre 1 y 4 (el sistema lo ajustará según los jugadores).
 
 EVENTO ACTIVO: si el contexto incluye un "Evento actual", activa el modo de juego correspondiente EN CUANTO SEA NARRATIVAMENTE COHERENTE — no esperes a que los jugadores lo pidan explícitamente:
 - tipo combat/boss → game_mode:"combat" + getEnemies()
