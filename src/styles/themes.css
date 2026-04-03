@@ -140,12 +140,12 @@
   --text-primary:   #1a0f02;
   --text-secondary: #3d2b0e;
   --text-muted:     #7a5c30;
-  --text-disabled:  #b89870;
+  --text-disabled:  #8a6840;  /* oscurecido: ~4.5:1 sobre pergamino */
 
-  /* Acento — oro más oscuro para contraste WCAG AA */
-  --accent-gold:        #b45309;
-  --accent-gold-bright: #d97706;
-  --accent-gold-dim:    #92400e;
+  /* Acento — oro oscuro para contraste WCAG AA sobre fondos claros */
+  --accent-gold:        #92400e;  /* ~5.1:1 sobre bg-base */
+  --accent-gold-bright: #b45309;  /* ~3.7:1 sobre bg-base — para headings grandes */
+  --accent-gold-dim:    #78350f;  /* ~6.8:1 sobre bg-base — para texto sutil */
   --accent-gold-bg:     rgba(180, 83, 9, 0.10);
   --accent-gold-border: rgba(180, 83, 9, 0.30);
 
@@ -254,10 +254,10 @@
     --text-primary:   #1a0f02;
     --text-secondary: #3d2b0e;
     --text-muted:     #7a5c30;
-    --text-disabled:  #b89870;
-    --accent-gold:        #b45309;
-    --accent-gold-bright: #d97706;
-    --accent-gold-dim:    #92400e;
+    --text-disabled:  #8a6840;
+    --accent-gold:        #92400e;
+    --accent-gold-bright: #b45309;
+    --accent-gold-dim:    #78350f;
     --accent-gold-bg:     rgba(180, 83, 9, 0.10);
     --accent-gold-border: rgba(180, 83, 9, 0.30);
     --mode-combat:        #b91c1c;
