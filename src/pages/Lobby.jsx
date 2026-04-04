@@ -5,8 +5,6 @@ import { initializeStorySession } from '../lib/director'
 import { SESSION_STATUS } from '../data/constants'
 import ThemeToggle from '../components/ThemeToggle'
 import StoryEditor from '../components/StoryEditor'
-import WorldNpcPanel from '../components/WorldNpcPanel'
-import WorldMap from '../components/WorldMap'
 import { CopyLinkButton } from '../components/CopyLinkButton'
 import FamilyModeToggle from '../components/FamilyModeToggle'
 import { SessionHistoryCard } from '../components/SessionHistoryCard'
@@ -55,7 +53,7 @@ function IconTrash() {
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
-function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, familyMode, toggleFamilyMode }) {
+function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, onContinueWithCrew, familyMode, toggleFamilyMode }) {
   const [sessions, setSessions] = useState([])
   const [stories, setStories] = useState([])
   const [loading, setLoading] = useState(true)
@@ -67,18 +65,13 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, family
   const [editingStory, setEditingStory] = useState(null) // historia a editar (null = crear nueva)
   const [templates, setTemplates] = useState([])
 
-  // Mundo persistente
-  const [worldNpcs, setWorldNpcs] = useState([])
-  const [worldLocations, setWorldLocations] = useState([])
-  const [worldConnections, setWorldConnections] = useState([])
-  const [worldTab, setWorldTab] = useState('enemies')
-  const [sessionTab, setSessionTab] = useState('active') // 'active' | 'history'
+  // Pestaña activa: 'active' | 'finished' | 'abandoned' | 'fame'
+  const [sessionTab, setSessionTab] = useState('active')
 
   useEffect(() => {
     loadSessions()
     loadStories()
     loadTemplates()
-    loadWorldData()
 
     const sub = supabase
       .channel('lobby-sessions')
@@ -107,17 +100,6 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, family
   async function loadTemplates() {
     const { data } = await supabase.from('difficulty_templates').select('*').order('event_count')
     if (data) setTemplates(data)
-  }
-
-  async function loadWorldData() {
-    const [npcsRes, locsRes, connsRes] = await Promise.all([
-      supabase.from('world_npcs').select('*').order('created_at'),
-      supabase.from('world_locations').select('*').order('created_at'),
-      supabase.from('world_location_connections').select('*'),
-    ])
-    if (npcsRes.data) setWorldNpcs(npcsRes.data)
-    if (locsRes.data) setWorldLocations(locsRes.data)
-    if (connsRes.data) setWorldConnections(connsRes.data)
   }
 
   // ─── Crear sesión con historia ───────────────────────────────────────────
@@ -233,7 +215,7 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, family
     setBusy(null)
   }
 
-  // Obtiene el título de la historia de una sesión (BD → fallback legacy)
+  // Obtiene el título de la historia de una sesión
   function getStoryTitle(session) {
     if (session.story_id) {
       return stories.find(s => s.id === session.story_id)?.title || null
@@ -324,7 +306,7 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, family
       >
         <div className="max-w-2xl mx-auto">
           <button onClick={() => setView('sessions')} className="text-xs text-ink-off hover:text-ink-2 mb-8 flex items-center gap-1">
-            ← Volver al lobby
+            ← Volver al menú principal
           </button>
           {continueFromSession && (
             <div className="mb-6 rounded-xl border border-gold/30 bg-gold/10 px-5 py-3 text-sm text-gold-bright flex items-center gap-2">
@@ -386,7 +368,20 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, family
     )
   }
 
-  // Vista principal: lista de sesiones
+  // ─── Vista principal: Menú principal ─────────────────────────────────────
+
+  const activeSessions   = sessions.filter(s => s.status === 'active')
+  const finishedSessions = sessions.filter(s => s.status === 'finished')
+  const abandonedSessions = sessions.filter(s => s.status === 'abandoned')
+  const fameSessions     = sessions.filter(s => s.session_recap != null)
+
+  const TABS = [
+    { id: 'active',   label: 'Activas',   count: activeSessions.length },
+    { id: 'finished', label: 'Terminadas', count: finishedSessions.length },
+    { id: 'abandoned',label: 'Archivadas', count: abandonedSessions.length },
+    { id: 'fame',     label: 'Salón de la Fama', count: fameSessions.length },
+  ]
+
   return (
     <div
       className="min-h-screen text-ink px-6 py-10"
@@ -418,52 +413,14 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, family
           + Nueva aventura
         </button>
 
-        {/* Mundo persistente: NPCs conocidos + Mapa */}
-        {(worldNpcs.length > 0 || worldLocations.length > 0) && (
-          <div className="mb-8 rounded-xl border border-stroke bg-panel overflow-hidden">
-            {/* Tabs */}
-            <div className="flex border-b border-stroke">
-              {[
-                { id: 'enemies', label: 'Enemigos conocidos', icon: '⚔️', count: worldNpcs.length },
-                { id: 'map', label: 'Mapa del mundo', icon: '🗺️', count: worldLocations.length },
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setWorldTab(tab.id)}
-                  className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
-                    worldTab === tab.id
-                      ? 'text-gold-bright border-b-2 border-gold'
-                      : 'text-ink-3 hover:text-ink-2'
-                  }`}
-                >
-                  <span className="mr-1">{tab.icon}</span>
-                  <span className="hidden sm:inline">{tab.label}</span>
-                  {tab.count > 0 && (
-                    <span className="ml-1 text-[10px] text-ink-off">({tab.count})</span>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* Contenido del tab */}
-            <div className="p-4">
-              {worldTab === 'enemies' && <WorldNpcPanel npcs={worldNpcs} />}
-              {worldTab === 'map' && <WorldMap locations={worldLocations} connections={worldConnections} />}
-            </div>
-          </div>
-        )}
-
-        {/* Tabs: Aventuras activas / Historial */}
+        {/* Tabs de sesiones */}
         {!loading && sessions.length > 0 && (
-          <div className="flex border-b border-stroke mb-4">
-            {[
-              { id: 'active', label: 'Aventuras activas', count: sessions.filter(s => s.status !== 'finished').length },
-              { id: 'history', label: 'Historial', count: sessions.filter(s => s.status === 'finished').length },
-            ].map(tab => (
+          <div className="flex border-b border-stroke mb-4 overflow-x-auto">
+            {TABS.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setSessionTab(tab.id)}
-                className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
+                className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors whitespace-nowrap px-2 ${
                   sessionTab === tab.id
                     ? 'text-gold-bright border-b-2 border-gold'
                     : 'text-ink-3 hover:text-ink-2'
@@ -480,82 +437,145 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, family
           <p className="text-center text-ink-off animate-pulse text-sm">Cargando sesiones…</p>
         ) : sessions.length === 0 ? (
           <p className="text-center text-ink-off italic text-sm mt-8">No hay sesiones todavía.</p>
-        ) : sessionTab === 'history' ? (
-          /* Historial de sesiones terminadas */
-          (() => {
-            const finished = sessions.filter(s => s.status === 'finished')
-            return finished.length === 0 ? (
-              <p className="text-center text-ink-off italic text-sm mt-4">No hay partidas terminadas aún.</p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {finished.map(session => (
-                  <SessionHistoryCard key={session.id} session={session} storyTitle={getStoryTitle(session)} />
-                ))}
-              </div>
-            )
-          })()
-        ) : (
-          /* Aventuras activas y archivadas */
-          <div className="flex flex-col gap-3">
-            {sessions.filter(s => s.status !== 'finished').map(session => {
-              const status = SESSION_STATUS[session.status] || SESSION_STATUS.abandoned
-              const isActive = session.status === 'active'
-              const isBusy = busy === session.id
-              const storyTitle = getStoryTitle(session)
-
-              return (
-                <div
-                  key={session.id}
-                  onClick={() => !isBusy && onSessionSelect(session)}
-                  className="rounded-xl border border-stroke bg-panel px-5 py-4 cursor-pointer hover:border-stroke-3 hover:bg-raised/60 transition-colors"
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex flex-col gap-2 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-xs font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${status.style}`}>
-                          {status.label}
-                        </span>
-                        {storyTitle && (
-                          <span className="text-xs text-gold/70 truncate">📖 {storyTitle}</span>
-                        )}
+        ) : sessionTab === 'active' ? (
+          /* ── Aventuras activas ─────────────────────────────────────────── */
+          activeSessions.length === 0 ? (
+            <p className="text-center text-ink-off italic text-sm mt-4">No hay aventuras activas.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {activeSessions.map(session => {
+                const isBusy = busy === session.id
+                const storyTitle = getStoryTitle(session)
+                return (
+                  <div
+                    key={session.id}
+                    onClick={() => !isBusy && onSessionSelect(session)}
+                    className="rounded-xl border border-stroke bg-panel px-5 py-4 cursor-pointer hover:border-stroke-3 hover:bg-raised/60 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex flex-col gap-2 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-xs font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${SESSION_STATUS.active.style}`}>
+                            {SESSION_STATUS.active.label}
+                          </span>
+                          {storyTitle && (
+                            <span className="text-xs text-gold/70 truncate">📖 {storyTitle}</span>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-xs text-ink-off">
+                            Inicio: <span className="text-ink-2">{formatDate(session.created_at)}</span>
+                          </p>
+                          <p className="text-xs text-ink-off">
+                            Última actividad: <span className="text-ink-2">{formatDate(session.updated_at)}</span>
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-0.5">
-                        <p className="text-xs text-ink-off">
-                          Inicio: <span className="text-ink-2">{formatDate(session.created_at)}</span>
-                        </p>
-                        <p className="text-xs text-ink-off">
-                          Última actividad: <span className="text-ink-2">{formatDate(session.updated_at)}</span>
-                        </p>
-                      </div>
-                    </div>
 
-                    <div className="flex items-center gap-1 shrink-0 divide-x divide-stroke" onClick={e => e.stopPropagation()}>
-                      {isActive && <CopyLinkButton sessionId={session.id} />}
-                      <button onClick={() => onSessionSelect(session)} disabled={isBusy} title="Entrar"
-                        className="p-2 rounded-lg text-gold hover:text-gold-bright hover:bg-gold/10 disabled:opacity-40 transition-colors">
-                        <IconEnter />
-                      </button>
-                      {isActive ? (
+                      <div className="flex items-center gap-1 shrink-0 divide-x divide-stroke" onClick={e => e.stopPropagation()}>
+                        <CopyLinkButton sessionId={session.id} />
+                        <button onClick={() => onSessionSelect(session)} disabled={isBusy} title="Entrar"
+                          className="p-2 rounded-lg text-gold hover:text-gold-bright hover:bg-gold/10 disabled:opacity-40 transition-colors">
+                          <IconEnter />
+                        </button>
                         <button onClick={() => handleArchive(session.id)} disabled={isBusy} title="Archivar"
                           className="p-2 rounded-lg text-ink-off hover:text-ink-2 hover:bg-raised/50 disabled:opacity-40 transition-colors">
                           <IconArchive />
                         </button>
-                      ) : (
-                        <button onClick={() => handleRestore(session.id)} disabled={isBusy} title="Restaurar"
-                          className="p-2 rounded-lg text-ink-off hover:text-ink-2 hover:bg-raised/50 disabled:opacity-40 transition-colors">
-                          <IconRestore />
+                        <button onClick={() => handleDelete(session.id)} disabled={isBusy} title="Borrar"
+                          className="p-2 pl-3 rounded-lg text-combat/50 hover:text-combat-light hover:bg-combat/10 disabled:opacity-40 transition-colors">
+                          <IconTrash />
                         </button>
-                      )}
-                      <button onClick={() => handleDelete(session.id)} disabled={isBusy} title="Borrar"
-                        className="p-2 pl-3 rounded-lg text-combat/50 hover:text-combat-light hover:bg-combat/10 disabled:opacity-40 transition-colors">
-                        <IconTrash />
-                      </button>
+                      </div>
                     </div>
                   </div>
+                )
+              })}
+            </div>
+          )
+        ) : sessionTab === 'finished' ? (
+          /* ── Aventuras terminadas ──────────────────────────────────────── */
+          finishedSessions.length === 0 ? (
+            <p className="text-center text-ink-off italic text-sm mt-4">No hay aventuras terminadas aún.</p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {finishedSessions.map(session => (
+                <div key={session.id} className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 px-1" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => onContinueWithCrew(session)}
+                      disabled={busy === session.id}
+                      className="text-xs font-semibold text-gold border border-gold/30 bg-gold/10 px-3 py-1.5 rounded-lg hover:bg-gold hover:text-canvas transition-all disabled:opacity-40"
+                    >
+                      ⚔️ Continuar tripulación
+                    </button>
+                  </div>
+                  <SessionHistoryCard session={session} storyTitle={getStoryTitle(session)} />
                 </div>
-              )
-            })}
-          </div>
+              ))}
+            </div>
+          )
+        ) : sessionTab === 'abandoned' ? (
+          /* ── Aventuras archivadas ──────────────────────────────────────── */
+          abandonedSessions.length === 0 ? (
+            <p className="text-center text-ink-off italic text-sm mt-4">No hay aventuras archivadas.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {abandonedSessions.map(session => {
+                const isBusy = busy === session.id
+                const storyTitle = getStoryTitle(session)
+                return (
+                  <div
+                    key={session.id}
+                    className="rounded-xl border border-stroke bg-panel px-5 py-4"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex flex-col gap-2 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-xs font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${SESSION_STATUS.abandoned.style}`}>
+                            {SESSION_STATUS.abandoned.label}
+                          </span>
+                          {storyTitle && (
+                            <span className="text-xs text-gold/70 truncate">📖 {storyTitle}</span>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-xs text-ink-off">
+                            Inicio: <span className="text-ink-2">{formatDate(session.created_at)}</span>
+                          </p>
+                          <p className="text-xs text-ink-off">
+                            Última actividad: <span className="text-ink-2">{formatDate(session.updated_at)}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0 divide-x divide-stroke">
+                        <button onClick={() => handleRestore(session.id)} disabled={isBusy} title="Retomar"
+                          className="p-2 rounded-lg text-exploration-light hover:bg-exploration/10 disabled:opacity-40 transition-colors">
+                          <IconRestore />
+                        </button>
+                        <button onClick={() => handleDelete(session.id)} disabled={isBusy} title="Eliminar"
+                          className="p-2 pl-3 rounded-lg text-combat/50 hover:text-combat-light hover:bg-combat/10 disabled:opacity-40 transition-colors">
+                          <IconTrash />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        ) : (
+          /* ── Salón de la Fama ──────────────────────────────────────────── */
+          fameSessions.length === 0 ? (
+            <p className="text-center text-ink-off italic text-sm mt-4">Ninguna aventura tiene resumen todavía.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {fameSessions.map(session => (
+                <SessionHistoryCard key={session.id} session={session} storyTitle={getStoryTitle(session)} />
+              ))}
+            </div>
+          )
         )}
 
       </div>

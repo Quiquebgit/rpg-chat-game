@@ -13,9 +13,9 @@ export async function findWorldNpc(name) {
   return data
 }
 
-// Obtiene NPCs del mundo con filtros opcionales
-export async function getWorldNpcs({ status, faction, rank } = {}) {
-  let query = supabase.from('world_npcs').select('*')
+// Obtiene NPCs del mundo para una sesión concreta
+export async function getWorldNpcs(sessionId, { status, faction, rank } = {}) {
+  let query = supabase.from('world_npcs').select('*').eq('session_id', sessionId)
   if (status) query = query.eq('status', status)
   if (faction) query = query.eq('faction', faction)
   if (rank) query = query.eq('rank', rank)
@@ -27,8 +27,8 @@ export async function getWorldNpcs({ status, faction, rank } = {}) {
   return data || []
 }
 
-// Guarda o actualiza un NPC. Si ya existe (por nombre), actualiza; si no, inserta.
-export async function saveWorldNpc({ name, rank, faction, hp, attack, defense, description, status, bounty, personality_notes, first_seen_session }) {
+// Guarda o actualiza un NPC. Si ya existe en esta sesión (por nombre), actualiza; si no, inserta.
+export async function saveWorldNpc({ name, rank, faction, hp, attack, defense, description, status, bounty, personality_notes, first_seen_session, session_id }) {
   const existing = await findWorldNpc(name)
   if (existing) {
     // Actualizar solo campos que vengan definidos
@@ -59,6 +59,7 @@ export async function saveWorldNpc({ name, rank, faction, hp, attack, defense, d
       bounty: bounty || 0,
       personality_notes: personality_notes || null,
       first_seen_session,
+      session_id: session_id || null,
     })
     .select()
     .single()
@@ -103,7 +104,7 @@ Cada NPC tiene: name (nombre original en español o japonés inventado), rank, h
 
 // Genera la jerarquía de la Marina si no existe. Idempotente.
 export async function generateMarinaHierarchy(sessionId) {
-  const existing = await getWorldNpcs({ faction: 'marina' })
+  const existing = await getWorldNpcs(sessionId, { faction: 'marina' })
   if (existing.length > 0) {
     console.log('[worldState] Marina ya existe, omitiendo generación')
     return existing
@@ -153,12 +154,11 @@ export async function generateMarinaHierarchy(sessionId) {
 
 // ── Ubicaciones del mundo ───────────────────────────────────────────────────
 
-// Obtiene todas las ubicaciones descubiertas
-export async function getWorldLocations() {
-  const { data, error } = await supabase
-    .from('world_locations')
-    .select('*')
-    .order('created_at')
+// Obtiene las ubicaciones descubiertas en una sesión concreta
+export async function getWorldLocations(sessionId) {
+  let query = supabase.from('world_locations').select('*')
+  if (sessionId) query = query.eq('session_id', sessionId)
+  const { data, error } = await query.order('created_at')
   if (error) {
     console.error('[worldState] Error cargando ubicaciones:', error)
     return []
@@ -166,11 +166,21 @@ export async function getWorldLocations() {
   return data || []
 }
 
-// Obtiene todas las conexiones del grafo
-export async function getWorldConnections() {
+// Obtiene conexiones entre ubicaciones de una sesión
+export async function getWorldConnections(sessionId) {
+  if (!sessionId) {
+    const { data, error } = await supabase.from('world_location_connections').select('*')
+    if (error) console.error('[worldState] Error cargando conexiones:', error)
+    return data || []
+  }
+  // Obtener IDs de ubicaciones de esta sesión y filtrar conexiones
+  const locations = await getWorldLocations(sessionId)
+  if (!locations.length) return []
+  const ids = locations.map(l => l.id)
   const { data, error } = await supabase
     .from('world_location_connections')
     .select('*')
+    .or(`from_location_id.in.(${ids.join(',')}),to_location_id.in.(${ids.join(',')})`)
   if (error) {
     console.error('[worldState] Error cargando conexiones:', error)
     return []
@@ -198,7 +208,7 @@ function computeCoordinates(existingLocations, connectFromId) {
 }
 
 // Guarda una nueva ubicación y opcionalmente la conecta a otra
-export async function saveWorldLocation({ name, description, location_type, discovered_in_session, connect_from, distance_days }) {
+export async function saveWorldLocation({ name, description, location_type, discovered_in_session, connect_from, distance_days, session_id }) {
   // Comprobar si ya existe
   const { data: existing } = await supabase
     .from('world_locations')
@@ -209,7 +219,7 @@ export async function saveWorldLocation({ name, description, location_type, disc
 
   // Buscar ubicación padre por nombre para calcular coordenadas
   let connectFromId = null
-  const allLocations = await getWorldLocations()
+  const allLocations = await getWorldLocations(session_id)
   if (connect_from) {
     const parentLoc = allLocations.find(l => l.name.toLowerCase() === connect_from.toLowerCase())
     if (parentLoc) connectFromId = parentLoc.id
@@ -225,6 +235,7 @@ export async function saveWorldLocation({ name, description, location_type, disc
       location_type: location_type || 'island',
       discovered_in_session,
       coordinates,
+      session_id: session_id || null,
     })
     .select()
     .single()

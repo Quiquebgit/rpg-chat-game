@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import { useTheme } from './hooks/useTheme'
 import { useFamilyMode } from './hooks/useFamilyMode'
+import { initializeStorySession } from './lib/director'
+import { characters as allCharacters } from './data/characters'
 import Lobby from './pages/Lobby'
 import CharacterSelect from './pages/CharacterSelect'
 import GameRoom from './pages/GameRoom'
@@ -119,12 +121,75 @@ function App() {
     setPage('select')
   }
 
+  // Continúa inline desde GameRoom sin salir: crea nueva sesión con tripulación heredada
+  async function handleContinueInline(finishedSession, story, template) {
+    const turnOrder = allCharacters.map(c => c.id)
+    const { data: newSession, error } = await supabase
+      .from('sessions')
+      .insert({
+        status: 'active',
+        turn_order: turnOrder,
+        current_turn_character_id: turnOrder[0],
+        story_id: story.id,
+        difficulty_template_id: template.id,
+        current_event_order: 1,
+      })
+      .select()
+      .single()
+
+    if (error) { console.error('[App] Error creando sesión inline:', error); return }
+
+    // Cargar stats heredados de la sesión anterior
+    const { data: prevStates } = await supabase
+      .from('session_character_state')
+      .select('character_id, inventory, money, xp, stat_upgrades')
+      .eq('session_id', finishedSession.id)
+
+    // Crear estados con progresión heredada; reclamar el personaje actual del jugador
+    await supabase.from('session_character_state').insert(
+      allCharacters.map(c => {
+        const prev = (prevStates || []).find(s => s.character_id === c.id)
+        const isMe = character && c.id === character.id
+        return {
+          session_id: newSession.id,
+          character_id: c.id,
+          hp_current: c.hp,
+          inventory: prev?.inventory || [],
+          money: prev?.money || 0,
+          xp: prev?.xp || 0,
+          stat_upgrades: prev?.stat_upgrades || {},
+          ...(isMe ? { claimed_by: playerId, is_active: true } : {}),
+        }
+      })
+    )
+
+    // Liberar personaje de la sesión anterior
+    if (character) {
+      await supabase
+        .from('session_character_state')
+        .update({ is_active: false })
+        .eq('session_id', finishedSession.id)
+        .eq('character_id', character.id)
+    }
+
+    // El Director prepara el primer evento
+    await initializeStorySession(newSession.id, story.id, template)
+
+    // Recargar sesión lista y actualizar estado — sin cambiar de página
+    const { data: readySession } = await supabase
+      .from('sessions').select('*').eq('id', newSession.id).single()
+
+    setSession(readySession || newSession)
+    // character se mantiene igual — el jugador sigue con su personaje
+  }
+
   if (page === 'lobby') {
     return (
       <Lobby
         onSessionSelect={handleSessionSelect}
         continueFromSession={continueFromSession}
         onContinueHandled={() => setContinueFromSession(null)}
+        onContinueWithCrew={handleContinueWithCrew}
         familyMode={familyMode}
         toggleFamilyMode={toggleFamilyMode}
       />
@@ -142,7 +207,7 @@ function App() {
     )
   }
 
-  return <GameRoom character={character} session={session} onLeave={handleLeaveGame} onSelectCharacter={handleSelectCharacter} onContinueWithCrew={handleContinueWithCrew} familyMode={familyMode} toggleFamilyMode={toggleFamilyMode} />
+  return <GameRoom character={character} session={session} onLeave={handleLeaveGame} onSelectCharacter={handleSelectCharacter} onContinueWithCrew={handleContinueWithCrew} onContinueInline={handleContinueInline} familyMode={familyMode} toggleFamilyMode={toggleFamilyMode} />
 }
 
 export default App

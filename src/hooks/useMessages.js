@@ -88,8 +88,8 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
       console.log(`[getEnemies] jugadores:${playerCount} modelo pidió:`, args, '→ escalado:', params)
       return getEnemies(params)
     },
-    saveWorldNpc: (args) => saveWorldNpc({ ...args, first_seen_session: session?.id }),
-    saveWorldLocation: (args) => saveWorldLocation({ ...args, discovered_in_session: session?.id }),
+    saveWorldNpc: (args) => saveWorldNpc({ ...args, first_seen_session: session?.id, session_id: session?.id }),
+    saveWorldLocation: (args) => saveWorldLocation({ ...args, discovered_in_session: session?.id, session_id: session?.id }),
   }
 
   useEffect(() => { messagesRef.current = messages }, [messages])
@@ -134,8 +134,8 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
   // Carga estado del mundo persistente (NPCs y ubicaciones conocidos)
   async function loadWorldState() {
     const [npcs, locations] = await Promise.all([
-      getWorldNpcs(),
-      getWorldLocations(),
+      getWorldNpcs(session?.id),
+      getWorldLocations(session?.id),
     ])
     worldNpcsRef.current = npcs || []
     worldLocationsRef.current = locations || []

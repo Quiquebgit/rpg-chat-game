@@ -101,7 +101,7 @@ export const ABILITY_EFFECT_LABELS = {
   poison:        '☠️ Veneno',
 }
 
-// Estilos y etiquetas de estado de sesión (Lobby)
+// Estilos y etiquetas de estado de sesión (Menú principal)
 export const SESSION_STATUS = {
   active:    { label: 'Activa',    style: 'text-exploration-light bg-exploration/10 border-exploration/30' },
   finished:  { label: 'Terminada', style: 'text-navigation-light  bg-navigation/10  border-navigation/30' },

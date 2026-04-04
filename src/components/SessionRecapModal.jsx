@@ -114,14 +114,14 @@ export function SessionRecapModal({ recap, onContinue, onLeave }) {
               onClick={onContinue}
               className="w-full py-3 rounded-xl font-bold bg-gold text-canvas hover:bg-gold-bright transition-all"
             >
-              ⚔️ Nueva aventura con esta tripulación
+              ⚔️ Continuar la aventura
             </button>
           )}
           <button
             onClick={onLeave}
             className="w-full py-3 rounded-xl font-semibold border border-stroke text-ink-2 hover:bg-raised/50 transition-all"
           >
-            Volver al Lobby
+            Ir al Menú principal
           </button>
         </div>
       </div>

@@ -20,11 +20,20 @@ import { useReactions } from '../hooks/useReactions'
 import { SpectatorSuggestInput } from '../components/SpectatorSuggestInput'
 import { SuggestionPills } from '../components/SuggestionPills'
 import { SessionRecapModal } from '../components/SessionRecapModal'
+import ContinuePicker from '../components/ContinuePicker'
+import BitacoraPanel from '../components/BitacoraPanel'
+import { getWorldNpcs, getWorldLocations, getWorldConnections } from '../lib/worldState'
+import { supabase } from '../lib/supabase'
 
-function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWithCrew, familyMode, toggleFamilyMode }) {
+function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWithCrew, onContinueInline, familyMode, toggleFamilyMode }) {
   const [input, setInput] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [playersOpen, setPlayersOpen] = useState(false)
+  const [bitacoraOpen, setBitacoraOpen] = useState(false)
+  const [continuePickerOpen, setContinuePickerOpen] = useState(false)
+  const [worldNpcs, setWorldNpcs] = useState([])
+  const [worldLocations, setWorldLocations] = useState([])
+  const [worldConnections, setWorldConnections] = useState([])
   const [actionMode, setActionMode] = useState(true)
   const [useNavAbility, setUseNavAbility] = useState(false)
   const messagesEndRef = useRef(null)
@@ -48,6 +57,32 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
       stop()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cargar y suscribir datos del mundo persistente de esta sesión
+  useEffect(() => {
+    if (!session?.id) return
+    async function loadWorld() {
+      const [npcs, locs, conns] = await Promise.all([
+        getWorldNpcs(session.id),
+        getWorldLocations(session.id),
+        getWorldConnections(session.id),
+      ])
+      setWorldNpcs(npcs)
+      setWorldLocations(locs)
+      setWorldConnections(conns)
+    }
+    loadWorld()
+
+    // Realtime: actualizar NPCs cuando el director los guarda
+    const sub = supabase
+      .channel(`world-npcs-${session.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'world_npcs', filter: `session_id=eq.${session.id}` },
+        () => getWorldNpcs(session.id).then(setWorldNpcs)
+      )
+      .subscribe()
+
+    return () => sub.unsubscribe()
+  }, [session?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Narrar automáticamente los mensajes nuevos del narrador
   useEffect(() => {
@@ -352,13 +387,30 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
       )}
 
       {/* Modal de fin de aventura con recap */}
-      {session.status === 'finished' && (
+      {session.status === 'finished' && !continuePickerOpen && (
         <SessionRecapModal
           recap={session.session_recap}
-          onContinue={onContinueWithCrew ? () => onContinueWithCrew(session) : null}
+          onContinue={onContinueInline ? () => setContinuePickerOpen(true) : null}
           onLeave={onLeave}
         />
       )}
+
+      {/* Picker inline de historia+dificultad para continuar sin salir */}
+      {continuePickerOpen && (
+        <ContinuePicker
+          onConfirm={(story, template) => onContinueInline(session, story, template)}
+          onCancel={() => setContinuePickerOpen(false)}
+        />
+      )}
+
+      {/* Bitácora del mundo: NPCs y mapa de la sesión */}
+      <BitacoraPanel
+        open={bitacoraOpen}
+        onClose={() => setBitacoraOpen(false)}
+        npcs={worldNpcs}
+        locations={worldLocations}
+        connections={worldConnections}
+      />
 
       {/* Modal confirmación fruta del diablo */}
       {fruitConfirmItem && (
@@ -520,6 +572,16 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
 
             {/* Copiar enlace de invitación */}
             <CopyLinkButton sessionId={session.id} />
+
+            {/* Bitácora del mundo */}
+            <button
+              onClick={() => setBitacoraOpen(v => !v)}
+              className="p-2 rounded-lg text-ink-3 hover:text-ink hover:bg-raised transition-colors"
+              aria-label="Bitácora"
+              title="Bitácora del mundo"
+            >
+              📖
+            </button>
 
             {/* Botón hamburguesa */}
             <button
