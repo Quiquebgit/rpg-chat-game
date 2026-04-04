@@ -142,7 +142,7 @@ function App() {
     )
   }
 
-  return <GameRoom character={character} session={session} onLeave={handleLeaveGame} onSelectCharacter={handleSelectCharacter} onContinueWithCrew={handleContinueWithCrew} familyMode={familyMode} />
+  return <GameRoom character={character} session={session} onLeave={handleLeaveGame} onSelectCharacter={handleSelectCharacter} onContinueWithCrew={handleContinueWithCrew} familyMode={familyMode} toggleFamilyMode={toggleFamilyMode} />
 }
 
 export default App
