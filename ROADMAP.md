@@ -301,7 +301,24 @@ Nuevas tablas Supabase · `src/lib/director.js` · `src/lib/narrator.js` · `src
 #### Hall of fame (de Sprint 7 original)
 - [x] Salón de la Fama: pestaña que muestra todas las sesiones con `session_recap` en modo lectura
 
-### Tareas pendientes (Sprint 7b — Progresión)
+### Tareas pendientes (Sprint 7b — Progresión y Mapa funcional)
+
+#### Mapa por sesión — hacer funcional
+El mapa ahora es **independiente por sesión** (columna `session_id` en `world_locations` y `world_npcs`). Se accede desde el botón 📖 Bitácora en la cabecera de GameRoom → tab "Mapa". Arquitectura actual:
+
+- Las ubicaciones guardadas por el director se vinculan a la sesión activa
+- El mapa solo muestra ubicaciones de esa sesión concreta
+- Los datos de sesiones anteriores (pre-Sprint 7) tienen `session_id = NULL` y no aparecen en ningún mapa nuevo
+
+Tareas para que el mapa funcione end-to-end:
+- [x] Migración: `session_id` FK en `world_locations` y `world_npcs`
+- [x] `saveWorldLocation`/`saveWorldNpc`: duplicate check ahora es por `(nombre + session_id)`, no global
+- [x] `defeatWorldNpc`/`findWorldNpc`: también buscan por session_id
+- [ ] Retroactive migration: rellenar `session_id` en filas antiguas usando `discovered_in_session` / `first_seen_session` — sin esto, las partidas pre-Sprint 7 no ven su mapa
+- [ ] Prompt del Director: incluir en `buildWorldContext()` un resumen de ubicaciones de sesiones anteriores para que el director recomiende destinos coherentes aunque sean de otra sesión
+- [ ] UI: estado vacío más informativo en Bitácora cuando no hay ubicaciones aún ("El mapa se irá completando a medida que exploréis el mundo")
+
+#### Progresión de personaje entre sesiones
 - [ ] Sistema de suministros: campo `supplies_days` en sesión — se gasta en viajes largos según distancia en el mapa
 - [ ] Economía avanzada: comprar suministros e items en puertos (tienda accesible desde Bitácora o Menú principal)
 - [ ] Sistema de reputación de tripulación: puntos de crew acumulados entre sesiones

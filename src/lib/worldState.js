@@ -3,13 +3,11 @@ import { callDirectorModel } from './groq'
 
 // ── NPCs del mundo ──────────────────────────────────────────────────────────
 
-// Busca un NPC por nombre exacto (case-insensitive)
-export async function findWorldNpc(name) {
-  const { data } = await supabase
-    .from('world_npcs')
-    .select('*')
-    .ilike('name', name)
-    .maybeSingle()
+// Busca un NPC por nombre exacto (case-insensitive) dentro de una sesión concreta
+export async function findWorldNpc(name, sessionId) {
+  let query = supabase.from('world_npcs').select('*').ilike('name', name)
+  if (sessionId) query = query.eq('session_id', sessionId)
+  const { data } = await query.maybeSingle()
   return data
 }
 
@@ -29,7 +27,7 @@ export async function getWorldNpcs(sessionId, { status, faction, rank } = {}) {
 
 // Guarda o actualiza un NPC. Si ya existe en esta sesión (por nombre), actualiza; si no, inserta.
 export async function saveWorldNpc({ name, rank, faction, hp, attack, defense, description, status, bounty, personality_notes, first_seen_session, session_id }) {
-  const existing = await findWorldNpc(name)
+  const existing = await findWorldNpc(name, session_id)
   if (existing) {
     // Actualizar solo campos que vengan definidos
     const updates = {}
@@ -74,7 +72,7 @@ export async function saveWorldNpc({ name, rank, faction, hp, attack, defense, d
 
 // Marca un NPC como derrotado. No-op si no existe.
 export async function defeatWorldNpc(npcName, sessionId) {
-  const existing = await findWorldNpc(npcName)
+  const existing = await findWorldNpc(npcName, sessionId)
   if (!existing || existing.status === 'defeated') return null
 
   const { data } = await supabase
@@ -209,12 +207,10 @@ function computeCoordinates(existingLocations, connectFromId) {
 
 // Guarda una nueva ubicación y opcionalmente la conecta a otra
 export async function saveWorldLocation({ name, description, location_type, discovered_in_session, connect_from, distance_days, session_id }) {
-  // Comprobar si ya existe
-  const { data: existing } = await supabase
-    .from('world_locations')
-    .select('*')
-    .ilike('name', name)
-    .maybeSingle()
+  // Comprobar si ya existe EN ESTA SESIÓN (el mismo nombre puede existir en otra sesión distinta)
+  let dupQuery = supabase.from('world_locations').select('*').ilike('name', name)
+  if (session_id) dupQuery = dupQuery.eq('session_id', session_id)
+  const { data: existing } = await dupQuery.maybeSingle()
   if (existing) return existing
 
   // Buscar ubicación padre por nombre para calcular coordenadas

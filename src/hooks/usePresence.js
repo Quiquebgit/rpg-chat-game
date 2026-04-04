@@ -100,10 +100,20 @@ export function usePresence(session, character = null) {
     channelRef.current.track({ character_id: character.id, isParticipant: true })
   }
 
-  // Enviar sugerencia como espectador
-  function sendSuggestion(suggestion) {
-    if (!channelRef.current || !character?.id) return
-    channelRef.current.send({
+  // Enviar sugerencia como espectador — aparece en el chat como OOC y como pill para el jugador activo
+  async function sendSuggestion(suggestion) {
+    if (!session?.id || !character?.id) return
+
+    // Guardar en BD para que aparezca en el chat de todos
+    await supabase.from('messages').insert({
+      session_id: session.id,
+      character_id: character.id,
+      content: `💡 ${suggestion}`,
+      type: 'ooc',
+    })
+
+    // Broadcast efímero para las suggestion pills del jugador activo
+    channelRef.current?.send({
       type: 'broadcast',
       event: 'SPECTATOR_SUGGESTION',
       payload: { characterName: character.name || character.id, suggestion },
