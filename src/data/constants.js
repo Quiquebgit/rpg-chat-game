@@ -145,3 +145,43 @@ export const NPC_STATUS_STYLES = {
   allied:   { label: 'Aliado',    color: 'text-gold-bright',       dot: 'bg-gold' },
   missing:  { label: 'Desaparecido', color: 'text-ink-3',          dot: 'bg-ink-3' },
 }
+
+// ── Sprint 7b: Progresión entre sesiones ─────────────────────────────────────
+
+// Suministros del barco
+export const SUPPLIES_CONFIG = {
+  DEFAULT:      30,  // días al crear una sesión nueva
+  MIN_INHERIT:  10,  // mínimo al heredar suministros de sesión anterior
+  CRISIS_AT:    0,   // si llega a 0 → evento de crisis
+  SHOP_RESTOCK: 15,  // días que añade el item "Provisiones del barco"
+}
+
+// Bounty dinámico de personajes jugadores
+export const BOUNTY_CONFIG = {
+  BOSS_INCREASE_PCT: 0.12,   // +12% del bounty del jefe derrotado
+  NPC_INCREASE_PCT:  0.08,   // +8% del bounty del NPC derrotado
+  MIN_INCREASE:      500000, // incremento mínimo absoluto (500K berries)
+}
+
+// Reputación de tripulación acumulada entre sesiones
+export const REPUTATION_CONFIG = {
+  ADVENTURE_COMPLETE: 10,
+  BOSS_DEFEATED:      25,
+  HIGH_DIFFICULTY:    50,
+}
+
+// Catálogo de títulos desbloqueables por logros
+export const TITLES_CATALOG = [
+  { id: 'boss_hunter',     label: 'Cazador de Piratas',   icon: '🏴‍☠️', description: 'Ha derrotado a 3 o más jefes enemigos' },
+  { id: 'navigator',       label: 'Navegante Legendario', icon: '⚓',   description: '5 o más tiradas de navegación exitosas' },
+  { id: 'millionaire',     label: 'Millonario',           icon: '💰',  description: 'Ha acumulado más de 1.000.000 berries' },
+  { id: 'feared',          label: 'Temible',              icon: '☠️',   description: 'Recompensa actual superior a 100.000.000' },
+  { id: 'veteran',         label: 'Veterano',             icon: '⭐',  description: 'Ha alcanzado el nivel 5 (5 stat upgrades)' },
+  { id: 'survivor',        label: 'Superviviente',        icon: '💀',  description: 'Ha caído en combate y sobrevivido' },
+  { id: 'explorer',        label: 'Explorador',           icon: '🗺️',  description: 'Ha completado 3 o más rutas de exploración' },
+  { id: 'merchant',        label: 'Comerciante',          icon: '🛒',  description: 'Ha comprado 5 o más items en la tienda' },
+  { id: 'well_supplied',   label: 'Bien Abastecido',      icon: '🧳',  description: 'Ha llegado a destino con más de 25 días de suministros' },
+  { id: 'shipwright',      label: 'Carpintero de Ribera', icon: '🔧',  description: 'Ha comprado suministros para el barco' },
+  { id: 'critical_master', label: 'Maestro del Crítico',  icon: '⚡',  description: '5 o más éxitos críticos en una sesión' },
+  { id: 'generous',        label: 'Generoso',             icon: '🎁',  description: 'Ha regalado items a aliados 3 o más veces' },
+]

@@ -31,6 +31,7 @@ export function CharacterPanel({
   onGiftItem,
   onDebugAddItem,
   familyMode,
+  currentBounty,
 }) {
   const [activeTab, setActiveTab] = useState('personaje')
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -126,7 +127,16 @@ export function CharacterPanel({
             </div>
             <div className="flex items-center justify-between">
               <span className="text-ink-2">☠️ Recompensa</span>
-              <span className="text-combat-light font-semibold">{character.bounty?.toLocaleString() ?? 0} B</span>
+              <span className="flex items-center gap-1">
+                <span className="text-combat-light font-semibold">
+                  {(currentBounty ?? character.bounty ?? 0).toLocaleString()} B
+                </span>
+                {currentBounty != null && currentBounty > (character.bounty ?? 0) && (
+                  <span className="text-[10px] text-gold/60">
+                    ↑ +{((currentBounty - (character.bounty ?? 0)) / 1_000_000).toFixed(1)}M
+                  </span>
+                )}
+              </span>
             </div>
           </div>
           <div className="mt-3">

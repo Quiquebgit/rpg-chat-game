@@ -2,7 +2,7 @@
 // No lee ni escribe nada en Supabase — eso lo hace useMessages.js.
 // Recibe el estado actual y devuelve el resultado + las escrituras pendientes.
 
-import { XP_CONFIG, MONEY_CONFIG } from '../data/constants.js'
+import { XP_CONFIG, MONEY_CONFIG, BOUNTY_CONFIG, TITLES_CATALOG } from '../data/constants.js'
 
 // Calcula el grado de éxito de una tirada respecto a un DC.
 // ±4 puntos de margen definen éxito/fallo crítico.
@@ -683,6 +683,79 @@ export function calculateMoneyReward(defeatedEnemies = []) {
     const { min, max } = MONEY_CONFIG[enemyTier(e)]
     return sum + Math.floor(Math.random() * (max - min + 1)) + min
   }, 0)
+}
+
+// ─────────────────────────────────────────────────────────
+// BOUNTY DINÁMICO
+// ─────────────────────────────────────────────────────────
+
+// Incremento de bounty al derrotar un enemigo con recompensa.
+// isBoss: true si era un jefe (boss). Devuelve entero (berries).
+export function calculateBountyIncrease(enemyBounty, isBoss = false) {
+  if (!enemyBounty || enemyBounty <= 0) return 0
+  const pct = isBoss ? BOUNTY_CONFIG.BOSS_INCREASE_PCT : BOUNTY_CONFIG.NPC_INCREASE_PCT
+  return Math.max(BOUNTY_CONFIG.MIN_INCREASE, Math.floor(enemyBounty * pct))
+}
+
+// ─────────────────────────────────────────────────────────
+// TÍTULOS DE PERSONAJE
+// ─────────────────────────────────────────────────────────
+
+// Evalúa qué títulos nuevos desbloquea un personaje a partir de su estado actual.
+// characterState: fila de session_character_state con achievement_counters, money, bounty_current, stat_upgrades, titles.
+// event: objeto con context del logro { type, supplies_days }.
+// Devuelve array de IDs de títulos NUEVOS (no incluye los que ya tiene).
+export function checkAndGrantTitles(characterState, event = {}) {
+  const existing = new Set(characterState.titles || [])
+  const counters = characterState.achievement_counters || {}
+  const statTotal = Object.values(characterState.stat_upgrades || {}).reduce((a, b) => a + b, 0)
+  const newTitles = []
+
+  for (const title of TITLES_CATALOG) {
+    if (existing.has(title.id)) continue
+
+    let earned = false
+    switch (title.id) {
+      case 'boss_hunter':
+        earned = (counters.bosses_defeated || 0) >= 3
+        break
+      case 'navigator':
+        earned = (counters.nav_successes || 0) >= 5
+        break
+      case 'millionaire':
+        earned = (characterState.money || 0) >= 1_000_000
+        break
+      case 'feared':
+        earned = (characterState.bounty_current || 0) > 100_000_000
+        break
+      case 'veteran':
+        earned = statTotal >= 5
+        break
+      case 'survivor':
+        earned = event.type === 'death_survived'
+        break
+      case 'explorer':
+        earned = (counters.explorations || 0) >= 3
+        break
+      case 'merchant':
+        earned = (counters.shop_purchases || 0) >= 5
+        break
+      case 'well_supplied':
+        earned = event.type === 'navigation_complete' && (event.supplies_days || 0) > 25
+        break
+      case 'shipwright':
+        earned = event.type === 'supply_purchased'
+        break
+      case 'critical_master':
+        earned = (counters.criticals || 0) >= 5
+        break
+      case 'generous':
+        earned = (counters.gifts_given || 0) >= 3
+        break
+    }
+    if (earned) newTitles.push(title.id)
+  }
+  return newTitles
 }
 
 // ─────────────────────────────────────────────────────────

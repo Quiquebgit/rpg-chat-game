@@ -123,7 +123,7 @@ function CombatPanel({ data, currentTurnName, characters }) {
 }
 
 // --- Modo Navegación ---
-function NavigationPanel({ data, totalPlayers = 0, canActInNav, sending, onSacrifice, onRiskyMove, onTurnBack }) {
+function NavigationPanel({ data, totalPlayers = 0, canActInNav, sending, onSacrifice, onRiskyMove, onTurnBack, suppliesDays }) {
   const {
     danger_name, danger_threshold = 10, navigation_accumulated = 0,
     navigation_rolls = [], options_visible = false, risky_move_used = false,
@@ -133,14 +133,26 @@ function NavigationPanel({ data, totalPlayers = 0, canActInNav, sending, onSacri
   const labelColor = pct >= 1 ? 'text-exploration-light' : pct >= 0.5 ? 'text-hp-medium' : 'text-hp-low'
   const rolledCount = navigation_rolls.length
 
+  // Color del indicador de suministros según días restantes
+  const suppliesColor = suppliesDays == null ? null
+    : suppliesDays === 0 ? 'text-hp-low animate-pulse'
+    : suppliesDays <= 5  ? 'text-hp-low'
+    : suppliesDays <= 15 ? 'text-hp-medium'
+    : 'text-navigation-light'
+
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <span className="text-xs font-black uppercase tracking-widest text-navigation-light">🌊 Navegación en curso</span>
         {totalPlayers > 0 && (
           <span className="text-xs text-ink-3">
             Tiradas: <span className={rolledCount >= totalPlayers ? 'text-exploration-light font-semibold' : 'text-navigation-light font-semibold'}>{rolledCount}/{totalPlayers}</span>
           </span>
+        )}
+        {suppliesDays != null && (
+          suppliesDays === 0
+            ? <span className="text-xs font-bold text-hp-low animate-pulse">⚠️ SIN SUMINISTROS</span>
+            : <span className={`text-xs font-semibold ${suppliesColor}`}>🧳 {suppliesDays} días</span>
         )}
       </div>
       {danger_name && (
@@ -301,13 +313,13 @@ function CombatPanelSimple({ data, currentTurnName }) {
   )
 }
 
-export default function GameModePanel({ gameMode, gameModeData, currentTurnName, sending, canActInNav, totalPlayers, onSacrifice, onRiskyMove, onTurnBack, explorationNodeId, onNavigateExploration, familyMode, characters }) {
+export default function GameModePanel({ gameMode, gameModeData, currentTurnName, sending, canActInNav, totalPlayers, onSacrifice, onRiskyMove, onTurnBack, explorationNodeId, onNavigateExploration, familyMode, characters, suppliesDays }) {
   if (!gameMode || gameMode === 'normal') return null
 
   return (
     <div className="shrink-0 border-b border-stroke px-6 py-3">
       {gameMode === 'combat'      && (familyMode ? <CombatPanelSimple data={gameModeData} currentTurnName={currentTurnName} /> : <CombatPanel data={gameModeData} currentTurnName={currentTurnName} characters={characters} />)}
-      {gameMode === 'navigation'  && <NavigationPanel  data={gameModeData} totalPlayers={totalPlayers} canActInNav={canActInNav} sending={sending} onSacrifice={onSacrifice} onRiskyMove={onRiskyMove} onTurnBack={onTurnBack} />}
+      {gameMode === 'navigation'  && <NavigationPanel  data={gameModeData} totalPlayers={totalPlayers} canActInNav={canActInNav} sending={sending} onSacrifice={onSacrifice} onRiskyMove={onRiskyMove} onTurnBack={onTurnBack} suppliesDays={suppliesDays} />}
       {gameMode === 'exploration' && <ExplorationPanel data={gameModeData} explorationNodeId={explorationNodeId} onNavigate={onNavigateExploration} />}
       {gameMode === 'negotiation' && <NegotiationPanel data={gameModeData} />}
     </div>

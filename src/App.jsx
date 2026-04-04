@@ -4,6 +4,7 @@ import { useTheme } from './hooks/useTheme'
 import { useFamilyMode } from './hooks/useFamilyMode'
 import { initializeStorySession } from './lib/director'
 import { characters as allCharacters } from './data/characters'
+import { SUPPLIES_CONFIG } from './data/constants'
 import Lobby from './pages/Lobby'
 import CharacterSelect from './pages/CharacterSelect'
 import GameRoom from './pages/GameRoom'
@@ -133,6 +134,8 @@ function App() {
         story_id: story.id,
         difficulty_template_id: template.id,
         current_event_order: 1,
+        supplies_days: Math.max(SUPPLIES_CONFIG.MIN_INHERIT, finishedSession.supplies_days ?? SUPPLIES_CONFIG.DEFAULT),
+        crew_reputation: finishedSession.crew_reputation ?? 0,
       })
       .select()
       .single()
@@ -142,7 +145,7 @@ function App() {
     // Cargar stats heredados de la sesión anterior
     const { data: prevStates } = await supabase
       .from('session_character_state')
-      .select('character_id, inventory, money, xp, stat_upgrades')
+      .select('character_id, inventory, money, xp, stat_upgrades, bounty_current, titles, achievement_counters')
       .eq('session_id', finishedSession.id)
 
     // Crear estados con progresión heredada; reclamar el personaje actual del jugador
@@ -158,6 +161,9 @@ function App() {
           money: prev?.money || 0,
           xp: prev?.xp || 0,
           stat_upgrades: prev?.stat_upgrades || {},
+          bounty_current: prev?.bounty_current ?? null,
+          titles: prev?.titles || [],
+          achievement_counters: prev?.achievement_counters || {},
           ...(isMe ? { claimed_by: playerId, is_active: true } : {}),
         }
       })

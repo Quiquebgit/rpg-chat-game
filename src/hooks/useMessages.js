@@ -4,7 +4,7 @@ import { callMechanicsModel, callNarratorModel, ModelsBusyError } from '../lib/g
 import { getRandomItem, GET_RANDOM_ITEM_TOOL } from '../lib/items'
 import { getEnemies, GET_ENEMIES_TOOL } from '../lib/enemies'
 import { saveWorldNpc, defeatWorldNpc, getWorldNpcs, saveWorldLocation, getWorldLocations, generateMarinaHierarchy, SAVE_WORLD_NPC_TOOL, SAVE_WORLD_LOCATION_TOOL } from '../lib/worldState'
-import { resolveCombatTurn, checkDegree, calculateXpReward, calculateMoneyReward } from '../lib/combat'
+import { resolveCombatTurn, checkDegree, calculateXpReward, calculateMoneyReward, calculateBountyIncrease, checkAndGrantTitles } from '../lib/combat'
 import {
   COMBAT_MECHANICS_SYSTEM_PROMPT,
   MECHANICS_SYSTEM_PROMPT,
@@ -15,7 +15,7 @@ import {
 } from '../lib/narrator'
 import { generateExplorationTree, generateNegotiationConsequence, rollNavigationEvent } from '../lib/director'
 import { characters as allCharacters } from '../data/characters'
-import { XP_CONFIG } from '../data/constants'
+import { XP_CONFIG, REPUTATION_CONFIG, SUPPLIES_CONFIG, TITLES_CATALOG } from '../data/constants'
 import { createPromptBuilders } from '../lib/prompts'
 
 const SUMMARY_EVERY_N_MESSAGES = 10
@@ -280,20 +280,66 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
   }
 
   // Aplica XP y berries a una lista de jugadores y marca pending_stat_upgrade si se alcanza umbral.
-  async function applyRewards(playerIds, xpGain, moneyGain) {
+  // options.defeatedEnemies: para calcular bounty dinámico
+  // options.isBoss: true si el combate era de jefe
+  // options.event: objeto de contexto para checkAndGrantTitles
+  // options.reputationDelta: puntos de reputación a sumar a la sesión
+  async function applyRewards(playerIds, xpGain, moneyGain, options = {}) {
     if (!xpGain && !moneyGain) return
+    const { defeatedEnemies = [], isBoss = false, event = {}, reputationDelta = 0 } = options
+
     for (const id of playerIds) {
       const state = characterStatesRef.current.find(s => s.character_id === id)
       if (!state) continue
+      const char = allCharacters.find(c => c.id === id)
+
       const prevXp = state.xp ?? 0
       const newXp = prevXp + xpGain
       const newMoney = (state.money ?? 0) + moneyGain
+
+      // Bounty dinámico: sumar al activo si el personaje fue quien derrotó (simplificado: todos los activos lo reciben)
+      const bountyBase = state.bounty_current ?? char?.bounty ?? 0
+      const bountyIncrease = defeatedEnemies.reduce((sum, e) => {
+        return sum + calculateBountyIncrease(e.bounty, isBoss)
+      }, 0)
+      const newBounty = bountyBase + bountyIncrease
+
+      // Contadores de logros actualizados
+      const counters = { ...(state.achievement_counters || {}) }
+      if (isBoss) counters.bosses_defeated = (counters.bosses_defeated || 0) + 1
+      if (event.type === 'critical_roll') counters.criticals = (counters.criticals || 0) + 1
+      if (event.type === 'navigation_success') counters.nav_successes = (counters.nav_successes || 0) + 1
+      if (event.type === 'exploration_complete') counters.explorations = (counters.explorations || 0) + 1
+
+      // Títulos nuevos
+      const updatedState = { ...state, xp: newXp, money: newMoney, bounty_current: newBounty, achievement_counters: counters }
+      const newTitleIds = checkAndGrantTitles(updatedState, event)
+      const updatedTitles = [...(state.titles || []), ...newTitleIds]
+
+      const update = { xp: newXp, money: newMoney, achievement_counters: counters }
+      if (bountyIncrease > 0) update.bounty_current = newBounty
+      if (newTitleIds.length > 0) update.titles = updatedTitles
+
       await supabase.from('session_character_state')
-        .update({ xp: newXp, money: newMoney })
+        .update(update)
         .eq('session_id', session.id).eq('character_id', id)
       setCharacterStates(prev =>
-        prev.map(s => s.character_id === id ? { ...s, xp: newXp, money: newMoney } : s)
+        prev.map(s => s.character_id === id ? { ...s, ...update } : s)
       )
+
+      // Notificar títulos nuevos como mensaje del narrador
+      if (newTitleIds.length > 0) {
+        for (const titleId of newTitleIds) {
+          const titleDef = TITLES_CATALOG.find(t => t.id === titleId)
+          if (titleDef) {
+            await supabase.from('messages').insert({
+              session_id: session.id, character_id: 'narrator', type: 'narrator',
+              content: `${titleDef.icon} **${char?.name ?? id}** ha desbloqueado el título **"${titleDef.label}"** — ${titleDef.description}`,
+            })
+          }
+        }
+      }
+
       // Verificar si se superó un umbral de stat-up
       const prevLevel = Math.floor(prevXp / XP_CONFIG.THRESHOLD)
       const newLevel = Math.floor(newXp / XP_CONFIG.THRESHOLD)
@@ -308,6 +354,12 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
         }
       }
     }
+
+    // Reputación de tripulación (acumulativa en la sesión)
+    if (reputationDelta > 0) {
+      await supabase.rpc('increment_crew_reputation', { session_id: session.id, delta: reputationDelta })
+    }
+
     console.log(`[rewards] XP+${xpGain} Berries+${moneyGain} para ${playerIds.join(', ')}`)
   }
 
@@ -636,7 +688,11 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
       const totalMoney = calculateMoneyReward(defeatedEnemies) * 2
       const activePlayers = presentIdsRef.current
       const moneyPerPlayer = activePlayers.length > 0 ? Math.floor(totalMoney / activePlayers.length) : 0
-      await applyRewards(activePlayers, xpGain, moneyPerPlayer)
+      await applyRewards(activePlayers, xpGain, moneyPerPlayer, {
+        defeatedEnemies,
+        isBoss: true,
+        reputationDelta: REPUTATION_CONFIG.BOSS_DEFEATED,
+      })
     }
   }
 
@@ -1572,6 +1628,19 @@ Personajes presentes: ${activeIds.join(', ')}.`
     // Si completó el umbral, avisar al Director
     if (completed && onEventComplete) await onEventComplete()
 
+    // Consumo de suministros por tirada de navegación (1–3 días por tramo)
+    const distanceDays = Math.floor(Math.random() * 3) + 1
+    const currentSupplies = sessionRef.current?.supplies_days ?? SUPPLIES_CONFIG.DEFAULT
+    const newSupplies = Math.max(0, currentSupplies - distanceDays)
+    await supabase.from('sessions').update({ supplies_days: newSupplies }).eq('id', session.id)
+    if (newSupplies === 0 && currentSupplies > 0) {
+      // Crisis de suministros: mensaje del narrador
+      await supabase.from('messages').insert({
+        session_id: session.id, character_id: 'narrator', type: 'narrator',
+        content: '⚠️ **¡Sin suministros!** La tripulación empieza a pasar hambre. Deben encontrar un puerto urgentemente.',
+      })
+    }
+
     // Evento aleatorio de navegación (~12% por tirada, solo si no completó y no hay evento activo)
     if (!completed && Math.random() < 0.12) {
       const navEvent = await rollNavigationEvent(sessionRef.current)
@@ -1805,6 +1874,61 @@ Personajes presentes: ${activeIds.join(', ')}.`
     setNarratorTyping(false)
   }
 
+  // Compra un item de la tienda para el personaje activo.
+  // Descuenta money, añade al inventario, gestiona suministros si aplica y actualiza logros.
+  async function buyItem(item) {
+    if (!activeCharacter?.id) return
+    const state = characterStatesRef.current.find(s => s.character_id === activeCharacter.id)
+    if (!state) return
+    const currentMoney = state.money ?? 0
+    if (currentMoney < item.price) return
+
+    const newMoney = currentMoney - item.price
+    const newInventory = [...(state.inventory || []), item]
+    const counters = { ...(state.achievement_counters || {}), shop_purchases: (state.achievement_counters?.shop_purchases || 0) + 1 }
+    const isSupplyItem = item.effects?.supply_days > 0
+
+    // Evento de título para lógica de checkAndGrantTitles
+    const event = { type: isSupplyItem ? 'supply_purchased' : 'item_bought' }
+    const updatedState = { ...state, money: newMoney, achievement_counters: counters }
+    const newTitleIds = checkAndGrantTitles(updatedState, event)
+    const updatedTitles = [...(state.titles || []), ...newTitleIds]
+
+    const update = { money: newMoney, inventory: newInventory, achievement_counters: counters }
+    if (newTitleIds.length > 0) update.titles = updatedTitles
+
+    await supabase.from('session_character_state')
+      .update(update)
+      .eq('session_id', session.id).eq('character_id', activeCharacter.id)
+    setCharacterStates(prev =>
+      prev.map(s => s.character_id === activeCharacter.id ? { ...s, ...update } : s)
+    )
+
+    // Suministros del barco
+    if (isSupplyItem) {
+      const current = sessionRef.current?.supplies_days ?? SUPPLIES_CONFIG.DEFAULT
+      const added = item.effects.supply_days
+      const newSupplies = Math.min(current + added, 99)
+      await supabase.from('sessions').update({ supplies_days: newSupplies }).eq('id', session.id)
+    }
+
+    // Notificar títulos nuevos
+    if (newTitleIds.length > 0) {
+      const char = allCharacters.find(c => c.id === activeCharacter.id)
+      for (const titleId of newTitleIds) {
+        const titleDef = TITLES_CATALOG.find(t => t.id === titleId)
+        if (titleDef) {
+          await supabase.from('messages').insert({
+            session_id: session.id, character_id: 'narrator', type: 'narrator',
+            content: `${titleDef.icon} **${char?.name ?? activeCharacter.id}** ha desbloqueado el título **"${titleDef.label}"** — ${titleDef.description}`,
+          })
+        }
+      }
+    }
+
+    console.log(`[shop] ${activeCharacter.id} compró ${item.name} por ${item.price}B`)
+  }
+
   return {
     messages, sending, narratorTyping,
     sendMessage, sendChat, sendAction, sendGmMessage,
@@ -1814,7 +1938,7 @@ Personajes presentes: ${activeIds.join(', ')}.`
     startGame, announceEntry, debugAddItem,
     useItem, giftItem, killCharacter,
     explorationNodeId, navigateExplorationNode,
-    applyStatUpgrade,
+    applyStatUpgrade, buyItem,
     setGameModeDirect: (mode) => {
       if (mode === 'combat') return startGmCombat()
       return applyGameMode({

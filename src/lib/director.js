@@ -215,7 +215,8 @@ Devuelve SOLO JSON válido:
 
 // Genera un evento aleatorio durante la navegación.
 // Probabilidad: ~12% por turno en modo navigation (gestiona el caller).
-// Devuelve { type, title, description, mechanic } o null si falla.
+// Devuelve { type, title, description, mechanic, distance_days } o null si falla.
+// distance_days: días de viaje consumidos en este tramo (1-3, calculado en código).
 export async function rollNavigationEvent(session) {
   const context = [
     session.story_lore ? `Lore:\n${session.story_lore}` : '',
@@ -224,10 +225,13 @@ export async function rollNavigationEvent(session) {
 
   const userPrompt = `${context}\n\nGenera un evento inesperado durante la navegación. Debe ser coherente con el lore y aportar tensión o drama.`
 
+  const distanceDays = Math.floor(Math.random() * 3) + 1 // 1–3 días deterministas
+
   try {
     const raw = await callDirectorModel(NAVIGATION_EVENT_SYSTEM_PROMPT, userPrompt)
     if (!raw) return null
-    return JSON.parse(raw)
+    const result = JSON.parse(raw)
+    return { ...result, distance_days: distanceDays }
   } catch (err) {
     console.error('[director] Error generando evento de navegación:', err)
     return null

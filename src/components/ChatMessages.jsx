@@ -68,10 +68,15 @@ export function GmMessage({ name, content, messageId, reactions, onReact }) {
   )
 }
 
-export function PlayerMessage({ name, content, isOwn, messageId, reactions, onReact }) {
+export function PlayerMessage({ name, content, isOwn, messageId, reactions, onReact, latestTitle }) {
   return (
     <div className={`flex flex-col gap-1 max-w-xl ${isOwn ? 'self-end items-end' : 'self-start items-start'}`}>
-      <span className="text-xs text-ink-3 px-1">{name}</span>
+      <div className={`flex flex-col gap-0 px-1 ${isOwn ? 'items-end' : 'items-start'}`}>
+        <span className="text-xs text-ink-3">{name}</span>
+        {latestTitle && (
+          <span className="text-[10px] text-gold/60 italic leading-tight">✦ {latestTitle}</span>
+        )}
+      </div>
       <div className="relative group">
         <div className={`rounded-xl px-4 py-2 text-sm leading-relaxed ${isOwn ? 'bg-gold/10 border border-gold/30 text-ink' : 'bg-raised border border-stroke-3 text-ink-2'}`}>
           {content}

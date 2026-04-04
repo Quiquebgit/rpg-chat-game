@@ -4,7 +4,7 @@ import { usePresence } from '../hooks/usePresence'
 import { useNarration } from '../hooks/useNarration'
 import { useDirector } from '../hooks/useDirector'
 import { characters as allCharacters } from '../data/characters'
-import { MODE_SHADOW, XP_CONFIG, UPGRADABLE_STATS, STAT_LABELS } from '../data/constants'
+import { MODE_SHADOW, XP_CONFIG, UPGRADABLE_STATS, STAT_LABELS, TITLES_CATALOG } from '../data/constants'
 import GameModePanel from '../components/GameModePanel'
 import { NarratorMessage, NarratorTyping, NpcMessage } from '../components/NarratorMessage'
 import { ActionMessage, OocMessage, GmMessage, PlayerMessage } from '../components/ChatMessages'
@@ -42,7 +42,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
 
   const { presentIds, participantIds, isParticipant, broadcastGameStart, markAsParticipant, spectatorSuggestions, sendSuggestion, dismissSuggestion, clearSuggestions } = usePresence(session, character)
   const { completeCurrentEvent, currentEventSetup } = useDirector(session)
-  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, rollNavigation, sacrificeForNavigation, riskyMove, turnBack, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem, useItem, giftItem, killCharacter, explorationNodeId, navigateExplorationNode, applyStatUpgrade, setGameModeDirect } = useMessages(session, character, presentIds, completeCurrentEvent, currentEventSetup)
+  const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, rollNavigation, sacrificeForNavigation, riskyMove, turnBack, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem, useItem, giftItem, killCharacter, explorationNodeId, navigateExplorationNode, applyStatUpgrade, buyItem, setGameModeDirect } = useMessages(session, character, presentIds, completeCurrentEvent, currentEventSetup)
   const { speak, stop, isNarrating, isEnabled: narrationEnabled, toggle: toggleNarration, error: narrationError, supported: narrationSupported } = useNarration()
   const { reactionsByMessage, toggleReaction } = useReactions(session?.id)
 
@@ -124,6 +124,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
   const currentMoney = activeCharacterState?.money ?? 0
   const currentXp = activeCharacterState?.xp ?? 0
   const statUpgrades = activeCharacterState?.stat_upgrades ?? {}
+  const currentBounty = activeCharacterState?.bounty_current ?? null
   const xpProgress = currentXp % XP_CONFIG.THRESHOLD
   const pendingStatUpgrades = gameModeData?.pending_stat_upgrades ?? []
   const myStatUpPending = pendingStatUpgrades.includes(character.id)
@@ -360,6 +361,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
         onGiftItem={giftItem}
         onDebugAddItem={import.meta.env.DEV ? debugAddItem : null}
         familyMode={familyMode}
+        currentBounty={currentBounty}
       />
 
       {/* Modal de stat-up por XP */}
@@ -410,6 +412,11 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
         npcs={worldNpcs}
         locations={worldLocations}
         connections={worldConnections}
+        characterStates={characterStates}
+        presentedCharacters={presentedCharacters}
+        session={session}
+        currentMoney={currentMoney}
+        onBuyItem={buyItem}
       />
 
       {/* Modal confirmación fruta del diablo */}
@@ -616,6 +623,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
           onNavigateExploration={navigateExplorationNode}
           familyMode={familyMode}
           characters={presentedCharacters}
+          suppliesDays={session?.supplies_days ?? null}
         />
 
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">
@@ -692,17 +700,25 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
                   />
                 )
               }
-              return (
-                <PlayerMessage
-                  key={msg.id}
-                  name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
-                  content={msg.content}
-                  isOwn={msg.character_id === character.id}
-                  messageId={msg.id}
-                  reactions={msgReactions}
-                  onReact={toggleReaction}
-                />
-              )
+              (() => {
+                const senderState = characterStates.find(s => s.character_id === msg.character_id)
+                const senderTitles = senderState?.titles || []
+                const latestTitle = senderTitles.length > 0
+                  ? TITLES_CATALOG.find(t => t.id === senderTitles[senderTitles.length - 1])?.label
+                  : null
+                return (
+                  <PlayerMessage
+                    key={msg.id}
+                    name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
+                    content={msg.content}
+                    isOwn={msg.character_id === character.id}
+                    messageId={msg.id}
+                    reactions={msgReactions}
+                    onReact={toggleReaction}
+                    latestTitle={latestTitle}
+                  />
+                )
+              })()
           })}
           {narratorTyping && <NarratorTyping />}
           <div ref={messagesEndRef} />

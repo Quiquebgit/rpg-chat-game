@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { characters } from '../data/characters'
 import { initializeStorySession } from '../lib/director'
-import { SESSION_STATUS } from '../data/constants'
+import { SESSION_STATUS, SUPPLIES_CONFIG } from '../data/constants'
 import ThemeToggle from '../components/ThemeToggle'
 import StoryEditor from '../components/StoryEditor'
 import { CopyLinkButton } from '../components/CopyLinkButton'
@@ -119,6 +119,10 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, onCont
         story_id: story.id,
         difficulty_template_id: template.id,
         current_event_order: 1,
+        supplies_days: continueFromSession
+          ? Math.max(SUPPLIES_CONFIG.MIN_INHERIT, continueFromSession.supplies_days ?? SUPPLIES_CONFIG.DEFAULT)
+          : SUPPLIES_CONFIG.DEFAULT,
+        crew_reputation: continueFromSession?.crew_reputation ?? 0,
       })
       .select()
       .single()
@@ -134,7 +138,7 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, onCont
     if (continueFromSession) {
       const { data } = await supabase
         .from('session_character_state')
-        .select('character_id, inventory, money, xp, stat_upgrades')
+        .select('character_id, inventory, money, xp, stat_upgrades, bounty_current, titles, achievement_counters')
         .eq('session_id', continueFromSession.id)
       prevStates = data || []
     }
@@ -150,6 +154,9 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, onCont
           money: prev?.money || 0,
           xp: prev?.xp || 0,
           stat_upgrades: prev?.stat_upgrades || {},
+          bounty_current: prev?.bounty_current ?? null,
+          titles: prev?.titles || [],
+          achievement_counters: prev?.achievement_counters || {},
         }
       })
     )
@@ -461,6 +468,11 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, onCont
                           {storyTitle && (
                             <span className="text-xs text-gold/70 truncate">📖 {storyTitle}</span>
                           )}
+                          {session.crew_reputation > 0 && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gold/10 border border-gold/20 text-gold-bright">
+                              ⚓ Rep. {session.crew_reputation}
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-col gap-0.5">
                           <p className="text-xs text-ink-off">
@@ -498,21 +510,60 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, onCont
           finishedSessions.length === 0 ? (
             <p className="text-center text-ink-off italic text-sm mt-4">No hay aventuras terminadas aún.</p>
           ) : (
-            <div className="flex flex-col gap-4">
-              {finishedSessions.map(session => (
-                <div key={session.id} className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2 px-1" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => onContinueWithCrew(session)}
-                      disabled={busy === session.id}
-                      className="text-xs font-semibold text-gold border border-gold/30 bg-gold/10 px-3 py-1.5 rounded-lg hover:bg-gold hover:text-canvas transition-all disabled:opacity-40"
-                    >
-                      ⚔️ Continuar tripulación
-                    </button>
+            <div className="flex flex-col gap-3">
+              {finishedSessions.map(session => {
+                const isBusy = busy === session.id
+                const storyTitle = getStoryTitle(session)
+                return (
+                  <div
+                    key={session.id}
+                    onClick={() => !isBusy && onSessionSelect(session)}
+                    className="rounded-xl border border-stroke bg-panel px-5 py-4 cursor-pointer hover:border-stroke-3 hover:bg-raised/60 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex flex-col gap-2 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-xs font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${SESSION_STATUS.finished.style}`}>
+                            {SESSION_STATUS.finished.label}
+                          </span>
+                          {storyTitle && (
+                            <span className="text-xs text-gold/70 truncate">📖 {storyTitle}</span>
+                          )}
+                          {session.crew_reputation > 0 && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gold/10 border border-gold/20 text-gold-bright">
+                              ⚓ Rep. {session.crew_reputation}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-xs text-ink-off">
+                            Inicio: <span className="text-ink-2">{formatDate(session.created_at)}</span>
+                          </p>
+                          <p className="text-xs text-ink-off">
+                            Última actividad: <span className="text-ink-2">{formatDate(session.updated_at)}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0 divide-x divide-stroke" onClick={e => e.stopPropagation()}>
+                        <CopyLinkButton sessionId={session.id} />
+                        <button onClick={() => onSessionSelect(session)} disabled={isBusy} title="Entrar"
+                          className="p-2 rounded-lg text-gold hover:text-gold-bright hover:bg-gold/10 disabled:opacity-40 transition-colors">
+                          <IconEnter />
+                        </button>
+                        <button onClick={() => handleArchive(session.id)} disabled={isBusy} title="Archivar"
+                          className="p-2 rounded-lg text-ink-off hover:text-ink-2 hover:bg-raised/50 disabled:opacity-40 transition-colors">
+                          <IconArchive />
+                        </button>
+                        <button onClick={() => handleDelete(session.id)} disabled={isBusy} title="Borrar"
+                          className="p-2 pl-3 rounded-lg text-combat/50 hover:text-combat-light hover:bg-combat/10 disabled:opacity-40 transition-colors">
+                          <IconTrash />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <SessionHistoryCard session={session} storyTitle={getStoryTitle(session)} />
-                </div>
-              ))}
+                )
+              })}
             </div>
           )
         ) : sessionTab === 'abandoned' ? (

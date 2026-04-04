@@ -318,12 +318,13 @@ Tareas para que el mapa funcione end-to-end:
 - [ ] Prompt del Director: incluir en `buildWorldContext()` un resumen de ubicaciones de sesiones anteriores para que el director recomiende destinos coherentes aunque sean de otra sesión
 - [ ] UI: estado vacío más informativo en Bitácora cuando no hay ubicaciones aún ("El mapa se irá completando a medida que exploréis el mundo")
 
-#### Progresión de personaje entre sesiones
-- [ ] Sistema de suministros: campo `supplies_days` en sesión — se gasta en viajes largos según distancia en el mapa
-- [ ] Economía avanzada: comprar suministros e items en puertos (tienda accesible desde Bitácora o Menú principal)
-- [ ] Sistema de reputación de tripulación: puntos de crew acumulados entre sesiones
-- [ ] Bounties de personajes jugadores crecen con victorias notables — visibles en "cartel de se busca"
-- [ ] Títulos de personaje: "Espadachín del Norte", "Navegante Legendario" — visibles en el chat
+#### Progresión de personaje entre sesiones ✅ COMPLETADO
+- [x] Sistema de suministros: `supplies_days` en `sessions` — se gasta 1–3 días por tirada de navegación; indicador en GameModePanel con colores de alerta; crisis si llega a 0
+- [x] Economía avanzada: `ShopPanel.jsx` en tab "Tienda" de Bitácora — compra items con berries; suministros suman `supplies_days` al barco
+- [x] Sistema de reputación de tripulación: `crew_reputation` en `sessions` — crece con jefes derrotados (+25) y aventuras completadas (+10); badge visible en tarjetas del Lobby
+- [x] Bounties dinámicos: `bounty_current` en `session_character_state` — crece ~12% del bounty del jefe derrotado; visible en CharacterPanel con indicador de incremento; `WantedPosterCard.jsx` en tab "Tripulación" de Bitácora
+- [x] Títulos de personaje: 12 títulos en `TITLES_CATALOG` (constants.js) con criterios de logro; `checkAndGrantTitles()` en combat.js; visible bajo el nombre en ChatMessages; `achievement_counters` JSONB para rastrear logros
+- [x] Pestaña "Terminadas" rediseñada igual que "Activas" (badge [TERMINADA], mismas acciones: copiar link, entrar, archivar, eliminar)
 
 ### Archivos afectados
 `src/App.jsx` · `src/pages/Lobby.jsx` · `src/pages/GameRoom.jsx` · `src/lib/worldState.js` · `src/hooks/useMessages.js` · `src/components/BitacoraPanel.jsx` (nuevo) · `src/components/ContinuePicker.jsx` (nuevo) · `src/components/SessionRecapModal.jsx` · Supabase migrations
