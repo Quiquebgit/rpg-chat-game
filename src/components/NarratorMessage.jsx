@@ -1,27 +1,44 @@
-import { ReactionBar } from './ReactionBar'
+import { ReactionAddButton, ReactionPills } from './ReactionBar'
 
 export function NarratorMessage({ content, messageId, reactions, onReact }) {
   return (
     <div className="flex flex-col items-center gap-1 px-4">
       <span className="text-xs uppercase tracking-widest text-gold-dim/60">Narrador</span>
-      <div className="bg-panel border border-gold/20 rounded-xl px-5 py-3 max-w-2xl text-center">
-        <p className="text-sm text-ink-2 leading-relaxed italic">{content}</p>
+      <div className="relative group">
+        <div className="bg-panel border border-gold/20 rounded-xl px-5 py-3 max-w-2xl text-center">
+          <p className="text-sm text-ink-2 leading-relaxed italic">{content}</p>
+        </div>
+        {onReact && (
+          <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+            <ReactionAddButton onReact={emoji => onReact(messageId, emoji)} />
+          </div>
+        )}
       </div>
-      {onReact && (
-        <ReactionBar reactions={reactions} onReact={(emoji) => onReact(messageId, emoji)} />
+      {reactions?.length > 0 && (
+        <ReactionPills reactions={reactions} onReact={emoji => onReact(messageId, emoji)} />
       )}
     </div>
   )
 }
 
 // Mensaje del NPC durante negociación — estilo diferenciado (tono esmeralda, nombre del NPC)
-export function NpcMessage({ name, content }) {
+export function NpcMessage({ name, content, messageId, reactions, onReact }) {
   return (
     <div className="flex flex-col items-center gap-1 px-4">
       <span className="text-xs uppercase tracking-widest text-stat-navigation/70">{name}</span>
-      <div className="bg-panel border border-stat-navigation/25 rounded-xl px-5 py-3 max-w-2xl text-center">
-        <p className="text-sm text-ink-2 leading-relaxed">{content}</p>
+      <div className="relative group">
+        <div className="bg-panel border border-stat-navigation/25 rounded-xl px-5 py-3 max-w-2xl text-center">
+          <p className="text-sm text-ink-2 leading-relaxed">{content}</p>
+        </div>
+        {onReact && (
+          <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+            <ReactionAddButton onReact={emoji => onReact(messageId, emoji)} />
+          </div>
+        )}
       </div>
+      {reactions?.length > 0 && (
+        <ReactionPills reactions={reactions} onReact={emoji => onReact(messageId, emoji)} />
+      )}
     </div>
   )
 }

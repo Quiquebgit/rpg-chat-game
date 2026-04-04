@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { DICE_EMOJI, DEGREE_LABELS } from '../data/constants'
+import { ReactionAddButton, ReactionPills } from './ReactionBar'
 
 const DEGREE_STYLES = {
   critical_success: { color: 'text-degree-crit-success', border: 'border-degree-crit-success/50', glow: 'var(--degree-crit-success)' },
@@ -10,7 +11,7 @@ const DEGREE_STYLES = {
 
 const STAT_LABELS = { attack: 'ATK', defense: 'DEF', navigation: 'NAV', ability: 'HAB' }
 
-export function DiceMessage({ name, content, familyMode }) {
+export function DiceMessage({ name, content, familyMode, messageId, reactions, onReact }) {
   const [revealed, setRevealed] = useState(false)
 
   useEffect(() => {
@@ -52,19 +53,30 @@ export function DiceMessage({ name, content, familyMode }) {
   // Formato no estándar (iniciativa, etc.) — tarjeta simplificada
   if (!dice) {
     return (
-      <div className="flex flex-col items-center gap-2 w-full px-4">
+      <div className="flex flex-col items-center gap-1 w-full px-4">
         <span className="text-xs uppercase tracking-widest text-gold-dim/50">{name} · Tirada</span>
-        <div className="bg-panel border border-gold/30 rounded-2xl px-8 py-4 flex items-center gap-3">
-          <span className="text-3xl">🎲</span>
-          <span className="text-lg font-bold text-gold">{raw}</span>
+        <div className="relative group">
+          <div className="bg-panel border border-gold/30 rounded-2xl px-8 py-4 flex items-center gap-3">
+            <span className="text-3xl">🎲</span>
+            <span className="text-lg font-bold text-gold">{raw}</span>
+          </div>
+          {onReact && (
+            <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+              <ReactionAddButton onReact={emoji => onReact(messageId, emoji)} />
+            </div>
+          )}
         </div>
+        {reactions?.length > 0 && (
+          <ReactionPills reactions={reactions} onReact={emoji => onReact(messageId, emoji)} />
+        )}
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col items-center gap-2 w-full px-4">
+    <div className="flex flex-col items-center gap-1 w-full px-4">
       <span className="text-xs uppercase tracking-widest text-gold-dim/50">{name} · Tirada de dados</span>
+      <div className="relative group">
       <div
         className={`bg-panel border ${borderClass} rounded-2xl px-10 py-6 flex flex-col items-center gap-4 w-fit`}
         style={{ boxShadow: `0 0 24px ${glowColor}` }}
@@ -128,6 +140,15 @@ export function DiceMessage({ name, content, familyMode }) {
           </div>
         )}
       </div>
+        {onReact && (
+          <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+            <ReactionAddButton onReact={emoji => onReact(messageId, emoji)} />
+          </div>
+        )}
+      </div>
+      {reactions?.length > 0 && (
+        <ReactionPills reactions={reactions} onReact={emoji => onReact(messageId, emoji)} />
+      )}
     </div>
   )
 }
