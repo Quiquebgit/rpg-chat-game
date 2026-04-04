@@ -280,7 +280,7 @@ export function CharacterPanel({
         {/* Botón flotante para abrir */}
         <button
           onClick={() => setSheetOpen(v => !v)}
-          className="fixed bottom-28 left-4 z-40 bg-raised border border-gold/30 rounded-full px-3 py-2 shadow-lg shadow-black/50 transition-colors hover:bg-float flex items-center gap-1.5"
+          className="fixed bottom-36 left-4 z-40 bg-raised border border-gold/30 rounded-full px-3 py-2 shadow-lg shadow-black/50 transition-colors hover:bg-float flex items-center gap-1.5"
           aria-label="Abrir panel de personaje"
         >
           <span className="text-sm leading-none">👤</span>
