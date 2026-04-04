@@ -447,7 +447,7 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
           session_id: session.id, character_id: 'narrator',
           content: '⚡ **¡SEGUNDA FASE!** Herido pero no vencido, el enemigo desata su poder más oscuro. ¡Sus ataques se vuelven devastadores!',
           type: 'narrator',
-        }).catch(e => console.warn('[boss] narrativa fase 2:', e))
+        }).then(null, e => console.warn('[boss] narrativa fase 2:', e))
       }
     }
 

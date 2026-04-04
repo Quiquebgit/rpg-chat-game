@@ -32,28 +32,18 @@ export function useReactions(sessionId, playerId) {
     if (!sessionId) return
 
     async function load() {
-      const { data } = await supabase
-        .from('message_reactions')
-        .select('id, message_id, player_id, emoji')
-        .eq('message_id.session_id', sessionId)
-
-      // Si el join no funciona (sin relación directa), cargar por mensajes de la sesión
-      if (!data) {
-        // Fallback: obtener IDs de mensajes de la sesión y luego sus reacciones
-        const { data: msgs } = await supabase
-          .from('messages')
-          .select('id')
-          .eq('session_id', sessionId)
-        if (msgs?.length) {
-          const msgIds = msgs.map(m => m.id)
-          const { data: reactions } = await supabase
-            .from('message_reactions')
-            .select('id, message_id, player_id, emoji')
-            .in('message_id', msgIds)
-          rawRef.current = reactions || []
-        }
-      } else {
-        rawRef.current = data
+      // message_reactions no tiene session_id directo; se obtiene via mensajes de la sesión
+      const { data: msgs } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('session_id', sessionId)
+      if (msgs?.length) {
+        const msgIds = msgs.map(m => m.id)
+        const { data: reactions } = await supabase
+          .from('message_reactions')
+          .select('id, message_id, player_id, emoji')
+          .in('message_id', msgIds)
+        rawRef.current = reactions || []
       }
       rebuild()
     }

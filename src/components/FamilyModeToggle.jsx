@@ -1,5 +1,5 @@
 // Toggle entre modo normal y modo familia (UI simplificada).
-export default function FamilyModeToggle({ familyMode, onToggle }) {
+export function FamilyModeToggle({ familyMode, onToggle }) {
   return (
     <button
       onClick={onToggle}
