@@ -190,8 +190,8 @@ El panel acumula: stats base, stats nuevos (DES/CAR), habilidad especial, habili
 - [x] Pantalla de selección de historia mejorada: secciones "Tus historias" / "Oficiales", badges, edición/borrado inline
 
 #### Continuar partidas terminadas
-- [x] Al terminar una historia, ofrecer "Nueva aventura con esta tripulación" (modal en `GameRoom.jsx`)
-- [x] Mantener personajes con sus stats, inventario, XP y berries ganados (`continueWithCrew` en `App.jsx` + `Lobby.jsx`)
+- [x] Al terminar una historia, ofrecer "Continuar la aventura" (modal `SessionRecapModal` en `GameRoom.jsx`) — texto actualizado en Sprint 7
+- [x] Mantener personajes con sus stats, inventario, XP y berries ganados — flujo original via Lobby (`continueWithCrew`); Sprint 7 añade flujo inline en GameRoom (`ContinuePicker` + `handleContinueInline`)
 - [x] El Director genera una nueva historia apropiada (el selector de historia ya existe; banner informativo en story-picker)
 - [x] Sesión nueva crea character states copiando progresión de la sesión terminada (HP reset a máximo)
 
@@ -229,13 +229,13 @@ Da coherencia al mundo entre sesiones. El universo empieza a sentirse vivo y con
 - [x] Cuando el narrador genera un NPC de marina, el modelo mecánico lo guarda en `world_npcs` con sus características
 - [x] En historias siguientes, la IA consulta `world_npcs` para mantener coherencia (mismo nombre, stats, actitud)
 - [x] Si un NPC es derrotado en combate → `status: 'defeated'` → no vuelve a aparecer activo
-- [x] Panel de "Enemigos conocidos" en Lobby: lista de NPCs descubiertos con su info
+- [x] Panel de "Enemigos conocidos": lista de NPCs descubiertos con su info — implementado en Lobby (Sprint 5), movido a BitacoraPanel en GameRoom (Sprint 7)
 
 #### Sistema de Mapa
 - [x] Tabla `world_locations` en Supabase: `id, name, description, discovered_in_session, connections[]`
 - [x] Grafo de ubicaciones: cada isla/lugar es un nodo, las rutas son aristas con distancia (días de viaje)
 - [x] Al explorar una ubicación nueva, el modelo la guarda en `world_locations` y conecta con la anterior
-- [x] Vista de mapa en Lobby: representación visual del grafo de islas descubiertas (SVG o canvas)
+- [x] Vista de mapa: representación visual del grafo de islas descubiertas (SVG o canvas) — implementado en Lobby (Sprint 5), movido a BitacoraPanel en GameRoom (Sprint 7)
 - [x] Al iniciar nueva historia, el Director sugiere destinos coherentes con el grafo existente
 
 ### Archivos afectados
@@ -261,7 +261,7 @@ Nuevas tablas Supabase · `src/lib/director.js` · `src/lib/narrator.js` · `src
 - [x] Espectadores mejorados: pueden sugerir acciones al jugador en turno vía broadcast — `SpectatorSuggestInput`, `SuggestionPills`
 - [x] Recap de sesión al terminar: highlights automáticos (mejores tiradas, momentos épicos, muertes) — `recap.js`, `SessionRecapModal`, columna `session_recap` en sessions
 - [x] Notificaciones in-game: "es tu turno" badge en pestaña del navegador — `useTurnNotification` hook
-- [x] Panel de historial de sesiones: ver resúmenes de partidas pasadas en Lobby — tabs activas/historial, `SessionHistoryCard`
+- [x] Panel de historial de sesiones: ver resúmenes de partidas pasadas — tabs activas/historial (`SessionHistoryCard`); evolucionado a 4 pestañas en Sprint 7 (activas/terminadas/archivadas/Salón de la Fama)
 - [x] Modo "Fácil para familia": simplificar UI, reducir complejidad de opciones visibles — `useFamilyMode` hook, `FamilyModeToggle`, condicionales en CharacterPanel/GameModePanel/DiceMessage
 
 ### Archivos afectados
@@ -272,26 +272,47 @@ Nuevas tablas Supabase · `src/lib/director.js` · `src/lib/narrator.js` · `src
 
 ---
 
-## Sprint 7 — Progresión entre Sesiones
-**Duración estimada:** 2 semanas  
-**Experiencia objetivo:** *"Mi personaje ya tiene nivel 4. Los berries que tengo de la última sesión me permiten comprar esa espada que vi."*
+## Sprint 7 — Menú Principal + Continuidad de Aventuras ✅ PARCIALMENTE COMPLETADO
+**Experiencia objetivo:** *"Puedo seguir jugando con la misma tripulación sin salir del juego. El mapa y los enemigos son de esta sesión."*
 
-**Depende de:** Sprint 2 (XP/economía) + Sprint 5 (mundo persistente)
+**Depende de:** Sprint 2 (XP/economía) + Sprint 5 (mundo persistente) + Sprint 6 (historial)
 
-### Tareas
-- [ ] Progresión de personaje persiste entre sesiones: nivel, XP, stats mejorados, berries acumulados
+### Tareas completadas
+
+#### Menú principal (T1)
+- [x] "Lobby" → "Menú principal" en textos visibles de UI
+- [x] 4 pestañas de sesiones: **Activas** (entrar/archivar) · **Terminadas** (continuar/recap) · **Archivadas** (retomar/eliminar) · **Salón de la Fama** (recaps read-only)
+- [x] Paneles de mundo eliminados del Menú principal (ya no son globales)
+
+#### Mundo por sesión (T2)
+- [x] Migración Supabase: `session_id` UUID+FK en `world_npcs` y `world_locations` con índices
+- [x] `worldState.js`: `getWorldNpcs`, `getWorldLocations`, `getWorldConnections`, `saveWorldNpc`, `saveWorldLocation` filtran/guardan por `session_id`
+- [x] `useMessages.js`: `loadWorldState()` y tool executors incluyen `session_id` de la sesión activa
+- [x] `BitacoraPanel.jsx`: drawer lateral en GameRoom con tabs Enemigos / Mapa, cargado por `session_id` con suscripción Realtime — botón 📖 en cabecera
+
+#### Continuar aventura inline (T3)
+- [x] `ContinuePicker.jsx`: overlay de selección historia+dificultad dentro de GameRoom (sin redirigir al Lobby)
+- [x] `handleContinueInline()` en `App.jsx`: crea nueva sesión con stats/inventario/XP heredados, reclama personaje, inicializa Director — `setSession()` sin cambio de página
+- [x] `SessionRecapModal`: textos actualizados ("Continuar la aventura" / "Ir al Menú principal")
+
+#### Retomar desde Terminadas (T4)
+- [x] Botón "Continuar tripulación" en pestaña Terminadas → abre selector de historia en Menú principal (flujo existente `onContinueWithCrew`)
+
+#### Hall of fame (de Sprint 7 original)
+- [x] Salón de la Fama: pestaña que muestra todas las sesiones con `session_recap` en modo lectura
+
+### Tareas pendientes (Sprint 7b — Progresión)
 - [ ] Sistema de suministros: campo `supplies_days` en sesión — se gasta en viajes largos según distancia en el mapa
-- [ ] Economía avanzada: comprar suministros e items en puertos (tienda en Lobby o durante historia)
-- [ ] Sistema de reputación de tripulación: los jugadores ganan puntos de crew en conjunto
-- [ ] Bounties de personajes jugadores crecen con victorias notables — visibles en un "cartel de se busca"
-- [ ] Hall of fame: lista de las mejores partidas (récords, momentos épicos, muertes heroicas)
+- [ ] Economía avanzada: comprar suministros e items en puertos (tienda accesible desde Bitácora o Menú principal)
+- [ ] Sistema de reputación de tripulación: puntos de crew acumulados entre sesiones
+- [ ] Bounties de personajes jugadores crecen con victorias notables — visibles en "cartel de se busca"
 - [ ] Títulos de personaje: "Espadachín del Norte", "Navegante Legendario" — visibles en el chat
 
 ### Archivos afectados
-Nuevas tablas Supabase · `src/hooks/useSession.js` · `src/hooks/useMessages.js` · nuevos componentes
+`src/App.jsx` · `src/pages/Lobby.jsx` · `src/pages/GameRoom.jsx` · `src/lib/worldState.js` · `src/hooks/useMessages.js` · `src/components/BitacoraPanel.jsx` (nuevo) · `src/components/ContinuePicker.jsx` (nuevo) · `src/components/SessionRecapModal.jsx` · Supabase migrations
 
 ### Skills a leer
-`/db-schema` · `/game-universe` · `/game-flow`
+`/db-schema` · `/game-universe` · `/game-flow` · `/frontend-design`
 
 ---
 
