@@ -13,7 +13,7 @@ import { PreGameScreen } from '../components/PreGameScreen'
 import { StatBoostPanel, HealPanel } from '../components/StatBoostPanel'
 import { CharacterPanel } from '../components/CharacterPanel'
 import ThemeToggle from '../components/ThemeToggle'
-import { FamilyModeToggle } from '../components/FamilyModeToggle'
+import FamilyModeToggle from '../components/FamilyModeToggle'
 import { useTurnNotification } from '../hooks/useTurnNotification'
 import { CopyLinkButton } from '../components/CopyLinkButton'
 import { useReactions } from '../hooks/useReactions'
@@ -36,6 +36,18 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
   const { messages, sending, narratorTyping, sendMessage, sendChat, sendAction, sendGmMessage, diceRequest, rollDice, rollInitiative, rollNavigation, sacrificeForNavigation, riskyMove, turnBack, characterStates, gameMode, gameModeData, startGame, announceEntry, debugAddItem, useItem, giftItem, killCharacter, explorationNodeId, navigateExplorationNode, applyStatUpgrade, setGameModeDirect } = useMessages(session, character, presentIds, completeCurrentEvent, currentEventSetup)
   const { speak, stop, isNarrating, isEnabled: narrationEnabled, toggle: toggleNarration, error: narrationError, supported: narrationSupported } = useNarration()
   const { reactionsByMessage, toggleReaction } = useReactions(session?.id)
+
+  // Parar la narración al salir de GameRoom (desmontaje) o al ocultar la pestaña
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.hidden) stop()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      stop()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Narrar automáticamente los mensajes nuevos del narrador
   useEffect(() => {
@@ -272,7 +284,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
           </div>
           {toggleFamilyMode && (
             <div className="flex items-center justify-between py-1.5">
-              <span className="text-sm text-ink-2">Modo familia</span>
+              <span className="text-sm text-ink-2">{familyMode ? 'Modo sencillo' : 'Modo avanzado'}</span>
               <FamilyModeToggle familyMode={familyMode} onToggle={toggleFamilyMode} />
             </div>
           )}

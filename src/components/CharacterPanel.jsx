@@ -63,7 +63,7 @@ export function CharacterPanel({
 
   function renderPersonaje() {
     return (
-      <div className="flex flex-col gap-4 p-5 overflow-y-auto flex-1">
+      <div className={`flex flex-col gap-4 p-5 ${familyMode ? '' : 'overflow-y-auto flex-1'}`}>
         {/* Nombre y rol */}
         <div className={`relative rounded-lg p-3 transition-all duration-300 ${isDead ? 'opacity-60' : ''} ${fruitFlash ? 'ring-2 ring-item-fruta bg-item-fruta/10 animate-pulse' : hasFruit ? 'ring-1 ring-item-fruta/40' : ''}`}>
           <p className="text-xs uppercase tracking-widest text-ink-3 mb-1">Jugando como</p>
@@ -212,12 +212,51 @@ export function CharacterPanel({
     )
   }
 
-  const panelContent = (
+  const panelContent = familyMode ? (
+    // Modo familia: todo en una sola columna sin tabs, scroll vertical
+    <div className="flex flex-col overflow-y-auto h-full">
+      {renderPersonaje()}
+      {/* Poderes activos: solo si hay algo que mostrar */}
+      {(equippedFruit?.special_ability || activeCombatBoosts.length > 0) && (
+        <div className="px-5 pb-4 flex flex-col gap-2 border-t border-stroke pt-4">
+          <p className="text-xs uppercase tracking-widest text-ink-3">Poderes activos</p>
+          {equippedFruit?.special_ability && (
+            <div className="rounded-lg border border-item-fruta/30 bg-item-fruta/5 px-3 py-2">
+              <p className="text-xs text-item-fruta font-semibold">{equippedFruit.name}</p>
+              <p className="text-xs text-ink-2 mt-0.5">{equippedFruit.special_ability}</p>
+            </div>
+          )}
+          {activeCombatBoosts.map(([stat, val]) => (
+            <div key={stat} className="flex items-center justify-between text-sm px-1">
+              <span className="text-ink-2">{STAT_LABELS[stat] ?? stat}</span>
+              <span className={`font-bold ${val > 0 ? 'text-exploration-light' : 'text-degree-failure'}`}>
+                {val > 0 ? `+${val}` : val}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Inventario simplificado: solo items usables */}
+      <div className="px-5 pb-5 flex flex-col gap-2 border-t border-stroke pt-4">
+        <p className="text-xs uppercase tracking-widest text-ink-3">Mochila</p>
+        <InventoryPanel
+          inventory={inventory}
+          isMyTurn={isMyTurn}
+          allies={presentedCharacters.filter(c => c.id !== character.id)}
+          onUse={(item, i) => onUseItem(item, i)}
+          onGift={onGiftItem}
+        />
+        {import.meta.env.DEV && onDebugAddItem && (
+          <DebugInventoryButton onAdd={onDebugAddItem} />
+        )}
+      </div>
+    </div>
+  ) : (
     <div className="flex flex-col h-full">
-      {!familyMode && renderTabBar()}
-      {(familyMode || activeTab === 'personaje') && renderPersonaje()}
-      {!familyMode && activeTab === 'poderes'   && renderPoderes()}
-      {!familyMode && activeTab === 'mochila'   && renderMochila()}
+      {renderTabBar()}
+      {activeTab === 'personaje' && renderPersonaje()}
+      {activeTab === 'poderes'   && renderPoderes()}
+      {activeTab === 'mochila'   && renderMochila()}
     </div>
   )
 
@@ -241,10 +280,17 @@ export function CharacterPanel({
         {/* Botón flotante para abrir */}
         <button
           onClick={() => setSheetOpen(v => !v)}
-          className="fixed bottom-20 left-4 z-40 bg-raised border border-gold/30 rounded-full p-3 shadow-lg shadow-black/50 transition-colors hover:bg-float"
+          className="fixed bottom-20 left-4 z-40 bg-raised border border-gold/30 rounded-full px-3 py-2 shadow-lg shadow-black/50 transition-colors hover:bg-float flex items-center gap-1.5"
           aria-label="Abrir panel de personaje"
         >
-          <span className="text-lg leading-none">⚔️</span>
+          <span className="text-sm leading-none">👤</span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+            strokeWidth={2.5} stroke="currentColor"
+            className={`w-3.5 h-3.5 text-ink-3 transition-transform duration-200 ${sheetOpen ? 'rotate-180' : ''}`}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+          </svg>
         </button>
 
         {/* Bottom sheet */}
