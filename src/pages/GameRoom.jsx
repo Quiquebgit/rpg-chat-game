@@ -13,6 +13,7 @@ import { PreGameScreen } from '../components/PreGameScreen'
 import { StatBoostPanel, HealPanel } from '../components/StatBoostPanel'
 import { CharacterPanel } from '../components/CharacterPanel'
 import ThemeToggle from '../components/ThemeToggle'
+import { FamilyModeToggle } from '../components/FamilyModeToggle'
 import { useTurnNotification } from '../hooks/useTurnNotification'
 import { CopyLinkButton } from '../components/CopyLinkButton'
 import { useReactions } from '../hooks/useReactions'
@@ -20,7 +21,7 @@ import { SpectatorSuggestInput } from '../components/SpectatorSuggestInput'
 import { SuggestionPills } from '../components/SuggestionPills'
 import { SessionRecapModal } from '../components/SessionRecapModal'
 
-function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWithCrew, familyMode }) {
+function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWithCrew, familyMode, toggleFamilyMode }) {
   const [input, setInput] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [playersOpen, setPlayersOpen] = useState(false)
@@ -250,6 +251,33 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
             </svg>
           </button>
         </div>
+        {/* Ajustes */}
+        <div className="px-5 py-3 border-b border-stroke">
+          <p className="text-xs uppercase tracking-widest text-ink-off mb-3">Ajustes</p>
+          {narrationSupported && (
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-sm text-ink-2">Narración por voz</span>
+              <button
+                onClick={toggleNarration}
+                className={`text-lg leading-none ${narrationEnabled ? 'text-gold' : 'text-ink-3'}`}
+                title={narrationEnabled ? 'Desactivar' : 'Activar'}
+              >
+                {narrationEnabled ? (isNarrating ? '🔊' : '🔈') : '🔇'}
+              </button>
+            </div>
+          )}
+          <div className="flex items-center justify-between py-1.5">
+            <span className="text-sm text-ink-2">Tema visual</span>
+            <ThemeToggle />
+          </div>
+          {toggleFamilyMode && (
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-sm text-ink-2">Modo familia</span>
+              <FamilyModeToggle familyMode={familyMode} onToggle={toggleFamilyMode} />
+            </div>
+          )}
+        </div>
+        {/* Navegación */}
         <button
           onClick={() => { setMenuOpen(false); onLeave() }}
           className="w-full text-left px-5 py-3 text-sm text-ink-2 hover:bg-raised transition-colors"
@@ -478,27 +506,8 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
               )}
             </div>
 
-            {/* Botón narración por voz */}
-            {narrationSupported && (
-              <button
-                onClick={toggleNarration}
-                className={`p-2 rounded-lg transition-colors ${
-                  narrationEnabled
-                    ? 'text-gold hover:text-gold-bright hover:bg-raised'
-                    : 'text-ink-3 hover:text-ink-2 hover:bg-raised'
-                }`}
-                title={narrationEnabled ? 'Desactivar narración por voz' : 'Activar narración por voz'}
-                aria-label={narrationEnabled ? 'Desactivar narración' : 'Activar narración'}
-              >
-                <span className="text-lg leading-none">{narrationEnabled ? (isNarrating ? '🔊' : '🔈') : '🔇'}</span>
-              </button>
-            )}
-
             {/* Copiar enlace de invitación */}
             <CopyLinkButton sessionId={session.id} />
-
-            {/* Toggle de tema */}
-            <ThemeToggle />
 
             {/* Botón hamburguesa */}
             <button
@@ -543,8 +552,9 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
             />
           )}
           {messages.map((msg, index) => {
+              const msgReactions = reactionsByMessage[msg.id]
               if (msg.type === 'narrator' && msg.character_id !== 'narrator') {
-                return <NpcMessage key={msg.id} name={msg.character_id} content={msg.content} />
+                return <NpcMessage key={msg.id} name={msg.character_id} content={msg.content} messageId={msg.id} reactions={msgReactions} onReact={toggleReaction} />
               }
               if (msg.type === 'narrator') {
                 return (
@@ -552,7 +562,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
                     <NarratorMessage
                       content={msg.content}
                       messageId={msg.id}
-                      reactions={reactionsByMessage[msg.id]}
+                      reactions={msgReactions}
                       onReact={toggleReaction}
                     />
                   </div>
@@ -565,6 +575,9 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
                     name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
                     content={msg.content}
                     familyMode={familyMode}
+                    messageId={msg.id}
+                    reactions={msgReactions}
+                    onReact={toggleReaction}
                   />
                 )
               }
@@ -574,6 +587,9 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
                     key={msg.id}
                     name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
                     content={msg.content}
+                    messageId={msg.id}
+                    reactions={msgReactions}
+                    onReact={toggleReaction}
                   />
                 )
               }
@@ -583,6 +599,9 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
                     key={msg.id}
                     name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
                     content={msg.content}
+                    messageId={msg.id}
+                    reactions={msgReactions}
+                    onReact={toggleReaction}
                   />
                 )
               }
@@ -592,6 +611,9 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
                     key={msg.id}
                     name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
                     content={msg.content}
+                    messageId={msg.id}
+                    reactions={msgReactions}
+                    onReact={toggleReaction}
                   />
                 )
               }
@@ -601,6 +623,9 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
                   name={allCharacters.find(c => c.id === msg.character_id)?.name || msg.character_id}
                   content={msg.content}
                   isOwn={msg.character_id === character.id}
+                  messageId={msg.id}
+                  reactions={msgReactions}
+                  onReact={toggleReaction}
                 />
               )
           })}

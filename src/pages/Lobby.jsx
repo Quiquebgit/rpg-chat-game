@@ -8,7 +8,7 @@ import StoryEditor from '../components/StoryEditor'
 import WorldNpcPanel from '../components/WorldNpcPanel'
 import WorldMap from '../components/WorldMap'
 import { CopyLinkButton } from '../components/CopyLinkButton'
-import FamilyModeToggle from '../components/FamilyModeToggle'
+import { FamilyModeToggle } from '../components/FamilyModeToggle'
 import { SessionHistoryCard } from '../components/SessionHistoryCard'
 
 function formatDate(iso) {
