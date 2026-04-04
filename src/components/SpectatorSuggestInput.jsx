@@ -25,7 +25,7 @@ export function SpectatorSuggestInput({ onSend }) {
         value={text}
         onChange={e => setText(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Sugiere una acci\u00f3n..."
+        placeholder="Sugiere una acción..."
         maxLength={100}
         className="flex-1 bg-panel border border-stroke rounded-lg px-3 py-1.5 text-xs text-ink placeholder-ink-off focus:outline-none focus:border-gold/40"
       />

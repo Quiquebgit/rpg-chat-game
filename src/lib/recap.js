@@ -64,14 +64,14 @@ export function parseRecapFromMessages(messages, characterStates) {
     }
   }
 
-  // MVP: m\u00e1s \u00e9xitos, desempate por m\u00e1s tiradas
+  // MVP: más éxitos, desempate por más tiradas
   const mvpEntry = Object.entries(stats)
     .sort(([, a], [, b]) => (b.successes - a.successes) || (b.rolls_made - a.rolls_made))
     [0]
   const mvp = mvpEntry ? mvpEntry[0] : null
   const mvpName = mvpEntry ? mvpEntry[1].name : null
 
-  // Duraci\u00f3n
+  // Duración
   const firstMsg = messages[0]
   const lastMsg = messages[messages.length - 1]
   const durationMs = firstMsg && lastMsg
@@ -80,7 +80,7 @@ export function parseRecapFromMessages(messages, characterStates) {
   const durationMinutes = Math.round(durationMs / 60000)
 
   return {
-    highlights: [], // Se rellenan con IA despu\u00e9s
+    highlights: [], // Se rellenan con IA después
     best_rolls: bestRolls,
     deaths,
     stats,
@@ -91,14 +91,14 @@ export function parseRecapFromMessages(messages, characterStates) {
   }
 }
 
-// Genera 2-3 highlights \u00e9picos a partir del resumen narrativo usando IA.
-// Si falla, devuelve un array vac\u00edo (la feature no es cr\u00edtica).
+// Genera 2-3 highlights épicos a partir del resumen narrativo usando IA.
+// Si falla, devuelve un array vacío (la feature no es crítica).
 export async function generateHighlights(narrativeSummary) {
   if (!narrativeSummary || narrativeSummary.length < 20) return []
 
   try {
     const result = await callNarratorModel(
-      'Eres un cronista pirata. Dado un resumen de aventura, escribe exactamente 3 frases cortas y \u00e9picas que resuman los momentos m\u00e1s memorables. Una frase por l\u00ednea, sin n\u00fameros ni vi\u00f1etas. En espa\u00f1ol.',
+      'Eres un cronista pirata. Dado un resumen de aventura, escribe exactamente 3 frases cortas y épicas que resuman los momentos más memorables. Una frase por línea, sin números ni viñetas. En español.',
       narrativeSummary
     )
     if (!result) return []
@@ -109,9 +109,9 @@ export async function generateHighlights(narrativeSummary) {
   }
 }
 
-// Genera y guarda el recap completo para una sesi\u00f3n.
+// Genera y guarda el recap completo para una sesión.
 export async function generateAndSaveRecap(sessionId) {
-  // Cargar todos los mensajes de la sesi\u00f3n
+  // Cargar todos los mensajes de la sesión
   const { data: messages } = await supabase
     .from('messages')
     .select('*')

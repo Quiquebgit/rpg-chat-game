@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-// Bot\u00f3n que copia el link de invitaci\u00f3n al portapapeles con feedback visual.
+// Botón que copia el link de invitación al portapapeles con feedback visual.
 export function CopyLinkButton({ sessionId, className = '' }) {
   const [copied, setCopied] = useState(false)
 
@@ -26,7 +26,7 @@ export function CopyLinkButton({ sessionId, className = '' }) {
   return (
     <button
       onClick={handleCopy}
-      title={copied ? 'Enlace copiado' : 'Copiar enlace de invitaci\u00f3n'}
+      title={copied ? 'Enlace copiado' : 'Copiar enlace de invitación'}
       className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
         copied
           ? 'bg-gold/20 text-gold-bright border border-gold/40'

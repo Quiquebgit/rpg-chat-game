@@ -541,6 +541,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
           explorationNodeId={explorationNodeId}
           onNavigateExploration={navigateExplorationNode}
           familyMode={familyMode}
+          characters={presentedCharacters}
         />
 
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-4">

@@ -1,7 +1,7 @@
 // Panel superior que muestra el estado del modo de juego activo
 // Se oculta en modo 'normal'. Se actualiza en tiempo real para todos los jugadores.
 
-import { ATTITUDE_STYLES, ABILITY_TRIGGER_LABELS, ABILITY_EFFECT_LABELS } from '../data/constants'
+import { ATTITUDE_STYLES, ABILITY_TRIGGER_LABELS, ABILITY_EFFECT_LABELS, STAT_ICONS } from '../data/constants'
 
 // --- Modo Combate ---
 function EnemyCard({ enemy }) {
@@ -69,7 +69,35 @@ function EnemyCard({ enemy }) {
   )
 }
 
-function CombatPanel({ data, currentTurnName }) {
+// Pills de boost activo (ej. "Brek 🛡️+2")
+function ActiveBoosts({ boosts, characters }) {
+  if (!boosts) return null
+  const pills = []
+  for (const [charId, stats] of Object.entries(boosts)) {
+    for (const [stat, value] of Object.entries(stats)) {
+      if (!value) continue
+      const name = characters?.find(c => c.id === charId)?.name || charId
+      const icon = STAT_ICONS[stat] || '✦'
+      pills.push({ key: `${charId}-${stat}`, name, icon, stat, value })
+    }
+  }
+  if (!pills.length) return null
+  return (
+    <div className="flex gap-1.5 flex-wrap mt-1">
+      {pills.map(p => (
+        <span
+          key={p.key}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gold/10 border border-gold/30 text-gold-bright"
+          title={`${p.name}: +${p.value} ${p.stat} (temporal)`}
+        >
+          {p.name} {p.icon}+{p.value}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function CombatPanel({ data, currentTurnName, characters }) {
   const enemies = data?.enemies || []
   return (
     <div className="flex flex-col gap-2">
@@ -89,6 +117,7 @@ function CombatPanel({ data, currentTurnName }) {
       <div className="flex gap-2 flex-wrap">
         {enemies.map(enemy => <EnemyCard key={enemy.id} enemy={enemy} />)}
       </div>
+      <ActiveBoosts boosts={data?.boosts} characters={characters} />
     </div>
   )
 }
@@ -272,12 +301,12 @@ function CombatPanelSimple({ data, currentTurnName }) {
   )
 }
 
-export default function GameModePanel({ gameMode, gameModeData, currentTurnName, sending, canActInNav, totalPlayers, onSacrifice, onRiskyMove, onTurnBack, explorationNodeId, onNavigateExploration, familyMode }) {
+export default function GameModePanel({ gameMode, gameModeData, currentTurnName, sending, canActInNav, totalPlayers, onSacrifice, onRiskyMove, onTurnBack, explorationNodeId, onNavigateExploration, familyMode, characters }) {
   if (!gameMode || gameMode === 'normal') return null
 
   return (
     <div className="shrink-0 border-b border-stroke px-6 py-3">
-      {gameMode === 'combat'      && (familyMode ? <CombatPanelSimple data={gameModeData} currentTurnName={currentTurnName} /> : <CombatPanel data={gameModeData} currentTurnName={currentTurnName} />)}
+      {gameMode === 'combat'      && (familyMode ? <CombatPanelSimple data={gameModeData} currentTurnName={currentTurnName} /> : <CombatPanel data={gameModeData} currentTurnName={currentTurnName} characters={characters} />)}
       {gameMode === 'navigation'  && <NavigationPanel  data={gameModeData} totalPlayers={totalPlayers} canActInNav={canActInNav} sending={sending} onSacrifice={onSacrifice} onRiskyMove={onRiskyMove} onTurnBack={onTurnBack} />}
       {gameMode === 'exploration' && <ExplorationPanel data={gameModeData} explorationNodeId={explorationNodeId} onNavigate={onNavigateExploration} />}
       {gameMode === 'negotiation' && <NegotiationPanel data={gameModeData} />}
