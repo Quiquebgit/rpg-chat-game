@@ -83,13 +83,25 @@ export default function BitacoraPanel({
         <div className="flex-1 overflow-y-auto p-4">
           {tab === 'enemies' && (
             npcs.length === 0
-              ? <p className="text-center text-ink-off italic text-sm mt-8">Ningún enemigo registrado aún.</p>
+              ? (
+                <div className="flex flex-col items-center gap-3 mt-12 px-4 text-center">
+                  <span className="text-4xl opacity-30">⚔️</span>
+                  <p className="text-sm font-semibold text-ink-3">Sin enemigos registrados</p>
+                  <p className="text-xs text-ink-off leading-relaxed">Los enemigos importantes que encontréis quedarán registrados aquí para futuras aventuras.</p>
+                </div>
+              )
               : <WorldNpcPanel npcs={npcs} />
           )}
 
           {tab === 'map' && (
             locations.length === 0
-              ? <p className="text-center text-ink-off italic text-sm mt-8">Ninguna ubicación descubierta aún.</p>
+              ? (
+                <div className="flex flex-col items-center gap-3 mt-12 px-4 text-center">
+                  <span className="text-4xl opacity-30">🗺️</span>
+                  <p className="text-sm font-semibold text-ink-3">El mapa está en blanco</p>
+                  <p className="text-xs text-ink-off leading-relaxed">El mapa se irá completando a medida que exploréis el mundo. Cada isla y puerto que visitéis quedará registrado aquí.</p>
+                </div>
+              )
               : <WorldMap locations={locations} connections={connections} />
           )}
 

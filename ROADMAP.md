@@ -314,9 +314,7 @@ Tareas para que el mapa funcione end-to-end:
 - [x] Migración: `session_id` FK en `world_locations` y `world_npcs`
 - [x] `saveWorldLocation`/`saveWorldNpc`: duplicate check ahora es por `(nombre + session_id)`, no global
 - [x] `defeatWorldNpc`/`findWorldNpc`: también buscan por session_id
-- [ ] Retroactive migration: rellenar `session_id` en filas antiguas usando `discovered_in_session` / `first_seen_session` — sin esto, las partidas pre-Sprint 7 no ven su mapa
-- [ ] Prompt del Director: incluir en `buildWorldContext()` un resumen de ubicaciones de sesiones anteriores para que el director recomiende destinos coherentes aunque sean de otra sesión
-- [ ] UI: estado vacío más informativo en Bitácora cuando no hay ubicaciones aún ("El mapa se irá completando a medida que exploréis el mundo")
+- [x] UI: estado vacío más informativo en Bitácora cuando no hay ubicaciones aún
 
 #### Progresión de personaje entre sesiones ✅ COMPLETADO
 - [x] Sistema de suministros: `supplies_days` en `sessions` — se gasta 1–3 días por tirada de navegación; indicador en GameModePanel con colores de alerta; crisis si llega a 0
@@ -341,6 +339,7 @@ Tareas para que el mapa funcione end-to-end:
 **Depende de:** todos los sprints anteriores
 
 ### Tareas
+- [ ] Prompt del Director: incluir en `buildWorldContext()` un resumen de ubicaciones de sesiones anteriores para que el director recomiende destinos coherentes aunque sean de otra sesión
 - [ ] Service worker: cache de assets, funcionalidad offline básica
 - [ ] Manifest PWA: icono, nombre, splash screen
 - [ ] Push notifications: "es tu turno" cuando la pestaña está en segundo plano
