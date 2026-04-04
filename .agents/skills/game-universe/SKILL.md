@@ -66,9 +66,12 @@ Usada para huir, perseguir, sortear tormentas, evitar monstruos y eventos marino
 **Modificadores negativos:** tormenta activa (-1 o -2), barco dañado, jugadores desconectados.
 
 ## Mecánica de Combate
-- **Daño recibido** = ataque enemigo − defensa del personaje (mínimo 1)
-- Si defensa >= ataque enemigo, no se recibe daño
-- La vida baja en `session_character_state` automáticamente vía `stat_updates` en el JSON del narrador
+- **Daño calculado en código** (`src/lib/combat.js → resolveCombatTurn()`), nunca por el modelo IA
+- Stats efectivos = base + equipo equipado + frutas activas + boosts temporales + stat_upgrades
+- Ataque a enemigo: `Math.max(0, atk_efectivo - def_enemigo)`
+- Contraataque enemigo: `Math.max(0, atk_enemigo - def_efectiva)`. Si personaje es inmune al tipo de ataque → 0 daño. Haki perfora siempre.
+- El `hp_delta` del modelo mecánico en `enemy_updates` es **ignorado** — el código calcula el daño real
+- La vida se actualiza en `session_character_state` vía `applyStatUpdates()` en useMessages.js
 
 ## Cuándo se usan los dados
 | Situación | Stat relevante |

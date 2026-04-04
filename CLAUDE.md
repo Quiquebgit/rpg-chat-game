@@ -149,7 +149,7 @@ Ver [ROADMAP.md](ROADMAP.md) para el plan completo de sprints.
 - Sistema de inventario con items equipables
 - Director narrativo con árbol de eventos y beats
 - Síntesis de voz (Google TTS + fallback Web Speech)
-- 6 personajes fijos con habilidades únicas · 3 historias disponibles
+- 6 personajes fijos con habilidades únicas · 7 historias disponibles (tabla `stories` en Supabase)
 - Lobby, selección de personaje, presencia en tiempo real
 - Bugs B1+B2 corregidos al 100%: Liderazgo (selector ATK/DEF) + Tratamiento (HealPanel) + boost visible en stats + iniciativa consistente
 - Sprint 1 completado al 100%: `checkDegree`, `skill_check`, `support_roll`, consecuencias mecánicas por grado, desafíos sostenidos, acciones triviales/imposibles, DiceMessage con grado visual

@@ -7,7 +7,9 @@ description: Referencia del sistema de narración IA, modelos, prompts y flujo d
 
 ## Modelos
 - **Mecánicas:** `llama-3.1-8b-instant` → `openai/gpt-oss-20b` → `llama-4-scout-17b` (fallback por 429/503)
-- **Narrador:** `llama-4-scout-17b` → `llama-3.3-70b-versatile` → `kimi-k2` → `qwen3-32b` → ... (fallback)
+- **Mecánicas con tools:** `openai/gpt-oss-20b` → `llama-4-scout-17b` → `llama-3.3-70b-versatile`
+- **Narrador:** `llama-4-scout-17b` → `llama-3.3-70b-versatile` → `kimi-k2` → `qwen3-32b` → `gpt-oss-20b` → `gpt-oss-120b`
+- **Director:** `kimi-k2` → `gpt-oss-120b` → `llama-3.3-70b-versatile`
 - Clientes en `src/lib/groq.js`. System prompts en `src/lib/narrator.js`.
 - `tryModels()` itera la lista; solo avanza al siguiente modelo si recibe 429 o 503.
 

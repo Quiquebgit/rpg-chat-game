@@ -17,7 +17,7 @@ export function SuggestionPills({ suggestions, onDismiss }) {
             className="text-ink-off hover:text-ink-3 transition-colors ml-0.5"
             title="Descartar"
           >
-            \u00D7
+            ×
           </button>
         </div>
       ))}

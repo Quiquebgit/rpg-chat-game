@@ -6,9 +6,9 @@ description: Referencia del flujo de juego — sesiones, turnos y modos. Leer an
 # Flujo de juego — sesiones, turnos y modos
 
 ## Inicio de partida
-1. `useSession` (en `App.jsx`) comprueba si hay sesión `active` en Supabase
-2. Si la hay: modal **Continuar** / **Abandonar y empezar nueva**
-3. Si no: crea sesión nueva con los 6 personajes en `session_character_state` (hp base, inventario vacío)
+1. `Lobby.jsx` muestra sesiones existentes; el jugador puede entrar en una activa o crear nueva
+2. Al crear: selecciona historia → dificultad → Director inicializa sesión con `session_character_state` (hp base, inventario vacío)
+3. Si viene de "continuar con tripulación" (`continueFromSession`), se muestra un banner informativo y la sesión nueva hereda stats/inventario/XP
 4. `CharacterSelect` muestra personajes; los reclamados por Presence aparecen bloqueados en tiempo real
 5. Al confirmar personaje: graba `claimed_by = playerId` en `session_character_state`
 
@@ -23,6 +23,8 @@ description: Referencia del flujo de juego — sesiones, turnos y modos. Leer an
 - Jugadores presentes al inicio de partida → participantes (pueden actuar)
 - Jugadores que llegan tarde → espectadores (`isSpectator = hasStarted && !isParticipant`)
 - Espectador puede unirse pulsando "Unirme a la aventura" → `announceEntry()` + `markAsParticipant()`
+- Espectadores pueden sugerir acciones al jugador activo vía broadcast (`SPECTATOR_SUGGESTION`)
+- Sugerencias aparecen como pills encima del input del jugador en turno; se limpian al cambiar turno
 - Estado de participante persistido en `sessionStorage` con clave `participant_{session.id}_{char.id}`
 
 ## Dinámica de turnos
@@ -74,13 +76,15 @@ El modo activo se almacena en `sessions.game_mode` y se sincroniza en tiempo rea
 - No puede enviar acciones ni tirar dados
 
 ## Gestión de sesiones
-- `active` → continuar cargando historial de `messages`
-- Nueva con activa existente → modal → marcar `abandoned` → crear nueva
-- `finished` → cierre voluntario (post-MVP)
+- `active` → continuar cargando historial de `messages`; botón "Invitar" copia URL con `?join=session_id`
+- `abandoned` → archivada; se puede restaurar desde Lobby
+- `finished` → sesión terminada; recap automático generado (`session_recap` JSONB); visible en tab "Historial" del Lobby
 
 ## Componentes clave
 - `GameRoom.jsx` — sala de juego principal, orquesta todos los subcomponentes
 - `GameModePanel.jsx` — panel superior con estado del modo activo (enemigos, pistas, NPC...)
 - `useMessages.js` — toda la lógica de IA, modos de juego, combate, muerte
-- `useSession.js` — gestión de sesión, suscripción a cambios en tiempo real
-- `usePresence.js` — presencia, espectadores, participantes
+- `usePresence.js` — presencia, espectadores, participantes, sugerencias de espectadores
+- `useReactions.js` — reacciones emoji en mensajes del narrador (tabla `message_reactions`)
+- `useTurnNotification.js` — notificación "es tu turno" en pestaña del navegador
+- `useFamilyMode.js` — modo familia (UI simplificada, persistido en localStorage)

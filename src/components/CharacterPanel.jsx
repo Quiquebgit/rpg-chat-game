@@ -108,9 +108,9 @@ export function CharacterPanel({
         <div>
           <p className="text-xs uppercase tracking-widest text-ink-3 mb-3">Stats</p>
           <div className="flex flex-col gap-3">
-            <StatRow icon="⚔️" label="Ataque"     value={character.attack}     bonus={(equipmentBonuses.attack     || 0) + (combatBoosts.attack     || 0)} color="bg-stat-attack" />
-            <StatRow icon="🛡️" label="Defensa"    value={character.defense}    bonus={(equipmentBonuses.defense    || 0) + (combatBoosts.defense    || 0)} color="bg-stat-defense" />
-            <StatRow icon="⚓" label="Navegación" value={character.navigation} bonus={(equipmentBonuses.navigation || 0) + (combatBoosts.navigation || 0)} color="bg-stat-navigation" />
+            <StatRow icon="⚔️" label="Ataque"     value={character.attack}     bonus={(equipmentBonuses.attack     || 0) + (combatBoosts.attack     || 0) + (statUpgrades.attack     || 0)} color="bg-stat-attack" />
+            <StatRow icon="🛡️" label="Defensa"    value={character.defense}    bonus={(equipmentBonuses.defense    || 0) + (combatBoosts.defense    || 0) + (statUpgrades.defense    || 0)} color="bg-stat-defense" />
+            <StatRow icon="⚓" label="Navegación" value={character.navigation} bonus={(equipmentBonuses.navigation || 0) + (combatBoosts.navigation || 0) + (statUpgrades.navigation || 0)} color="bg-stat-navigation" />
             <StatRow icon="🎯" label="Destreza"   value={character.dexterity ?? 0} bonus={(equipmentBonuses.dexterity || 0) + (combatBoosts.dexterity || 0) + (statUpgrades.dexterity || 0)} color="bg-stat-dexterity" />
             <StatRow icon="💬" label="Carisma"    value={character.charisma   ?? 0} bonus={(equipmentBonuses.charisma  || 0) + (combatBoosts.charisma  || 0) + (statUpgrades.charisma  || 0)} color="bg-stat-charisma" />
           </div>

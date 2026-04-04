@@ -72,11 +72,10 @@ resultado = dado (1–6) + valor_del_stat
 
 | Resultado vs DC | Grado | Efectos |
 |---|---|---|
-| resultado ≥ DC + 6 | **Éxito crítico** | Logro excepcional + bonus extra (XP, efecto especial, encontrar algo único) |
-| resultado ≥ DC + 3 | **Éxito bonus** | Éxito + ventaja adicional (stat temporal, información extra, acción gratis) |
+| resultado ≥ DC + 4 | **Éxito crítico** | Logro excepcional + bonus temporal (+1 stat en `gameModeData.boosts`) |
 | resultado ≥ DC | **Éxito** | La acción funciona tal como se intentó |
 | resultado < DC | **Fallo** | La acción no funciona; consecuencias menores |
-| resultado ≤ DC − 3 | **Fallo crítico** | Consecuencia grave (daño al personaje, información falsa, situación peor) |
+| resultado ≤ DC − 4 | **Fallo crítico** | Consecuencia grave (−1 HP al jugador activo) |
 
 **El narrador siempre recibe el grado, nunca los números crudos.** Narra el grado de forma dramática.
 
@@ -169,16 +168,14 @@ Cuando `narrate: false`, el sistema espera la tirada antes de llamar al narrador
 | `src/components/DiceMessage.jsx` | Mostrar grado de éxito visualmente |
 | `src/lib/combat.js` | `checkDegree(total, dc)` — función pura reutilizable |
 
-### Función checkDegree (añadir en combat.js)
+### Función checkDegree (en combat.js)
 ```js
-// Calcula el grado de éxito de una tirada vs una dificultad
+// Calcula el grado de éxito de una tirada vs una dificultad (margen ±4)
 export function checkDegree(total, dc) {
-  const diff = total - dc;
-  if (diff >= 6) return 'critical_success';
-  if (diff >= 3) return 'bonus_success';
-  if (diff >= 0) return 'success';
-  if (diff >= -3) return 'failure';
-  return 'critical_failure';
+  if (total >= dc + 4) return 'critical_success'
+  if (total >= dc) return 'success'
+  if (total <= dc - 4) return 'critical_failure'
+  return 'failure'
 }
 ```
 
@@ -191,10 +188,11 @@ export function checkDegree(total, dc) {
 | `rollDice(count)` — tirada libre | ✅ | useMessages.js |
 | `rollInitiative()` — 1d6 + ataque, inicio combate | ✅ | useMessages.js |
 | `rollNavigation()` — suma nav equipo vs umbral | ✅ | useMessages.js |
-| Skill checks genéricos (acción + stat + DC) | ❌ Pendiente Sprint 1 | — |
-| Grados de éxito/fallo | ❌ Pendiente Sprint 1 | — |
-| Tiradas de apoyo | ❌ Pendiente Sprint 1 | — |
-| Desafíos sostenidos | ❌ Pendiente Sprint 1 | — |
+| Skill checks genéricos (acción + stat + DC) | ✅ Sprint 1 | useMessages.js, combat.js |
+| Grados de éxito/fallo (4 grados, margen ±4) | ✅ Sprint 1 | combat.js `checkDegree()` |
+| Tiradas de apoyo (`support_roll`) | ✅ Sprint 1 | useMessages.js |
+| Desafíos sostenidos (`sustained_challenge`) | ✅ Sprint 1 | useMessages.js |
+| Acciones triviales/imposibles | ✅ Sprint 1 | useMessages.js |
 
 ---
 
