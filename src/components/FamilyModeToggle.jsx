@@ -7,7 +7,7 @@ export default function FamilyModeToggle({ familyMode, onToggle }) {
       title={familyMode ? 'Cambiar a modo avanzado' : 'Cambiar a modo sencillo'}
       aria-label={familyMode ? 'Cambiar a modo avanzado' : 'Cambiar a modo sencillo'}
     >
-      <span className="text-lg leading-none">{familyMode ? '⭐' : '👨‍👩‍👧‍👦'}</span>
+      <span className="text-lg leading-none">{familyMode ? '⭐' : '🎮'}</span>
     </button>
   )
 }
