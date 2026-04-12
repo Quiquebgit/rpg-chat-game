@@ -25,7 +25,8 @@ VITE_GOOGLE_TTS_API_KEY   # opcional — sin ella usa Web Speech API
 ## Estructura de carpetas
 ```
 src/
-├── components/   # UI reutilizable (GameModePanel, DiceMessage, InventoryPanel…)
+├── components/   # UI reutilizable (GameModePanel, DiceMessage, InventoryPanel,
+│                 # BitacoraPanel, ShopPanel, WantedPosterCard, ContinuePicker…)
 ├── pages/        # CharacterSelect, GameRoom, Lobby
 ├── hooks/        # useSession, useMessages, usePresence, useNarration, useDirector, useTheme
 │                 # useReactions, useTurnNotification, useFamilyMode
@@ -92,7 +93,7 @@ Para efectos en `style={{}}`: usar `var(--mode-combat-flash)`, `var(--gradient-l
 | Base de datos, migraciones, RLS | `/db-schema` | supabase.js, tablas Supabase |
 | Sesiones, turnos, modos de juego, presencia | `/game-flow` | useSession, usePresence, GameRoom.jsx |
 | Narración IA, prompts, llamadas a Groq | `/narrator` | narrator.js, prompts.js, groq.js, useMessages.js |
-| Personajes, stats, combate, inventario, frutas | `/game-universe` | characters.js, combat.js, constants.js |
+| Personajes, stats, combate, inventario, frutas, bounties, títulos | `/game-universe` | characters.js, combat.js, constants.js |
 | Sistema de tiradas y mecánicas de acción | `/action-system` | DiceMessage.jsx, useMessages.js, combat.js |
 | Diseño visual, colores, tipografía, animaciones | `/frontend-design` | components/*, pages/*, constants.js |
 | Lore, historias, universo, personajes del mundo | `/lore-one-piece` | stories/*.md, narrator.js |
@@ -159,6 +160,7 @@ Ver [ROADMAP.md](ROADMAP.md) para el plan completo de sprints.
 - Sprint 4 completado al 100%: tabla `stories` en Supabase + seed 7 historias (3 originales + 4 nuevas), `loadStory()` en director.js, Lobby carga historias desde BD, `StoryEditor.jsx` para historias personalizadas, modal fin de aventura con `continueWithCrew` (preserva XP/berries/inventario/stat_upgrades), `rollNavigationEvent()` con trigger ~12% por tirada
 - Sprint 5 completado al 100%: mundo persistente con tablas `world_npcs` + `world_locations` + `world_location_connections`, jerarquía de Marina generada por IA (~16 NPCs), tool calling `saveWorldNpc`/`saveWorldLocation` para persistencia automática, `buildWorldContext()` en prompts, derrota de NPCs marcada en BD, Director sugiere destinos coherentes con ubicaciones existentes. (Nota: los paneles "Enemigos conocidos" y mapa SVG se movieron de Lobby a `BitacoraPanel` en GameRoom en Sprint 7)
 - Sprint 6 completado al 100%: link de invitación (`?join=session_id`) con `CopyLinkButton`, reacciones emoji en mensajes del narrador (tabla `message_reactions` + `useReactions` + `ReactionBar`), sugerencias de espectadores vía broadcast (`SpectatorSuggestInput` + `SuggestionPills`), recap automático al terminar sesión (`recap.js` + `SessionRecapModal` + columna `session_recap`), notificación "es tu turno" en pestaña (`useTurnNotification`), panel historial en Lobby con `SessionHistoryCard` (evolucionado a 4 tabs en Sprint 7), modo familia (`useFamilyMode` + `FamilyModeToggle`, simplifica CharacterPanel/GameModePanel/DiceMessage)
-- Sprint 7 parcialmente completado: Menú principal con 4 pestañas (activas/terminadas/archivadas/Salón de la Fama), mundo persistente por sesión (`session_id` en `world_npcs`/`world_locations`), `BitacoraPanel.jsx` en GameRoom con Realtime, flujo "Continuar la aventura" inline sin salir de GameRoom (`ContinuePicker.jsx` + `handleContinueInline` en App.jsx), botón "Continuar tripulación" en pestaña Terminadas. Pendiente: suministros, economía avanzada, reputación, bounties crecientes, títulos.
+- Sprint 7 completado al 100%: Menú principal con 4 pestañas (activas/terminadas/archivadas/Salón de la Fama), mundo persistente por sesión (`session_id` en `world_npcs`/`world_locations`), `BitacoraPanel.jsx` en GameRoom con Realtime y 4 tabs (Enemigos/Mapa/Tripulación/Tienda), flujo "Continuar la aventura" inline sin salir de GameRoom (`ContinuePicker.jsx` + `handleContinueInline`), pestaña Terminadas rediseñada con mismo layout que Activas, estados vacíos informativos en Bitácora
+- Sprint 7b completado al 100%: Progresión entre sesiones — suministros del barco (`supplies_days` en sessions, consumo por navegación, indicador en GameModePanel, crisis a 0 días), bounties dinámicos (`bounty_current` en session_character_state, `calculateBountyIncrease` en combat.js, delta visible en CharacterPanel), títulos de personaje (12 títulos en `TITLES_CATALOG`, `checkAndGrantTitles` en combat.js, `achievement_counters` JSONB, título visible bajo nombre en chat), reputación de tripulación (`crew_reputation` en sessions, RPC `increment_crew_reputation`, badge en tarjetas Lobby, niveles Novatos/Conocidos/Legendaria en Bitácora), tienda (`ShopPanel.jsx` con items con precio, `buyItem` en useMessages.js), carteles de búsqueda (`WantedPosterCard.jsx`), herencia completa al continuar tripulación (bounty, títulos, achievement_counters, supplies, reputación)
 
-**Próximo sprint:** Sprint 7b (Progresión entre Sesiones — suministros, economía, reputación, bounties, títulos)
+**Próximo sprint:** Sprint 8
