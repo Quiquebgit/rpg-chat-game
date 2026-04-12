@@ -4,6 +4,7 @@
 import { supabase } from './supabase'
 import { callDirectorModel } from './groq'
 import { generateAndSaveRecap } from './recap'
+import { getCrossSessionLocations } from './worldState'
 
 // Prompt para rellenar el texto de un único nodo del árbol de exploración
 const NODE_TEXT_SYSTEM_PROMPT = `Eres el Director de Guion de un juego de rol.
@@ -105,13 +106,14 @@ export async function initializeStorySession(sessionId, storyId, template) {
   if (!story) { console.error('[director] Historia no encontrada:', storyId); return null }
   const storyContent = story.lore
 
-  // Cargar ubicaciones existentes para coherencia del mundo
-  const { data: existingLocations } = await supabase
-    .from('world_locations')
-    .select('name, description, location_type')
-    .limit(10)
-  const locationContext = existingLocations?.length
-    ? `\n\nUbicaciones ya descubiertas en el mundo:\n${existingLocations.map(l => `- ${l.name} (${l.location_type}): ${l.description?.slice(0, 60) || ''}`).join('\n')}\nPuedes referenciar estos lugares o sugerir destinos coherentes con el grafo existente.`
+  // Cargar ubicaciones de esta sesión y sesiones anteriores de la misma tripulación
+  const [{ data: currentLocations }, prevLocations] = await Promise.all([
+    supabase.from('world_locations').select('name, description, location_type').eq('session_id', sessionId).limit(10),
+    getCrossSessionLocations(sessionId),
+  ])
+  const allLocations = [...(currentLocations || []), ...(prevLocations || [])]
+  const locationContext = allLocations.length
+    ? `\n\nUbicaciones conocidas por la tripulación:\n${allLocations.map(l => `- ${l.name} (${l.location_type}): ${l.description?.slice(0, 60) || ''}`).join('\n')}\nPuedes referenciar estos lugares o sugerir destinos coherentes con el grafo existente.`
     : ''
 
   const firstEvent = template.events.find(e => e.order === 1)
@@ -307,13 +309,14 @@ export async function advanceToNextEvent(session, template) {
   const nextEvent = template.events.find(e => e.order === nextOrder)
   if (!nextEvent) return null
 
-  // Cargar ubicaciones existentes para transiciones coherentes
-  const { data: existingLocations } = await supabase
-    .from('world_locations')
-    .select('name, location_type')
-    .limit(10)
-  const locationContext = existingLocations?.length
-    ? `\nUbicaciones conocidas: ${existingLocations.map(l => l.name).join(', ')}.`
+  // Cargar ubicaciones de esta sesión + ancestros para transiciones coherentes
+  const [{ data: sessionLocations }, ancestorLocations] = await Promise.all([
+    supabase.from('world_locations').select('name, location_type').eq('session_id', session.id).limit(10),
+    getCrossSessionLocations(session.id),
+  ])
+  const knownLocations = [...(sessionLocations || []), ...(ancestorLocations || [])]
+  const locationContext = knownLocations.length
+    ? `\nUbicaciones conocidas: ${knownLocations.map(l => l.name).join(', ')}.`
     : ''
 
   const userPrompt = `Lore de la historia:\n${session.story_lore}\n\nEvento completado: ${JSON.stringify(currentEvent)}\n\nSiguiente evento a adaptar: ${JSON.stringify(nextEvent)}${locationContext}\n\nGenera la transición narrativa y el briefing del nuevo evento.`

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { callMechanicsModel, callNarratorModel, ModelsBusyError } from '../lib/groq'
 import { getRandomItem, GET_RANDOM_ITEM_TOOL } from '../lib/items'
 import { getEnemies, GET_ENEMIES_TOOL } from '../lib/enemies'
-import { saveWorldNpc, defeatWorldNpc, getWorldNpcs, saveWorldLocation, getWorldLocations, generateMarinaHierarchy, SAVE_WORLD_NPC_TOOL, SAVE_WORLD_LOCATION_TOOL } from '../lib/worldState'
+import { saveWorldNpc, defeatWorldNpc, getWorldNpcs, saveWorldLocation, getWorldLocations, getCrossSessionLocations, generateMarinaHierarchy, SAVE_WORLD_NPC_TOOL, SAVE_WORLD_LOCATION_TOOL } from '../lib/worldState'
 import { resolveCombatTurn, checkDegree, calculateXpReward, calculateMoneyReward, calculateBountyIncrease, checkAndGrantTitles } from '../lib/combat'
 import {
   COMBAT_MECHANICS_SYSTEM_PROMPT,
@@ -76,6 +76,7 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
   // Estado del mundo persistente (NPCs y ubicaciones conocidos)
   const worldNpcsRef = useRef([])
   const worldLocationsRef = useRef([])
+  const crossSessionLocationsRef = useRef([])
 
   // Executor dinámico de getEnemies con escalado determinista por número de jugadores
   const toolExecutorsRef = useRef(null)
@@ -133,12 +134,14 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
 
   // Carga estado del mundo persistente (NPCs y ubicaciones conocidos)
   async function loadWorldState() {
-    const [npcs, locations] = await Promise.all([
+    const [npcs, locations, prevLocations] = await Promise.all([
       getWorldNpcs(session?.id),
       getWorldLocations(session?.id),
+      getCrossSessionLocations(session?.id),
     ])
     worldNpcsRef.current = npcs || []
     worldLocationsRef.current = locations || []
+    crossSessionLocationsRef.current = prevLocations || []
 
     // Generar jerarquía de la Marina si no existe (lazy, idempotente)
     if (!npcs?.some(n => n.faction === 'marina')) {
@@ -210,7 +213,7 @@ export function useMessages(session, activeCharacter, presentIds = [], onEventCo
     buildNavigationNarratorPrompt,
     buildNegotiationMechanicsPrompt,
     buildNpcNarratorPrompt,
-  } = createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef, currentEventSetupRef, worldNpcsRef, worldLocationsRef })
+  } = createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef, currentEventSetupRef, worldNpcsRef, worldLocationsRef, crossSessionLocationsRef })
 
   // Avanza el contador de turno del beat y pasa al siguiente si se agotó
   async function advanceBeatIfNeeded() {

@@ -1,13 +1,15 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { supabase } from './lib/supabase'
 import { useTheme } from './hooks/useTheme'
 import { useFamilyMode } from './hooks/useFamilyMode'
 import { initializeStorySession } from './lib/director'
 import { characters as allCharacters } from './data/characters'
 import { SUPPLIES_CONFIG } from './data/constants'
-import Lobby from './pages/Lobby'
-import CharacterSelect from './pages/CharacterSelect'
-import GameRoom from './pages/GameRoom'
+
+const Landing = lazy(() => import('./pages/Landing'))
+const Lobby = lazy(() => import('./pages/Lobby'))
+const CharacterSelect = lazy(() => import('./pages/CharacterSelect'))
+const GameRoom = lazy(() => import('./pages/GameRoom'))
 
 // Id único por pestaña — persiste al refrescar, no se comparte entre pestañas
 function getPlayerId() {
@@ -26,7 +28,9 @@ function App() {
   useTheme()
   const { familyMode, toggleFamilyMode } = useFamilyMode()
 
-  const [page, setPage] = useState('lobby')
+  const [page, setPage] = useState(() =>
+    new URLSearchParams(window.location.search).get('join') ? 'lobby' : 'landing'
+  )
   const [session, setSession] = useState(null)
   const [character, setCharacter] = useState(null)
   const [continueFromSession, setContinueFromSession] = useState(null)
@@ -136,6 +140,7 @@ function App() {
         current_event_order: 1,
         supplies_days: Math.max(SUPPLIES_CONFIG.MIN_INHERIT, finishedSession.supplies_days ?? SUPPLIES_CONFIG.DEFAULT),
         crew_reputation: finishedSession.crew_reputation ?? 0,
+        parent_session_id: finishedSession.id,
       })
       .select()
       .single()
@@ -189,8 +194,17 @@ function App() {
     // character se mantiene igual — el jugador sigue con su personaje
   }
 
-  if (page === 'lobby') {
-    return (
+  const fallback = (
+    <div className="min-h-screen bg-canvas flex items-center justify-center">
+      <span className="text-ink-3 text-sm">Cargando…</span>
+    </div>
+  )
+
+  let content
+  if (page === 'landing') {
+    content = <Landing onEnter={() => setPage('lobby')} />
+  } else if (page === 'lobby') {
+    content = (
       <Lobby
         onSessionSelect={handleSessionSelect}
         continueFromSession={continueFromSession}
@@ -200,10 +214,8 @@ function App() {
         toggleFamilyMode={toggleFamilyMode}
       />
     )
-  }
-
-  if (page === 'select') {
-    return (
+  } else if (page === 'select') {
+    content = (
       <CharacterSelect
         session={session}
         playerId={playerId}
@@ -211,9 +223,11 @@ function App() {
         onBack={() => setPage('lobby')}
       />
     )
+  } else {
+    content = <GameRoom character={character} session={session} onLeave={handleLeaveGame} onSelectCharacter={handleSelectCharacter} onContinueWithCrew={handleContinueWithCrew} onContinueInline={handleContinueInline} familyMode={familyMode} toggleFamilyMode={toggleFamilyMode} />
   }
 
-  return <GameRoom character={character} session={session} onLeave={handleLeaveGame} onSelectCharacter={handleSelectCharacter} onContinueWithCrew={handleContinueWithCrew} onContinueInline={handleContinueInline} familyMode={familyMode} toggleFamilyMode={toggleFamilyMode} />
+  return <Suspense fallback={fallback}>{content}</Suspense>
 }
 
 export default App

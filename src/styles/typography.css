@@ -2,8 +2,7 @@
    TIPOGRAFÍA — One Piece RPG Chat Game
    ============================================================ */
 
-/* Google Fonts: Cinzel (títulos épicos) + Inter (cuerpo) */
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;600;700&display=swap');
+/* Google Fonts cargado desde index.html (preconnect + link) para evitar @import blocking */
 
 :root {
   --font-display: 'Cinzel', serif;

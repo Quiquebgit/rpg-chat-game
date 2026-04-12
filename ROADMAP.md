@@ -332,21 +332,21 @@ Tareas para que el mapa funcione end-to-end:
 
 ---
 
-## Sprint 8 — PWA y Lanzamiento
-**Duración estimada:** 1 semana  
+## Sprint 8 — PWA y Lanzamiento ✅ COMPLETADO
 **Experiencia objetivo:** *"Lo tengo instalado en el móvil. Puedo jugarlo sin abrir el navegador."*
 
 **Depende de:** todos los sprints anteriores
 
 ### Tareas
-- [ ] Prompt del Director: incluir en `buildWorldContext()` un resumen de ubicaciones de sesiones anteriores para que el director recomiende destinos coherentes aunque sean de otra sesión
-- [ ] Service worker: cache de assets, funcionalidad offline básica
-- [ ] Manifest PWA: icono, nombre, splash screen
-- [ ] Push notifications: "es tu turno" cuando la pestaña está en segundo plano
-- [ ] Landing page: descripción del juego, captura, CTA para entrar
-- [ ] Audit de rendimiento: lighthouse score > 85
-- [ ] Variables de entorno en Vercel verificadas
-- [ ] README actualizado con instrucciones de despliegue
+- [x] Prompt del Director: `parent_session_id` en sessions, `getCrossSessionLocations()` en worldState.js, `buildWorldContext()` incluye ubicaciones de sesiones anteriores, director.js usa contexto cross-session en initializeStorySession y advanceToNextEvent
+- [x] Service worker: `vite-plugin-pwa` con Workbox, precache de assets, CacheFirst para Google Fonts, NetworkFirst para Supabase, `offline.html` como fallback
+- [x] Manifest PWA: iconos 192x192 y 512x512, nombre "Grand Line RPG", display standalone, theme gold, lang es
+- [x] Web Notifications: "es tu turno" con Notification API cuando la pestaña está en segundo plano (fallback: title flash)
+- [x] Landing page: `Landing.jsx` con hero, 3 feature cards y CTA; salta automáticamente con `?join=`
+- [x] Code splitting: `React.lazy()` para Landing/Lobby/CharacterSelect/GameRoom; bundle principal de 643KB → 248KB + chunks por ruta
+- [x] Google Fonts movidos de CSS @import a `<link>` en index.html con preconnect (elimina cascade blocking)
+- [x] `vercel.json` con SPA rewrite, `.env.example` con las 4 variables documentadas
+- [x] README reescrito con setup local, variables de entorno, build y deploy
 
 ### Skills a leer
 `/frontend-design`

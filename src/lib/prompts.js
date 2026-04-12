@@ -6,7 +6,7 @@ import { characters as allCharacters } from '../data/characters'
 
 const NARRATOR_CONTEXT_MESSAGES = 10
 
-export function createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef, currentEventSetupRef, worldNpcsRef, worldLocationsRef }) {
+export function createPromptBuilders({ activeCharacter, presentIdsRef, characterStatesRef, messagesRef, narrativeSummaryRef, sessionRef, currentEventSetupRef, worldNpcsRef, worldLocationsRef, crossSessionLocationsRef }) {
 
   // ─── Contexto de personajes ────────────────────────────────────────────────
 
@@ -176,6 +176,14 @@ export function createPromptBuilders({ activeCharacter, presentIdsRef, character
       parts.push(`## Ubicaciones descubiertas\n${locations.slice(0, 8).map(l =>
         `- ${l.name} (${l.location_type})`
       ).join('\n')}`)
+    }
+
+    // Ubicaciones de sesiones anteriores (cross-session)
+    const prevLocations = crossSessionLocationsRef?.current || []
+    if (prevLocations.length) {
+      parts.push(`## Lugares de aventuras anteriores (para coherencia)\n${prevLocations.slice(0, 6).map(l =>
+        `- ${l.name} (${l.location_type}): ${l.description?.slice(0, 50) || ''}`
+      ).join('\n')}\nEstos lugares son conocidos por la tripulación y pueden volver a visitarse.`)
     }
 
     return parts.join('\n') + '\n'

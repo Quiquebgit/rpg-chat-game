@@ -123,6 +123,7 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, onCont
           ? Math.max(SUPPLIES_CONFIG.MIN_INHERIT, continueFromSession.supplies_days ?? SUPPLIES_CONFIG.DEFAULT)
           : SUPPLIES_CONFIG.DEFAULT,
         crew_reputation: continueFromSession?.crew_reputation ?? 0,
+        parent_session_id: continueFromSession?.id ?? null,
       })
       .select()
       .single()

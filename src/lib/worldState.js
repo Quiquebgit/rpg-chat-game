@@ -150,6 +150,43 @@ export async function generateMarinaHierarchy(sessionId) {
   }
 }
 
+// ── Ubicaciones cross-session (contexto para el Director) ──────────────────
+
+// Camina la cadena parent_session_id (max 3 ancestros) y devuelve
+// ubicaciones de sesiones anteriores de la misma tripulación.
+export async function getCrossSessionLocations(sessionId, limit = 6) {
+  if (!sessionId) return []
+
+  // Recolectar IDs de sesiones ancestro
+  const ancestorIds = []
+  let currentId = sessionId
+  for (let i = 0; i < 3; i++) {
+    const { data } = await supabase
+      .from('sessions')
+      .select('parent_session_id')
+      .eq('id', currentId)
+      .single()
+    if (!data?.parent_session_id) break
+    ancestorIds.push(data.parent_session_id)
+    currentId = data.parent_session_id
+  }
+
+  if (!ancestorIds.length) return []
+
+  const { data, error } = await supabase
+    .from('world_locations')
+    .select('id, name, description, location_type, session_id')
+    .in('session_id', ancestorIds)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error('[worldState] Error cargando ubicaciones cross-session:', error)
+    return []
+  }
+  return (data || []).map(l => ({ ...l, from_previous: true }))
+}
+
 // ── Ubicaciones del mundo ───────────────────────────────────────────────────
 
 // Obtiene las ubicaciones descubiertas en una sesión concreta

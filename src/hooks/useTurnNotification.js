@@ -3,26 +3,56 @@ import { useEffect, useRef } from 'react'
 const DEFAULT_TITLE = '⚓ Grand Line'
 const TURN_TITLE = '⚔️ ¡Tu turno! — Grand Line'
 
-// Alterna el título de la pestaña cuando es el turno del jugador y la pestaña está oculta.
-// Al volver al foco o cambiar de turno, restaura el título por defecto.
-export function useTurnNotification(isMyTurn) {
+// Alterna el título de la pestaña y muestra notificación nativa
+// cuando es el turno del jugador y la pestaña está oculta.
+export function useTurnNotification(isMyTurn, characterName) {
   const intervalRef = useRef(null)
+  const notificationRef = useRef(null)
 
   useEffect(() => {
-    // Siempre establecer el título base al montar
     document.title = DEFAULT_TITLE
+
+    // Pedir permiso de notificaciones al primer turno
+    if (isMyTurn && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
 
     function handleVisibility() {
       if (document.hidden && isMyTurn) {
         startFlashing()
+        showNotification()
       } else {
         stopFlashing()
+        closeNotification()
+      }
+    }
+
+    function showNotification() {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return
+      closeNotification()
+      const body = characterName
+        ? `${characterName}, es tu momento de actuar.`
+        : 'Es tu momento de actuar.'
+      notificationRef.current = new Notification('⚔️ ¡Tu turno!', {
+        body,
+        icon: '/icons/icon-192.png',
+        tag: 'turn',
+      })
+      notificationRef.current.onclick = () => {
+        window.focus()
+        closeNotification()
+      }
+    }
+
+    function closeNotification() {
+      if (notificationRef.current) {
+        notificationRef.current.close()
+        notificationRef.current = null
       }
     }
 
     function startFlashing() {
       stopFlashing()
-      // Alternar título cada 2s para llamar la atención
       let show = true
       document.title = TURN_TITLE
       intervalRef.current = setInterval(() => {
@@ -39,15 +69,16 @@ export function useTurnNotification(isMyTurn) {
       document.title = DEFAULT_TITLE
     }
 
-    // Si es mi turno y la tab ya está oculta, empezar a parpadear
     if (document.hidden && isMyTurn) {
       startFlashing()
+      showNotification()
     }
 
     document.addEventListener('visibilitychange', handleVisibility)
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility)
       stopFlashing()
+      closeNotification()
     }
-  }, [isMyTurn])
+  }, [isMyTurn, characterName])
 }

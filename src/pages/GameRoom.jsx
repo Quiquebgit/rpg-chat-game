@@ -179,7 +179,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
   // ¿Es el turno de este jugador?
   const currentTurnName = allCharacters.find(c => c.id === session?.current_turn_character_id)?.name
   const isMyTurn = session?.current_turn_character_id === character.id && !isDead
-  useTurnNotification(isMyTurn)
+  useTurnNotification(isMyTurn, character?.name)
 
   // Limpiar sugerencias de espectadores al cambiar de turno
   useEffect(() => { clearSuggestions() }, [session?.current_turn_character_id])

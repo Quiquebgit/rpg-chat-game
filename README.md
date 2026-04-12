@@ -1,16 +1,69 @@
-# React + Vite
+# Grand Line RPG
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Juego de rol cooperativo multijugador con narrador IA en tiempo real. Universo inspirado en One Piece con personajes y aventuras 100% originales. PWA instalable.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Frontend:** React 19 + Vite 8 + Tailwind CSS v4
+- **Base de datos:** Supabase (PostgreSQL + Realtime + Presence)
+- **IA Narrador:** Groq (llama-4-scout, llama-3.3-70b, kimi-k2)
+- **Voz:** Google Cloud TTS + Web Speech API (fallback)
+- **Deploy:** Vercel
+- **PWA:** vite-plugin-pwa + Workbox
 
-## React Compiler
+## Setup local
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Prerrequisitos
 
-## Expanding the ESLint configuration
+- Node.js 20+
+- npm
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Instalacion
+
+```bash
+git clone <repo-url>
+cd rpg-chat-game
+npm install
+```
+
+### Variables de entorno
+
+Copia `.env.example` a `.env` y rellena los valores:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Requerida | Descripcion |
+|---|---|---|
+| `VITE_SUPABASE_URL` | Si | URL del proyecto Supabase |
+| `VITE_SUPABASE_KEY` | Si | Clave anonima (anon key) de Supabase |
+| `VITE_GROQ_API_KEY` | Si | API key de Groq para modelos IA |
+| `VITE_GOOGLE_TTS_API_KEY` | No | API key de Google Cloud TTS. Sin ella usa Web Speech API |
+
+### Desarrollo
+
+```bash
+npm run dev
+```
+
+Abre `http://localhost:5174`.
+
+### Build
+
+```bash
+npm run build
+npm run preview  # vista previa local del build
+```
+
+## Deploy en Vercel
+
+El proyecto incluye `vercel.json` con configuracion SPA (rewrite a index.html). Las variables de entorno deben configurarse en el dashboard de Vercel.
+
+## Base de datos
+
+El proyecto usa Supabase. Las migraciones se aplican desde el dashboard de Supabase o con el CLI. Consulta `CLAUDE.md` para detalles del esquema.
+
+## Documentacion para contribuidores
+
+Ver [CLAUDE.md](CLAUDE.md) para la guia completa del proyecto: estructura de carpetas, sistema de diseno, convenciones, skills de agente y estado actual.
