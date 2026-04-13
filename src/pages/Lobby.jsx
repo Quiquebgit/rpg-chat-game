@@ -226,9 +226,9 @@ function Lobby({ onSessionSelect, continueFromSession, onContinueHandled, onCont
   // Obtiene el título de la historia de una sesión
   function getStoryTitle(session) {
     if (session.story_id) {
-      return stories.find(s => s.id === session.story_id)?.title || null
+      return stories.find(s => s.id === session.story_id)?.title || 'Aventura'
     }
-    return null
+    return 'Aventura'
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────

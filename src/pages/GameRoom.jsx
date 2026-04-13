@@ -230,7 +230,10 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
       return
     }
 
-    if (!familyMode && text === '/gm') {
+    if (text.startsWith('//')) {
+      // Mensaje OOC (fuera de personaje) — no activa al narrador
+      await sendChat(text.slice(2).trim(), 'ooc')
+    } else if (!familyMode && text === '/gm') {
       setShowGmModeSelector(true)
     } else if (!familyMode && text.startsWith('/gm ')) {
       await sendGmMessage(text.slice(4).trim())
@@ -700,7 +703,7 @@ function GameRoom({ character, session, onLeave, onSelectCharacter, onContinueWi
                   />
                 )
               }
-              (() => {
+              return (() => {
                 const senderState = characterStates.find(s => s.character_id === msg.character_id)
                 const senderTitles = senderState?.titles || []
                 const latestTitle = senderTitles.length > 0

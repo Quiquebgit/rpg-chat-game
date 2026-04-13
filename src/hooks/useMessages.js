@@ -1167,12 +1167,12 @@ Narra el descubrimiento de forma dramática y evocadora (máx. 120 palabras). Te
     setSending(false)
   }
 
-  async function sendChat(content) {
+  async function sendChat(content, msgType = 'player') {
     if (!content.trim() || sending) return
     setSending(true)
     await supabase.from('messages').insert({
       session_id: session.id, character_id: activeCharacter.id,
-      content: content.trim(), type: 'player',
+      content: content.trim(), type: msgType,
     })
     setSending(false)
   }
